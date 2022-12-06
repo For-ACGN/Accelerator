@@ -1,8 +1,11 @@
 package accelerator
 
 import (
+	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -22,7 +25,9 @@ type Client struct {
 	tap       *water.Interface
 	mac       net.HardwareAddr
 
-	wg sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // NewClient is used to create a new client from configuration.
@@ -80,6 +85,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		tap:       tap,
 		mac:       nic.HardwareAddr,
 	}
+	client.ctx, client.cancel = context.WithCancel(context.Background())
 	ok = true
 	return &client, nil
 }
@@ -137,6 +143,18 @@ func newClientTLSConfig(cfg *ClientConfig) (*tls.Config, error) {
 	return &config, nil
 }
 
+func (client *Client) connect() (net.Conn, error) {
+	conn, err := client.dial()
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to connect server")
+	}
+	err = client.authenticate(conn)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to authenticate")
+	}
+	return conn, nil
+}
+
 func (client *Client) dial() (net.Conn, error) {
 	var conn net.Conn
 	switch client.config.Client.Mode {
@@ -164,20 +182,36 @@ func (client *Client) dial() (net.Conn, error) {
 	return conn, nil
 }
 
+func (client *Client) authenticate(conn net.Conn) error {
+	return nil
+}
+
 func (client *Client) Start() error {
-	var err error
+	var (
+		conn net.Conn
+		err  error
+	)
 	for i := 0; i < 3; i++ {
-		err = client.authenticate()
+		conn, err = client.dial()
 		if err == nil {
 			break
 		}
-		client.logger.Error("failed to authenticate, wait 3 seconds and try it again.")
+		client.logger.Errorf("%s, wait 3 seconds and try it again.", err)
 		time.Sleep(3 * time.Second)
 	}
 	if err != nil {
 		return err
 	}
+	err = client.authenticate(conn)
+	if err != nil {
+		return errors.WithMessage(err, "failed to authenticate")
+	}
+	err = conn.Close()
+	if err != nil {
+		return errors.WithMessage(err, "failed to close authentication connection")
+	}
 	client.logger.Info("connect accelerator server successfully!")
+
 	client.wg.Add(1)
 	go client.readLoop()
 	client.wg.Add(1)
@@ -185,35 +219,81 @@ func (client *Client) Start() error {
 	return nil
 }
 
-func (client *Client) authenticate() error {
+func (client *Client) readLoop() {
+	defer client.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println(r)
+		}
+	}()
+	var (
+		packet []byte
+		n      int
+		err    error
+	)
+	frame := make([]byte, 65535)
+	frame[0] = 2
+	for {
+		n, err = client.iface.Read(frame[1:])
+		if err != nil {
+			return
+		}
 
-	handshake := make([]byte, 1+6) // mac
-	handshake[0] = 1
-	copy(handshake[1:], client.mac)
-	request, err := client.encrypt(handshake)
-	if err != nil {
-		return err
+		packet, err = client.encrypt(data)
+		if err != nil {
+			return
+		}
+
+		// packet, err = client.encrypt(frame[:1+n])
+		// if err != nil {
+		// 	return
+		// }
+		_, err = client.packet.WriteTo(packet, client.srvAddr)
+		if err != nil {
+			return
+		}
 	}
-	_, err = client.packet.WriteTo(request, client.srvAddr)
-	if err != nil {
-		return err
+}
+
+func (client *Client) writeLoop() {
+	defer client.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println(r)
+		}
+	}()
+	var (
+		packet []byte
+		n      int
+		addr   net.Addr
+		err    error
+	)
+	frame := make([]byte, 65535)
+	for {
+		n, addr, err = client.packet.ReadFrom(frame)
+		if err != nil {
+			return
+		}
+		if addr.String() != client.addrStr {
+			continue
+		}
+		packet, err = client.decrypt(frame[:n])
+		if err != nil {
+			return
+		}
+
+		_, err = client.iface.Write(packet)
+		if err != nil {
+			return
+		}
 	}
-	_ = client.packet.SetReadDeadline(time.Now().Add(10 * time.Second))
-	response := make([]byte, 1024)
-	n, addr, err := client.packet.ReadFrom(response)
-	if err != nil {
-		return err
-	}
-	if addr.String() != client.addrStr {
-		return errors.New("not accelerator server address")
-	}
-	response, err = client.decrypt(response[:n])
-	if err != nil {
-		return err
-	}
-	if len(response) > 1 && response[0] == 1 {
-		_ = client.packet.SetDeadline(time.Time{})
-		return nil
-	}
-	return errors.New("failed to authenticate")
+}
+
+func (client *Client) Close() error {
+	client.cancel()
+
+	err2 := client.iface.Close()
+
+	client.wg.Wait()
+	return nil
 }
