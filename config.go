@@ -11,7 +11,7 @@ import (
 type ServerConfig struct {
 	Common struct {
 		Interface string `toml:"interface"`
-		Password  string `toml:"password"`
+		PassHash  string `toml:"pwd_hash"`
 		LogPath   string `toml:"log_path"`
 	} `toml:"common"`
 
@@ -70,7 +70,7 @@ type ClientConfig struct {
 	} `toml:"udp"`
 
 	TLS struct {
-		CACert     string `toml:"ca_cert"`
+		RootCA     string `toml:"root_ca"`
 		ClientCert string `toml:"client_cert"`
 		ClientKey  string `toml:"client_key"`
 	} `toml:"tls"`

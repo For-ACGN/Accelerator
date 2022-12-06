@@ -1,7 +1,10 @@
 package accelerator
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"net"
+	"os"
 
 	"github.com/pkg/errors"
 	"github.com/songgao/water"
@@ -12,19 +15,24 @@ type Client struct {
 	config    *ClientConfig
 	localAddr string
 
-	logger *logger
-	tap    *water.Interface
-	mac    net.HardwareAddr
+	logger    *logger
+	tlsConfig *tls.Config
+	tap       *water.Interface
+	mac       net.HardwareAddr
 }
 
 // NewClient is used to create a new client from configuration.
 func NewClient(cfg *ClientConfig) (*Client, error) {
-	// check mode
+	// check common config
 	mode := cfg.Client.Mode
 	switch mode {
 	case "tcp-tls", "udp-quic":
 	default:
 		return nil, errors.Errorf("invalid mode: \"%s\"", mode)
+	}
+	poolSize := cfg.Client.ConnPoolSize
+	if poolSize < 1 {
+		return nil, errors.Errorf("invalid conn pool size: \"%d\"", poolSize)
 	}
 	localAddr, err := getLocalAddress(cfg)
 	if err != nil {
@@ -41,7 +49,11 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 			_ = lg.Close()
 		}
 	}()
-
+	// initialize tls config
+	tlsConfig, err := newClientTLSConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
 	// initialize tap device
 	tap, err := newTAP(cfg)
 	if err != nil {
@@ -60,6 +72,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		config:    cfg,
 		localAddr: localAddr,
 		logger:    lg,
+		tlsConfig: tlsConfig,
 		tap:       tap,
 		mac:       nic.HardwareAddr,
 	}
@@ -91,4 +104,31 @@ func getLocalAddress(cfg *ClientConfig) (string, error) {
 		return "", errors.Errorf("empty address on interface: \"%s\"", name)
 	}
 	return addresses[0].String(), nil
+}
+
+func newClientTLSConfig(cfg *ClientConfig) (*tls.Config, error) {
+	caPEM, err := os.ReadFile(cfg.TLS.RootCA)
+	if err != nil {
+		return nil, err
+	}
+	certs, err := ParseCertificatesPEM(caPEM)
+	if err != nil {
+		return nil, err
+	}
+	config := tls.Config{
+		RootCAs: x509.NewCertPool(),
+	}
+	for i := 0; i < len(certs); i++ {
+		config.RootCAs.AddCert(certs[i])
+	}
+	certFile := cfg.TLS.ClientCert
+	keyFile := cfg.TLS.ClientKey
+	if certFile != "" && keyFile != "" {
+		tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
+		if err != nil {
+			return nil, err
+		}
+		config.Certificates = []tls.Certificate{tlsCert}
+	}
+	return &config, nil
 }
