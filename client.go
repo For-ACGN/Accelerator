@@ -5,6 +5,8 @@ import (
 	"crypto/x509"
 	"net"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/songgao/water"
@@ -19,6 +21,8 @@ type Client struct {
 	tlsConfig *tls.Config
 	tap       *water.Interface
 	mac       net.HardwareAddr
+
+	wg sync.WaitGroup
 }
 
 // NewClient is used to create a new client from configuration.
@@ -103,7 +107,7 @@ func getLocalAddress(cfg *ClientConfig) (string, error) {
 	if len(addresses) < 1 {
 		return "", errors.Errorf("empty address on interface: \"%s\"", name)
 	}
-	return addresses[0].String(), nil
+	return net.JoinHostPort(addresses[0].String(), "0"), nil
 }
 
 func newClientTLSConfig(cfg *ClientConfig) (*tls.Config, error) {
@@ -131,4 +135,85 @@ func newClientTLSConfig(cfg *ClientConfig) (*tls.Config, error) {
 		config.Certificates = []tls.Certificate{tlsCert}
 	}
 	return &config, nil
+}
+
+func (client *Client) dial() (net.Conn, error) {
+	var conn net.Conn
+	switch client.config.Client.Mode {
+	case "tcp-tls":
+		tcp := client.config.TCP
+		lAddr, err := net.ResolveTCPAddr(tcp.LocalNetwork, client.localAddr)
+		if err != nil {
+			return nil, err
+		}
+		rAddr, err := net.ResolveTCPAddr(tcp.RemoteNetwork, tcp.RemoteAddress)
+		if err != nil {
+			return nil, err
+		}
+		tcpConn, err := net.DialTCP("tcp", lAddr, rAddr)
+		if err != nil {
+			return nil, err
+		}
+		// near the MTU
+		_ = tcpConn.SetReadBuffer(2048)
+		_ = tcpConn.SetWriteBuffer(2048)
+		conn = tls.Client(tcpConn, client.tlsConfig)
+	case "udp-quic":
+		// TODO
+	}
+	return conn, nil
+}
+
+func (client *Client) Start() error {
+	var err error
+	for i := 0; i < 3; i++ {
+		err = client.authenticate()
+		if err == nil {
+			break
+		}
+		client.logger.Error("failed to authenticate, wait 3 seconds and try it again.")
+		time.Sleep(3 * time.Second)
+	}
+	if err != nil {
+		return err
+	}
+	client.logger.Info("connect accelerator server successfully!")
+	client.wg.Add(1)
+	go client.readLoop()
+	client.wg.Add(1)
+	go client.writeLoop()
+	return nil
+}
+
+func (client *Client) authenticate() error {
+
+	handshake := make([]byte, 1+6) // mac
+	handshake[0] = 1
+	copy(handshake[1:], client.mac)
+	request, err := client.encrypt(handshake)
+	if err != nil {
+		return err
+	}
+	_, err = client.packet.WriteTo(request, client.srvAddr)
+	if err != nil {
+		return err
+	}
+	_ = client.packet.SetReadDeadline(time.Now().Add(10 * time.Second))
+	response := make([]byte, 1024)
+	n, addr, err := client.packet.ReadFrom(response)
+	if err != nil {
+		return err
+	}
+	if addr.String() != client.addrStr {
+		return errors.New("not accelerator server address")
+	}
+	response, err = client.decrypt(response[:n])
+	if err != nil {
+		return err
+	}
+	if len(response) > 1 && response[0] == 1 {
+		_ = client.packet.SetDeadline(time.Time{})
+		return nil
+	}
+	return errors.New("failed to authenticate")
 }
