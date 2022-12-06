@@ -2,15 +2,18 @@ package accelerator
 
 import (
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 )
 
 // ServerConfig contains accelerator server configurations.
 type ServerConfig struct {
-	Interface string `toml:"interface"`
-	Password  string `toml:"password"`
-	LogPath   string `toml:"log_path"`
+	Common struct {
+		Interface string `toml:"interface"`
+		Password  string `toml:"password"`
+		LogPath   string `toml:"log_path"`
+	} `toml:"common"`
 
 	TCP struct {
 		Enabled bool   `toml:"enabled"`
@@ -30,20 +33,27 @@ type ServerConfig struct {
 		ClientCA   string `toml:"client_ca"`
 	} `toml:"tls"`
 
-	Gateway struct {
-		IPv4 string `toml:"ipv4"`
-		IPv6 string `toml:"ipv6"`
-		MAC  string `toml:"mac"`
-	} `toml:"gateway"`
+	NAT struct {
+		Enabled     bool          `toml:"enabled"`
+		GatewayIPv4 string        `toml:"gateway_ipv4"`
+		GatewayIPv6 string        `toml:"gateway_ipv6"`
+		GatewayMAC  string        `toml:"gateway_mac"`
+		UDPTimeout  time.Duration `toml:"udp_timeout"`
+	} `toml:"nat"`
 }
 
 // ClientConfig contains accelerator client configurations.
 type ClientConfig struct {
-	Mode      string `toml:"mode"`
-	Interface string `toml:"interface"`
-	Password  string `toml:"password"`
-	LogPath   string `toml:"log_path"`
-	MaxConn   int    `toml:"max_conn"`
+	Common struct {
+		Interface string `toml:"interface"`
+		Password  string `toml:"password"`
+		LogPath   string `toml:"log_path"`
+	} `toml:"common"`
+
+	Client struct {
+		Mode         string `toml:"mode"`
+		ConnPoolSize int    `toml:"conn_pool_size"`
+	} `toml:"client"`
 
 	TCP struct {
 		RemoteNetwork string `toml:"remote_network"`
@@ -67,7 +77,7 @@ type ClientConfig struct {
 
 	TAP struct {
 		ComponentID string `toml:"component_id"`
-		Name        string `toml:"name"`
+		DeviceName  string `toml:"device_name"`
 	} `toml:"tap"`
 }
 
