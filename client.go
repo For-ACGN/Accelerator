@@ -4,16 +4,22 @@ import (
 	"net"
 
 	"github.com/pkg/errors"
+	"github.com/songgao/water"
 )
 
 // Client is the accelerator client.
 type Client struct {
 	config    *ClientConfig
 	localAddr string
+
+	logger *logger
+	tap    *water.Interface
+	mac    net.HardwareAddr
 }
 
 // NewClient is used to create a new client from configuration.
 func NewClient(cfg *ClientConfig) (*Client, error) {
+	// check mode
 	mode := cfg.Client.Mode
 	switch mode {
 	case "tcp-tls", "udp-quic":
@@ -24,7 +30,41 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
+	// initialize logger
+	var ok bool
+	lg, err := newLogger(cfg.Common.LogPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to open log file")
+	}
+	defer func() {
+		if !ok {
+			_ = lg.Close()
+		}
+	}()
+
+	// initialize tap device
+	tap, err := newTAP(cfg)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if !ok {
+			_ = tap.Close()
+		}
+	}()
+	nic, err := net.InterfaceByName(tap.Name())
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	client := Client{
+		config:    cfg,
+		localAddr: localAddr,
+		logger:    lg,
+		tap:       tap,
+		mac:       nic.HardwareAddr,
+	}
+	ok = true
+	return &client, nil
 }
 
 func getLocalAddress(cfg *ClientConfig) (string, error) {
