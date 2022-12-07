@@ -57,7 +57,7 @@ func (pool *connPool) IsFull() bool {
 func (pool *connPool) AddConn(conn net.Conn) {
 	pool.connsMu.Lock()
 	defer pool.connsMu.Unlock()
-	if pool.isClosed() {
+	if len(pool.conns) >= pool.size || pool.isClosed() {
 		err := conn.Close()
 		if err != nil {
 			pool.logger.Error(err)

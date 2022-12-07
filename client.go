@@ -222,13 +222,13 @@ func (client *Client) Run() error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to close authentication connection")
 	}
-	client.logger.Info("connect accelerator server ok!")
+	client.logger.Info("connect accelerator server successfully!")
 	// start connection pool watcher
 	client.wg.Add(1)
 	go client.connPoolWatcher()
-	// wait connection pool watcher create new connection
+	client.logger.Info("wait connection pool watcher create new connection")
 	select {
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 	case <-client.ctx.Done():
 		return errors.WithStack(errClientClosed)
 	}
@@ -240,7 +240,7 @@ func (client *Client) Run() error {
 		client.wg.Add(1)
 		go client.packetWriter()
 	}
-	client.logger.Info("start accelerator client successfully!")
+	client.logger.Info("accelerator client is running")
 	return nil
 }
 
@@ -352,5 +352,6 @@ func (client *Client) Close() error {
 	if e != nil && err == nil {
 		err = e
 	}
+	client.logger.Info("accelerator client is stopped")
 	return err
 }
