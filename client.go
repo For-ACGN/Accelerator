@@ -224,7 +224,8 @@ func (client *Client) Run() error {
 	}
 	client.logger.Info("connect accelerator server ok!")
 	// start connection pool watcher
-
+	client.wg.Add(1)
+	go client.connPoolWatcher()
 	// wait connection pool watcher create new connection
 	select {
 	case <-time.After(time.Second):
@@ -241,6 +242,35 @@ func (client *Client) Run() error {
 	}
 	client.logger.Info("start accelerator client successfully!")
 	return nil
+}
+
+func (client *Client) connPoolWatcher() {
+	defer client.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			client.logger.Fatal(r)
+		}
+	}()
+	const period = 100 * time.Millisecond
+	timer := time.NewTimer(period)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			if client.connPool.IsFull() {
+				break
+			}
+			conn, err := client.connect()
+			if err == nil {
+				client.connPool.AddConn(conn)
+			} else {
+				client.logger.Error(err)
+			}
+		case <-client.ctx.Done():
+			return
+		}
+		timer.Reset(period)
+	}
 }
 
 func (client *Client) packetReader() {
@@ -306,9 +336,19 @@ func (client *Client) packetWriter() {
 // Close is used to close accelerator client.
 func (client *Client) Close() error {
 	client.cancel()
+	err := client.tap.Close()
+	if err != nil {
+		client.logger.Error("failed to close tap device:", err)
+	}
+	e := client.connPool.Close()
+	if e != nil {
+		client.logger.Error("failed to close connection pool:", e)
+		if err == nil {
+			err = e
+		}
+	}
 	client.wg.Wait()
-	err := client.connPool.Close()
-	e := client.tap.Close()
+	e = client.logger.Close()
 	if e != nil && err == nil {
 		err = e
 	}

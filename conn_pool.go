@@ -43,14 +43,14 @@ func newConnPool(logger *logger, writer io.Writer, size int) *connPool {
 	return &pool
 }
 
-// IsNotFull is used to check connection pool is full.
-func (pool *connPool) IsNotFull() bool {
+// IsFull is used to check connection pool is full.
+func (pool *connPool) IsFull() bool {
 	if pool.isClosed() {
 		return false
 	}
 	pool.connsMu.Lock()
 	defer pool.connsMu.Unlock()
-	return len(pool.conns) < pool.size
+	return len(pool.conns) >= pool.size
 }
 
 // AddConn is used to add new connection to the pool.
