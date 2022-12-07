@@ -1,12 +1,17 @@
 package accelerator
 
 import (
-	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 	"sync"
 	"sync/atomic"
+)
+
+var (
+	errEmptyConnPool  = errors.New("empty connection pool")
+	errConnPoolClosed = errors.New("connection pool is closed")
 )
 
 // connPool is used to send frame packet with lower RTT.
@@ -18,37 +23,32 @@ type connPool struct {
 	connsMu sync.Mutex
 
 	closed int32
-	ctx    context.Context
-	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
-func newConnPool(ctx context.Context, size int) *connPool {
+func newConnPool(logger *logger, w io.Writer, size int) *connPool {
 	pool := connPool{
-		conns: make(map[*net.Conn]bool, size),
+		logger: logger,
+		writer: w,
+		conns:  make(map[*net.Conn]bool, size),
 	}
-	pool.ctx, pool.cancel = context.WithCancel(ctx)
 	return &pool
 }
 
-func (pool *connPool) SetLogger(lg *logger) {
-	pool.logger = lg
-}
-
-func (pool *connPool) SetWriter(w io.Writer) {
-	pool.writer = w
-}
-
-func (pool *connPool) AddConn(conn *net.Conn) {
+func (pool *connPool) AddConn(conn net.Conn) {
 	pool.connsMu.Lock()
 	defer pool.connsMu.Unlock()
 	if pool.isClosed() {
-		_ = (*conn).Close()
+		err := conn.Close()
+		if err != nil {
+			pool.logger.Error(err)
+		}
 		return
 	}
-	pool.conns[conn] = false
+	c := &conn
+	pool.conns[c] = false
 	pool.wg.Add(1)
-	go pool.readLoop(conn)
+	go pool.readLoop(c)
 }
 
 func (pool *connPool) deleteConn(conn *net.Conn) {
@@ -69,18 +69,24 @@ func (pool *connPool) readLoop(conn *net.Conn) {
 	}()
 	defer pool.deleteConn(conn)
 	c := *conn
-	buf := make([]byte, 64*1024)
+	defer func() {
+		err := c.Close()
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			pool.logger.Error(err)
+		}
+	}()
+	buf := make([]byte, maxBufferSize)
 	var (
 		size uint16
 		err  error
 	)
 	for {
 		// read frame packet size
-		_, err = io.ReadFull(c, buf[:2])
+		_, err = io.ReadFull(c, buf[:framePacketSize])
 		if err != nil {
 			return
 		}
-		size = binary.BigEndian.Uint16(buf[:2])
+		size = binary.BigEndian.Uint16(buf[:framePacketSize])
 		// read frame packet
 		_, err = io.ReadFull(c, buf[:size])
 		if err != nil {
@@ -94,13 +100,43 @@ func (pool *connPool) readLoop(conn *net.Conn) {
 	}
 }
 
+func (pool *connPool) Write(b []byte) (int, error) {
+	conn, err := pool.getConn()
+	if err != nil {
+		return 0, err
+	}
+	return conn.Write(b)
+}
+
+func (pool *connPool) getConn() (net.Conn, error) {
+	pool.connsMu.Lock()
+	defer pool.connsMu.Unlock()
+	if len(pool.conns) < 1 {
+		return nil, errEmptyConnPool
+	}
+	for {
+		if pool.isClosed() {
+			return nil, errConnPoolClosed
+		}
+		for conn, used := range pool.conns {
+			if !used {
+				pool.conns[conn] = true
+				return *conn, nil
+			}
+		}
+		// reset all used flags
+		for conn := range pool.conns {
+			pool.conns[conn] = false
+		}
+	}
+}
+
 func (pool *connPool) isClosed() bool {
 	return atomic.LoadInt32(&pool.closed) != 0
 }
 
 func (pool *connPool) Close() error {
 	atomic.StoreInt32(&pool.closed, 1)
-	pool.cancel()
 	var err error
 	pool.connsMu.Lock()
 	defer pool.connsMu.Unlock()

@@ -81,7 +81,6 @@ func (l *logger) Fatal(v ...interface{}) {
 	buf.WriteString("[fatal]")
 	_, _ = fmt.Fprintln(buf, v...)
 	l.logger.Println(buf)
-	os.Exit(1)
 }
 
 func (l *logger) Fatalf(format string, v ...interface{}) {
@@ -89,7 +88,6 @@ func (l *logger) Fatalf(format string, v ...interface{}) {
 	buf.WriteString("[fatal]")
 	_, _ = fmt.Fprintf(buf, format, v...)
 	l.logger.Println(buf)
-	os.Exit(1)
 }
 
 func (l *logger) Close() error {
