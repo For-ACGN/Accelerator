@@ -46,7 +46,7 @@ type ServerConfig struct {
 type ClientConfig struct {
 	Common struct {
 		Interface string `toml:"interface"`
-		Password  string `toml:"password"`
+		PassHash  string `toml:"pwd_hash"`
 		LogPath   string `toml:"log_path"`
 	} `toml:"common"`
 

@@ -30,6 +30,8 @@ import (
 //
 // response field is always be 0x01.
 
+const authOK = 0x01
+
 func buildAuthRequest(hash []byte) ([]byte, error) {
 	padding, err := generateRandomData()
 	if err != nil {
@@ -47,7 +49,7 @@ func buildAuthResponse() ([]byte, error) {
 		return nil, err
 	}
 	resp := make([]byte, 0, 1+len(padding))
-	resp = append(resp, 0x01)
+	resp = append(resp, authOK)
 	resp = append(resp, padding...)
 	return resp, nil
 }

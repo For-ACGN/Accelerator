@@ -2,10 +2,13 @@ package accelerator
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"sync"
@@ -20,11 +23,12 @@ var errClientClosed = fmt.Errorf("accelerator client is closed")
 // Client is the accelerator client.
 type Client struct {
 	config    *ClientConfig
+	passHash  []byte
 	localAddr string
 
 	logger    *logger
 	tlsConfig *tls.Config
-	tap       *water.Interface
+	tapDev    *water.Interface
 	connPool  *connPool
 
 	packetCh    chan *packet
@@ -48,6 +52,14 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	if poolSize < 1 || poolSize > 256 {
 		return nil, errors.Errorf("invalid conn pool size: \"%d\"", poolSize)
 	}
+	// decode password hash
+	passHash, err := hex.DecodeString(cfg.Common.PassHash)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode password hash")
+	}
+	if len(passHash) != sha256.Size {
+		return nil, errors.Wrap(err, "invalid password hash size")
+	}
 	localAddr, err := getLocalAddress(cfg)
 	if err != nil {
 		return nil, err
@@ -69,22 +81,23 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		return nil, err
 	}
 	// initialize tap device
-	tap, err := newTAP(cfg)
+	tapDev, err := newTAP(cfg)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
 		if !ok {
-			_ = tap.Close()
+			_ = tapDev.Close()
 		}
 	}()
-	pool := newConnPool(lg, tap, poolSize)
+	pool := newConnPool(lg, tapDev, poolSize)
 	client := Client{
 		config:    cfg,
+		passHash:  passHash,
 		localAddr: localAddr,
 		logger:    lg,
 		tlsConfig: tlsConfig,
-		tap:       tap,
+		tapDev:    tapDev,
 		connPool:  pool,
 		packetCh:  make(chan *packet, 8192),
 	}
@@ -189,7 +202,31 @@ func (client *Client) dial() (net.Conn, error) {
 }
 
 func (client *Client) authenticate(conn net.Conn) error {
-
+	// send authentication request
+	req, err := buildAuthRequest(client.passHash)
+	if err != nil {
+		return errors.WithMessage(err, "failed to build authentication request")
+	}
+	_, err = conn.Write(req)
+	if err != nil {
+		return errors.Wrap(err, "failed to send authentication request")
+	}
+	// read authentication response
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	resp := make([]byte, 1+2)
+	_, err = io.ReadFull(conn, resp)
+	if err != nil {
+		return errors.Wrap(err, "failed to read authentication response")
+	}
+	if resp[0] != authOK {
+		return errors.New("invalid authentication response")
+	}
+	// read padding random data
+	size := binary.BigEndian.Uint16(resp[1:])
+	_, err = io.CopyN(io.Discard, conn, int64(size))
+	if err != nil {
+		return errors.Wrap(err, "failed to read padding random data")
+	}
 	return nil
 }
 
@@ -289,7 +326,7 @@ func (client *Client) packetReader() {
 	buf := make([]byte, maxPacketSize)
 	for {
 		// read frame data
-		n, err = client.tap.Read(buf[frameHeaderSize:])
+		n, err = client.tapDev.Read(buf[frameHeaderSize:])
 		if err != nil {
 			return
 		}
@@ -336,7 +373,7 @@ func (client *Client) packetWriter() {
 // Close is used to close accelerator client.
 func (client *Client) Close() error {
 	client.cancel()
-	err := client.tap.Close()
+	err := client.tapDev.Close()
 	if err != nil {
 		client.logger.Error("failed to close tap device:", err)
 	}
