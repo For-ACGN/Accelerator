@@ -1,12 +1,14 @@
 package accelerator
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"io"
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 var (
@@ -23,6 +25,9 @@ type connPool struct {
 	connsMu sync.Mutex
 
 	closed int32
+
+	ctx    context.Context
+	cancel context.CancelFunc
 	wg     sync.WaitGroup
 }
 
@@ -32,6 +37,7 @@ func newConnPool(logger *logger, writer io.Writer, size int) *connPool {
 		writer: writer,
 		conns:  make(map[*net.Conn]bool, size),
 	}
+	pool.ctx, pool.cancel = context.WithCancel(context.Background())
 	return &pool
 }
 
@@ -103,11 +109,31 @@ func (pool *connPool) readLoop(conn *net.Conn) {
 
 // Write is used to select one connection for write data.
 func (pool *connPool) Write(b []byte) (int, error) {
-	conn, err := pool.getConn()
-	if err != nil {
-		return 0, err
+	var (
+		conn net.Conn
+		n    int
+		err  error
+	)
+	for i := 0; i < 10; i++ {
+		conn, err = pool.getConn()
+		if err != nil {
+			if err != errEmptyConnPool {
+				return 0, err
+			}
+			// wait some time for add new connection
+			select {
+			case <-time.After(250 * time.Millisecond):
+			case <-pool.ctx.Done():
+				return 0, errConnPoolClosed
+			}
+			continue
+		}
+		n, err = conn.Write(b)
+		if err == nil {
+			return n, nil
+		}
 	}
-	return conn.Write(b)
+	return n, err
 }
 
 func (pool *connPool) getConn() (net.Conn, error) {
@@ -120,6 +146,7 @@ func (pool *connPool) getConn() (net.Conn, error) {
 		if pool.isClosed() {
 			return nil, errConnPoolClosed
 		}
+		// select unused connection
 		for conn, used := range pool.conns {
 			if !used {
 				pool.conns[conn] = true
@@ -140,6 +167,7 @@ func (pool *connPool) isClosed() bool {
 // Close is used to close all connections.
 func (pool *connPool) Close() error {
 	atomic.StoreInt32(&pool.closed, 1)
+	pool.cancel()
 	var err error
 	pool.connsMu.Lock()
 	defer pool.connsMu.Unlock()
@@ -148,6 +176,7 @@ func (pool *connPool) Close() error {
 		if e != nil && err == nil {
 			err = e
 		}
+		delete(pool.conns, conn)
 	}
 	pool.wg.Wait()
 	return err
