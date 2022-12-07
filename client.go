@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
+	"encoding/binary"
 	"net"
 	"os"
 	"sync"
@@ -22,7 +22,10 @@ type Client struct {
 	logger    *logger
 	tlsConfig *tls.Config
 	tap       *water.Interface
-	mac       net.HardwareAddr
+	connPool  *connPool
+
+	packetCh    chan *packet
+	packetCache sync.Pool
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -72,17 +75,18 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 			_ = tap.Close()
 		}
 	}()
-	nic, err := net.InterfaceByName(tap.Name())
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
+	pool := newConnPool(lg, tap, poolSize)
 	client := Client{
 		config:    cfg,
 		localAddr: localAddr,
 		logger:    lg,
 		tlsConfig: tlsConfig,
 		tap:       tap,
-		mac:       nic.HardwareAddr,
+		connPool:  pool,
+		packetCh:  make(chan *packet, 8192),
+	}
+	client.packetCache.New = func() interface{} {
+		return newPacket()
 	}
 	client.ctx, client.cancel = context.WithCancel(context.Background())
 	ok = true
@@ -185,7 +189,8 @@ func (client *Client) authenticate(conn net.Conn) error {
 	return nil
 }
 
-func (client *Client) Start() error {
+// Run is used to run the accelerator client.
+func (client *Client) Run() error {
 	var (
 		conn net.Conn
 		err  error
@@ -222,33 +227,32 @@ func (client *Client) readLoop() {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println(r)
+			client.logger.Fatal(r)
 		}
 	}()
 	var (
-		packet []byte
-		n      int
-		err    error
+		n    int
+		size int
+		pkt  *packet
+		err  error
 	)
-	frame := make([]byte, 65535)
-	frame[0] = 2
+	buf := make([]byte, maxPacketSize)
 	for {
-		n, err = client.tap.Read(frame[1:])
+		// read frame data
+		n, err = client.tap.Read(buf[frameHeaderSize:])
 		if err != nil {
 			return
 		}
-
-		packet, err = client.encrypt(data)
-		if err != nil {
-			return
-		}
-
-		// packet, err = client.encrypt(frame[:1+n])
-		// if err != nil {
-		// 	return
-		// }
-		_, err = client.packet.WriteTo(packet, client.srvAddr)
-		if err != nil {
+		// put frame data size
+		binary.BigEndian.PutUint16(buf, uint16(n))
+		// build packet
+		pkt = client.packetCache.Get().(*packet)
+		size = n + frameHeaderSize
+		copy(pkt.buf, buf[:size])
+		pkt.size = size
+		select {
+		case client.packetCh <- pkt:
+		case <-client.ctx.Done():
 			return
 		}
 	}
@@ -258,39 +262,35 @@ func (client *Client) writeLoop() {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println(r)
+			client.logger.Fatal(r)
 		}
 	}()
 	var (
-		packet []byte
-		n      int
-		addr   net.Addr
-		err    error
+		pkt *packet
+		err error
 	)
-	frame := make([]byte, 65535)
 	for {
-		n, addr, err = client.packet.ReadFrom(frame)
-		if err != nil {
-			return
-		}
-		if addr.String() != client.addrStr {
-			continue
-		}
-		packet, err = client.decrypt(frame[:n])
-		if err != nil {
-			return
-		}
-
-		_, err = client.tap.Write(packet)
-		if err != nil {
+		select {
+		case pkt = <-client.packetCh:
+			_, err = client.connPool.Write(pkt.buf[:pkt.size])
+			if err != nil {
+				client.logger.Error("failed to send packet", err)
+			}
+			client.packetCache.Put(pkt)
+		case <-client.ctx.Done():
 			return
 		}
 	}
 }
 
+// Close is used to close accelerator client.
 func (client *Client) Close() error {
 	client.cancel()
-
+	err := client.connPool.Close()
 	client.wg.Wait()
-	return client.tap.Close()
+	e := client.tap.Close()
+	if e != nil && err == nil {
+		err = e
+	}
+	return err
 }

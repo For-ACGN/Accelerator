@@ -26,15 +26,16 @@ type connPool struct {
 	wg     sync.WaitGroup
 }
 
-func newConnPool(logger *logger, w io.Writer, size int) *connPool {
+func newConnPool(logger *logger, writer io.Writer, size int) *connPool {
 	pool := connPool{
 		logger: logger,
-		writer: w,
+		writer: writer,
 		conns:  make(map[*net.Conn]bool, size),
 	}
 	return &pool
 }
 
+// AddConn is used to add new connection to the pool.
 func (pool *connPool) AddConn(conn net.Conn) {
 	pool.connsMu.Lock()
 	defer pool.connsMu.Unlock()
@@ -75,18 +76,18 @@ func (pool *connPool) readLoop(conn *net.Conn) {
 			pool.logger.Error(err)
 		}
 	}()
-	buf := make([]byte, maxBufferSize)
+	buf := make([]byte, maxPacketSize)
 	var (
 		size uint16
 		err  error
 	)
 	for {
 		// read frame packet size
-		_, err = io.ReadFull(c, buf[:framePacketSize])
+		_, err = io.ReadFull(c, buf[:frameHeaderSize])
 		if err != nil {
 			return
 		}
-		size = binary.BigEndian.Uint16(buf[:framePacketSize])
+		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
 		// read frame packet
 		_, err = io.ReadFull(c, buf[:size])
 		if err != nil {
@@ -100,6 +101,7 @@ func (pool *connPool) readLoop(conn *net.Conn) {
 	}
 }
 
+// Write is used to select one connection for write data.
 func (pool *connPool) Write(b []byte) (int, error) {
 	conn, err := pool.getConn()
 	if err != nil {
@@ -135,6 +137,7 @@ func (pool *connPool) isClosed() bool {
 	return atomic.LoadInt32(&pool.closed) != 0
 }
 
+// Close is used to close all connections.
 func (pool *connPool) Close() error {
 	atomic.StoreInt32(&pool.closed, 1)
 	var err error
