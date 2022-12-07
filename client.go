@@ -1,7 +1,6 @@
 package accelerator
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -234,7 +233,7 @@ func (client *Client) readLoop() {
 	frame := make([]byte, 65535)
 	frame[0] = 2
 	for {
-		n, err = client.iface.Read(frame[1:])
+		n, err = client.tap.Read(frame[1:])
 		if err != nil {
 			return
 		}
@@ -282,7 +281,7 @@ func (client *Client) writeLoop() {
 			return
 		}
 
-		_, err = client.iface.Write(packet)
+		_, err = client.tap.Write(packet)
 		if err != nil {
 			return
 		}
@@ -292,8 +291,6 @@ func (client *Client) writeLoop() {
 func (client *Client) Close() error {
 	client.cancel()
 
-	err2 := client.iface.Close()
-
 	client.wg.Wait()
-	return nil
+	return client.tap.Close()
 }
