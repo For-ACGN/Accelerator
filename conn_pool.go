@@ -20,6 +20,7 @@ var (
 type connPool struct {
 	logger *logger
 	writer io.Writer
+	size   int
 
 	conns   map[*net.Conn]bool
 	connsMu sync.Mutex
@@ -35,10 +36,21 @@ func newConnPool(logger *logger, writer io.Writer, size int) *connPool {
 	pool := connPool{
 		logger: logger,
 		writer: writer,
+		size:   size,
 		conns:  make(map[*net.Conn]bool, size),
 	}
 	pool.ctx, pool.cancel = context.WithCancel(context.Background())
 	return &pool
+}
+
+// IsNotFull is used to check connection pool is full.
+func (pool *connPool) IsNotFull() bool {
+	if pool.isClosed() {
+		return false
+	}
+	pool.connsMu.Lock()
+	defer pool.connsMu.Unlock()
+	return len(pool.conns) < pool.size
 }
 
 // AddConn is used to add new connection to the pool.

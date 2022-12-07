@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
+	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -13,6 +14,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/songgao/water"
 )
+
+var errClientClosed = fmt.Errorf("accelerator client is closed")
 
 // Client is the accelerator client.
 type Client struct {
@@ -42,7 +45,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		return nil, errors.Errorf("invalid mode: \"%s\"", mode)
 	}
 	poolSize := cfg.Client.ConnPoolSize
-	if poolSize < 1 {
+	if poolSize < 1 || poolSize > 256 {
 		return nil, errors.Errorf("invalid conn pool size: \"%d\"", poolSize)
 	}
 	localAddr, err := getLocalAddress(cfg)
@@ -186,6 +189,7 @@ func (client *Client) dial() (net.Conn, error) {
 }
 
 func (client *Client) authenticate(conn net.Conn) error {
+
 	return nil
 }
 
@@ -201,7 +205,11 @@ func (client *Client) Run() error {
 			break
 		}
 		client.logger.Errorf("%s, wait 3 seconds and try it again.", err)
-		time.Sleep(3 * time.Second)
+		select {
+		case <-time.After(3 * time.Second):
+		case <-client.ctx.Done():
+			return errors.WithStack(errClientClosed)
+		}
 	}
 	if err != nil {
 		return err
@@ -214,16 +222,28 @@ func (client *Client) Run() error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to close authentication connection")
 	}
-	client.logger.Info("connect accelerator server successfully!")
+	client.logger.Info("connect accelerator server ok!")
+	// start connection pool watcher
 
+	// wait connection pool watcher create new connection
+	select {
+	case <-time.After(time.Second):
+	case <-client.ctx.Done():
+		return errors.WithStack(errClientClosed)
+	}
+	// start packet reader
 	client.wg.Add(1)
-	go client.readLoop()
-	client.wg.Add(1)
-	go client.writeLoop()
+	go client.packetReader()
+	// start packet writer
+	for i := 0; i < client.config.Client.ConnPoolSize; i++ {
+		client.wg.Add(1)
+		go client.packetWriter()
+	}
+	client.logger.Info("start accelerator client successfully!")
 	return nil
 }
 
-func (client *Client) readLoop() {
+func (client *Client) packetReader() {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
@@ -258,7 +278,7 @@ func (client *Client) readLoop() {
 	}
 }
 
-func (client *Client) writeLoop() {
+func (client *Client) packetWriter() {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
@@ -286,8 +306,8 @@ func (client *Client) writeLoop() {
 // Close is used to close accelerator client.
 func (client *Client) Close() error {
 	client.cancel()
-	err := client.connPool.Close()
 	client.wg.Wait()
+	err := client.connPool.Close()
 	e := client.tap.Close()
 	if e != nil && err == nil {
 		err = e
