@@ -33,7 +33,7 @@ type qConn struct {
 	// is not safe for use by multiple goroutines
 	//
 	// stream.Close() must not be called concurrently with Write()
-	sendMu sync.Mutex
+	writeMu sync.Mutex
 
 	// only server connection need it
 	timeout    time.Duration
@@ -77,8 +77,8 @@ func (c *qConn) Write(b []byte) (n int, err error) {
 	if err != nil {
 		return
 	}
-	c.sendMu.Lock()
-	defer c.sendMu.Unlock()
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	return c.stream.Write(b)
 }
 
@@ -128,8 +128,8 @@ func (c *qConn) Close() error {
 		c.acceptErr = errQUICConnClosed
 	})
 	var err error
-	c.sendMu.Lock()
-	defer c.sendMu.Unlock()
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	if c.stream != nil {
 		err = c.stream.Close()
 	}

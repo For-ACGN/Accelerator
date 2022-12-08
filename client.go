@@ -60,7 +60,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = CheckNetworkAndAddress(localNet, localAddr)
+	err = checkNetworkAndAddress(localNet, localAddr)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to check local network and address")
 	}
@@ -163,9 +163,9 @@ func checkRemoteNetworkAndAddress(cfg *ClientConfig) error {
 	var err error
 	switch cfg.Client.Mode {
 	case "tcp-tls":
-		err = CheckNetworkAndAddress(cfg.TCP.RemoteNetwork, cfg.TCP.RemoteAddress)
+		err = checkNetworkAndAddress(cfg.TCP.RemoteNetwork, cfg.TCP.RemoteAddress)
 	case "udp-quic":
-		err = CheckNetworkAndAddress(cfg.UDP.RemoteNetwork, cfg.UDP.RemoteAddress)
+		err = checkNetworkAndAddress(cfg.UDP.RemoteNetwork, cfg.UDP.RemoteAddress)
 	}
 	return err
 }
@@ -175,7 +175,7 @@ func newClientTLSConfig(cfg *ClientConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	certs, err := ParseCertificatesPEM(caPEM)
+	certs, err := parseCertificatesPEM(caPEM)
 	if err != nil {
 		return nil, err
 	}
@@ -466,6 +466,7 @@ func (client *Client) Close() error {
 	if err != nil {
 		client.logger.Error("failed to close tap device:", err)
 	}
+	client.logger.Info("tap device is closed")
 	e := client.connPool.Close()
 	if e != nil {
 		client.logger.Error("failed to close connection pool:", e)
@@ -473,11 +474,12 @@ func (client *Client) Close() error {
 			err = e
 		}
 	}
+	client.logger.Info("connection pool is closed")
 	client.wg.Wait()
+	client.logger.Info("accelerator client is stopped")
 	e = client.logger.Close()
 	if e != nil && err == nil {
 		err = e
 	}
-	client.logger.Info("accelerator client is stopped")
 	return err
 }

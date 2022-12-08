@@ -82,8 +82,8 @@ type ClientConfig struct {
 	} `toml:"tap"`
 }
 
-// CheckNetworkAndAddress is used to check network is supported and address is valid.
-func CheckNetworkAndAddress(network, address string) error {
+// checkNetworkAndAddress is used to check network is supported and address is valid.
+func checkNetworkAndAddress(network, address string) error {
 	switch network {
 	case "tcp", "tcp4", "tcp6":
 	case "udp", "udp4", "udp6":

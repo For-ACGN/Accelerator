@@ -8,8 +8,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ParseCertificatePEM is used to parse certificate from the PEM data.
-func ParseCertificatePEM(pb []byte) (*x509.Certificate, error) {
+// parseCertificatePEM is used to parse certificate from the PEM data.
+func parseCertificatePEM(pb []byte) (*x509.Certificate, error) {
 	block, _ := pem.Decode(pb)
 	if block == nil {
 		return nil, errors.New("invalid PEM block")
@@ -20,8 +20,8 @@ func ParseCertificatePEM(pb []byte) (*x509.Certificate, error) {
 	return x509.ParseCertificate(block.Bytes)
 }
 
-// ParseCertificatesPEM is used to parse certificates from the PEM data.
-func ParseCertificatesPEM(pb []byte) ([]*x509.Certificate, error) {
+// parseCertificatesPEM is used to parse certificates from the PEM data.
+func parseCertificatesPEM(pb []byte) ([]*x509.Certificate, error) {
 	var (
 		certs []*x509.Certificate
 		block *pem.Block

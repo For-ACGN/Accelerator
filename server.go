@@ -4,17 +4,15 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/gopacket/pcap"
 	"github.com/pkg/errors"
 )
-
-var errServerClosed = fmt.Errorf("accelerator server is closed")
 
 // Server is the accelerator server.
 type Server struct {
@@ -26,6 +24,11 @@ type Server struct {
 	logger       *logger
 	tlsListener  net.Listener
 	quicListener net.Listener
+
+	connPools    map[[32]byte]*connPool
+	connPoolsRWM sync.RWMutex
+
+	closed int32
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -110,6 +113,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		logger:       lg,
 		tlsListener:  tlsListener,
 		quicListener: quicListener,
+		connPools:    make(map[[32]byte]*connPool, 16),
 	}
 	// TODO initialize NAT
 	server.ctx, server.cancel = context.WithCancel(context.Background())
@@ -161,7 +165,7 @@ func newServerTLSConfig(cfg *ServerConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	cert, err := ParseCertificatePEM(caPEM)
+	cert, err := parseCertificatePEM(caPEM)
 	if err != nil {
 		return nil, err
 	}
@@ -177,4 +181,94 @@ func newServerTLSConfig(cfg *ServerConfig) (*tls.Config, error) {
 	}
 	config.ClientCAs.AddCert(cert)
 	return &config, nil
+}
+
+// Run is used to run the accelerator server.
+func (srv *Server) Run() {
+	if srv.tlsListener != nil {
+		srv.wg.Add(1)
+		go srv.serve(srv.tlsListener)
+		addr := srv.tlsListener.Addr()
+		srv.logger.Infof("start tls listener(%s %s)", addr.Network(), addr)
+	}
+	if srv.quicListener != nil {
+		srv.wg.Add(1)
+		go srv.serve(srv.quicListener)
+		addr := srv.quicListener.Addr()
+		srv.logger.Infof("start quic listener(%s %s)", addr.Network(), addr)
+	}
+	srv.logger.Info("accelerator server is running")
+}
+
+func (srv *Server) serve(listener net.Listener) {
+	defer srv.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			srv.logger.Fatal(r)
+		}
+	}()
+	defer func() {
+		err := listener.Close()
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			srv.logger.Error(err)
+		}
+	}()
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+
+		}
+		_ = conn.Close()
+	}
+}
+
+// Close is used to close accelerator server.
+func (srv *Server) Close() error {
+	atomic.StoreInt32(&srv.closed, 1)
+	var err error
+	if srv.tlsListener != nil {
+		err = srv.tlsListener.Close()
+		if err != nil {
+			srv.logger.Error("failed to close tls listener:", err)
+		}
+		srv.logger.Info("tls listener is closed")
+	}
+	if srv.quicListener != nil {
+		e := srv.quicListener.Close()
+		if e != nil {
+			srv.logger.Error("failed to close quic listener:", e)
+			if err == nil {
+				err = e
+			}
+		}
+		srv.logger.Info("quic listener is closed")
+	}
+
+	srv.logger.Info("wait listener stop serve")
+	srv.wg.Wait()
+	srv.logger.Info("all listeners stop serve")
+
+	srv.logger.Info("close all connection pools")
+	srv.connPoolsRWM.Lock()
+	defer srv.connPoolsRWM.Unlock()
+	for mac, pool := range srv.connPools {
+		e := pool.Close()
+		if e != nil {
+			srv.logger.Error("failed to close connection pool:", e)
+			if err == nil {
+				err = e
+			}
+		}
+		delete(srv.connPools, mac)
+	}
+	srv.logger.Info("all connection pools is closed")
+
+	srv.handle.Close()
+	srv.logger.Info("pcap handle is closed")
+	srv.logger.Info("accelerator server is stopped")
+	e := srv.logger.Close()
+	if e != nil && err == nil {
+		err = e
+	}
+	return err
 }
