@@ -2,11 +2,9 @@ package accelerator
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -53,13 +51,9 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	if poolSize < 1 || poolSize > 256 {
 		return nil, errors.Errorf("invalid conn pool size: \"%d\"", poolSize)
 	}
-	// decode password hash
-	passHash, err := hex.DecodeString(cfg.Common.PassHash)
+	passHash, err := decodePasswordHash(cfg.Common.PassHash)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to decode password hash")
-	}
-	if len(passHash) != sha256.Size {
-		return nil, errors.Wrap(err, "invalid password hash size")
+		return nil, err
 	}
 	localNet := getLocalNetwork(cfg)
 	localAddr, err := getLocalAddress(cfg)
