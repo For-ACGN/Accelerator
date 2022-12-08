@@ -2,12 +2,18 @@ package accelerator
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/lucas-clemente/quic-go"
+)
+
+const (
+	defaultTimeout   = 30 * time.Second // dial and accept
+	defaultNextProto = "h3"             // HTTP/3
 )
 
 var errQUICConnClosed = errors.New("quic connection is closed")
@@ -177,30 +183,61 @@ func (l *qListener) Close() error {
 	return err
 }
 
-func (client *Client) dialQUIC() (net.Conn, error) {
-	udp := client.config.UDP
-	lAddr, err := net.ResolveUDPAddr(udp.LocalNetwork, client.localAddr)
+func qListen(network, address string, config *tls.Config, timeout time.Duration) (net.Listener, error) {
+	addr, err := net.ResolveUDPAddr(network, address)
 	if err != nil {
 		return nil, err
 	}
-	rAddr, err := net.ResolveUDPAddr(udp.RemoteNetwork, udp.RemoteAddress)
+	conn, err := net.ListenUDP(network, addr)
 	if err != nil {
 		return nil, err
 	}
+	var ok bool
+	defer func() {
+		if !ok {
+			_ = conn.Close()
+		}
+	}()
+
+	if timeout < 1 {
+		timeout = defaultTimeout
+	}
+	quicCfg := quic.Config{
+		HandshakeIdleTimeout: timeout,
+		MaxIdleTimeout:       4 * timeout,
+		KeepAlivePeriod:      15 * time.Second,
+	}
+	if len(config.NextProtos) == 0 {
+		c := config.Clone()
+		c.NextProtos = []string{defaultNextProto}
+		config = c
+	}
+	quicListener, err := quic.Listen(conn, config, &quicCfg)
+	if err != nil {
+		return nil, err
+	}
+	l := qListener{
+		rawConn:  conn,
+		listener: quicListener,
+		timeout:  timeout,
+	}
+	l.ctx, l.cancel = context.WithCancel(context.Background())
+	ok = true
+	return &l, nil
+}
+
+func qDial(ctx context.Context, lAddr, rAddr *net.UDPAddr, config *tls.Config) (*qConn, error) {
 	udpConn, err := net.ListenUDP("udp", lAddr)
 	if err != nil {
 		return nil, err
 	}
-	config := quic.Config{
-		HandshakeIdleTimeout: 5 * time.Second,
-		MaxIdleTimeout:       30 * time.Second,
+	quicCfg := quic.Config{
+		HandshakeIdleTimeout: defaultTimeout,
+		MaxIdleTimeout:       4 * defaultTimeout,
 		KeepAlivePeriod:      15 * time.Second,
 	}
-	conn, err := quic.Dial(udpConn, rAddr, udp.RemoteAddress, client.tlsConfig, &config)
+	conn, err := quic.DialContext(ctx, udpConn, rAddr, rAddr.String(), config, &quicCfg)
 	if err != nil {
 		return nil, err
 	}
-	_ = conn.CloseWithError(0, "")
-	_ = udpConn.Close()
-	return nil, nil
 }
