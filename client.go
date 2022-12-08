@@ -24,6 +24,7 @@ var errClientClosed = fmt.Errorf("accelerator client is closed")
 type Client struct {
 	config    *ClientConfig
 	passHash  []byte
+	localNet  string
 	localAddr string
 
 	logger    *logger
@@ -60,9 +61,18 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	if len(passHash) != sha256.Size {
 		return nil, errors.Wrap(err, "invalid password hash size")
 	}
+	localNet := getLocalNetwork(cfg)
 	localAddr, err := getLocalAddress(cfg)
 	if err != nil {
 		return nil, err
+	}
+	err = CheckNetworkAndAddress(localNet, localAddr)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to check local network and address")
+	}
+	err = checkRemoteNetworkAndAddress(cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to check remote network and address")
 	}
 	// initialize logger
 	var ok bool
@@ -93,6 +103,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	client := Client{
 		config:    cfg,
 		passHash:  passHash,
+		localNet:  localNet,
 		localAddr: localAddr,
 		logger:    lg,
 		tlsConfig: tlsConfig,
@@ -106,6 +117,26 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	client.ctx, client.cancel = context.WithCancel(context.Background())
 	ok = true
 	return &client, nil
+}
+
+func getLocalNetwork(cfg *ClientConfig) string {
+	var network string
+	switch cfg.Client.Mode {
+	case "tcp-tls":
+		network = cfg.TCP.LocalNetwork
+	case "udp-quic":
+		network = cfg.UDP.LocalNetwork
+	}
+	if network != "" {
+		return network
+	}
+	switch cfg.Client.Mode {
+	case "tcp-tls":
+		network = "tcp"
+	case "udp-quic":
+		network = "udp"
+	}
+	return network
 }
 
 func getLocalAddress(cfg *ClientConfig) (string, error) {
@@ -132,6 +163,17 @@ func getLocalAddress(cfg *ClientConfig) (string, error) {
 		return "", errors.Errorf("empty address on interface: \"%s\"", name)
 	}
 	return net.JoinHostPort(addresses[0].String(), "0"), nil
+}
+
+func checkRemoteNetworkAndAddress(cfg *ClientConfig) error {
+	var err error
+	switch cfg.Client.Mode {
+	case "tcp-tls":
+		err = CheckNetworkAndAddress(cfg.TCP.RemoteNetwork, cfg.TCP.RemoteAddress)
+	case "udp-quic":
+		err = CheckNetworkAndAddress(cfg.UDP.RemoteNetwork, cfg.UDP.RemoteAddress)
+	}
+	return err
 }
 
 func newClientTLSConfig(cfg *ClientConfig) (*tls.Config, error) {
@@ -177,23 +219,23 @@ func (client *Client) dial() (net.Conn, error) {
 	var conn net.Conn
 	switch client.config.Client.Mode {
 	case "tcp-tls":
+		lAddr, err := net.ResolveTCPAddr(client.localNet, client.localAddr)
+		if err != nil {
+			return nil, err
+		}
+		dialer := net.Dialer{
+			LocalAddr: lAddr,
+		}
 		tcp := client.config.TCP
-		lAddr, err := net.ResolveTCPAddr(tcp.LocalNetwork, client.localAddr)
+		conn, err = dialer.DialContext(client.ctx, tcp.RemoteNetwork, tcp.RemoteAddress)
 		if err != nil {
 			return nil, err
 		}
-		rAddr, err := net.ResolveTCPAddr(tcp.RemoteNetwork, tcp.RemoteAddress)
-		if err != nil {
-			return nil, err
-		}
-		tcpConn, err := net.DialTCP("tcp", lAddr, rAddr)
-		if err != nil {
-			return nil, err
-		}
-		// near the MTU
+		// set the buffer size near the MTU value
+		tcpConn := conn.(*net.TCPConn)
 		_ = tcpConn.SetReadBuffer(2048)
 		_ = tcpConn.SetWriteBuffer(2048)
-		conn = tls.Client(tcpConn, client.tlsConfig)
+		conn = tls.Client(conn, client.tlsConfig)
 	case "udp-quic":
 		// TODO
 	}
