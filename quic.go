@@ -3,9 +3,13 @@ package accelerator
 import (
 	"net"
 	"time"
-
+	
 	"github.com/lucas-clemente/quic-go"
 )
+
+type qListener struct {
+	net.Listener
+}
 
 func (client *Client) dialQUIC() (net.Conn, error) {
 	udp := client.config.UDP

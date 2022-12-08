@@ -179,20 +179,17 @@ func newClientTLSConfig(cfg *ClientConfig) (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	tlsCert, err := tls.LoadX509KeyPair(cfg.TLS.ClientCert, cfg.TLS.ClientKey)
+	if err != nil {
+		return nil, err
+	}
 	config := tls.Config{
-		RootCAs: x509.NewCertPool(),
+		MinVersion:   tls.VersionTLS13,
+		Certificates: []tls.Certificate{tlsCert},
+		RootCAs:      x509.NewCertPool(),
 	}
 	for i := 0; i < len(certs); i++ {
 		config.RootCAs.AddCert(certs[i])
-	}
-	certFile := cfg.TLS.ClientCert
-	keyFile := cfg.TLS.ClientKey
-	if certFile != "" && keyFile != "" {
-		tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
-		if err != nil {
-			return nil, err
-		}
-		config.Certificates = []tls.Certificate{tlsCert}
 	}
 	return &config, nil
 }

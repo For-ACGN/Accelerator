@@ -1,8 +1,13 @@
 package accelerator
 
 import (
+	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"net"
+	"os"
+	"sync"
 
 	"github.com/google/gopacket/pcap"
 	"github.com/lucas-clemente/quic-go"
@@ -16,9 +21,14 @@ type Server struct {
 	config   *ServerConfig
 	passHash []byte
 
-	handle    *pcap.Handle
-	logger    *logger
-	tlsConfig *tls.Config
+	handle       *pcap.Handle
+	logger       *logger
+	tlsListener  net.Listener
+	quicListener net.Listener
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
 // NewServer is used to create a new server from configuration.
@@ -48,21 +58,52 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		}
 	}()
 	// initialize tls config
-	tlsConfig, err := newClientTLSConfig(cfg)
+	tlsConfig, err := newServerTLSConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-
+	var (
+		tlsListener  net.Listener
+		quicListener net.Listener
+		listened     bool
+	)
 	// start TCP listener
-
-	// start UDP listener
-
-	quic.Listen()
-
-	server := Server{
-		config:   cfg,
-		passHash: passHash,
+	if cfg.TCP.Enabled {
+		tlsListener, err = tls.Listen(cfg.TCP.Network, cfg.TCP.Address, tlsConfig)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			if !ok {
+				_ = tlsListener.Close()
+			}
+		}()
+		listened = true
 	}
+	// start UDP listener
+	if cfg.UDP.Enabled {
+		quic.Listen()
+		defer func() {
+			if !ok {
+				_ = lg.Close()
+			}
+		}()
+		listened = true
+	}
+	if !listened {
+		return nil, errors.New("no listener is enabled")
+	}
+	server := Server{
+		config:       cfg,
+		passHash:     passHash,
+		handle:       handle,
+		logger:       lg,
+		tlsListener:  tlsListener,
+		quicListener: quicListener,
+	}
+	// TODO initialize NAT
+	server.ctx, server.cancel = context.WithCancel(context.Background())
+	ok = true
 	return &server, nil
 }
 
@@ -71,7 +112,13 @@ func openPcapDevice(device string) (*pcap.Handle, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	err = iHandle.SetSnapLen(65535)
+	var ok bool
+	defer func() {
+		if !ok {
+			iHandle.CleanUp()
+		}
+	}()
+	err = iHandle.SetSnapLen(64 * 1024)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -95,5 +142,29 @@ func openPcapDevice(device string) (*pcap.Handle, error) {
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	ok = true
 	return handle, nil
+}
+
+func newServerTLSConfig(cfg *ServerConfig) (*tls.Config, error) {
+	caPEM, err := os.ReadFile(cfg.TLS.ClientCA)
+	if err != nil {
+		return nil, err
+	}
+	cert, err := ParseCertificatePEM(caPEM)
+	if err != nil {
+		return nil, err
+	}
+	tlsCert, err := tls.LoadX509KeyPair(cfg.TLS.ServerCert, cfg.TLS.ServerKey)
+	if err != nil {
+		return nil, err
+	}
+	config := tls.Config{
+		MinVersion:   tls.VersionTLS13,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+		Certificates: []tls.Certificate{tlsCert},
+		ClientCAs:    x509.NewCertPool(),
+	}
+	config.ClientCAs.AddCert(cert)
+	return &config, nil
 }
