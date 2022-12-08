@@ -12,6 +12,8 @@ import (
 
 var errQUICConnClosed = errors.New("quic connection is closed")
 
+var _ net.Conn = (*qConn)(nil)
+
 type qConn struct {
 	// must close rawConn manually to prevent goroutine leak
 	// in package github.com/lucas-clemente/quic-go
@@ -37,17 +39,18 @@ type qConn struct {
 
 func (c *qConn) acceptStream() error {
 	c.acceptOnce.Do(func() {
-		if c.stream == nil {
-			defer c.cancel()
-			c.stream, c.acceptErr = c.conn.AcceptStream(c.ctx)
-			if c.acceptErr != nil {
-				return
-			}
-			// read data for trigger handshake
-			_ = c.stream.SetReadDeadline(time.Now().Add(c.timeout))
-			buf := make([]byte, 1)
-			_, c.acceptErr = c.stream.Read(buf)
+		if c.stream != nil {
+			return
 		}
+		defer c.cancel()
+		c.stream, c.acceptErr = c.conn.AcceptStream(c.ctx)
+		if c.acceptErr != nil {
+			return
+		}
+		// read data for trigger handshake
+		_ = c.stream.SetReadDeadline(time.Now().Add(c.timeout))
+		buf := make([]byte, 1)
+		_, c.acceptErr = c.stream.Read(buf)
 	})
 	return c.acceptErr
 }
@@ -117,14 +120,18 @@ func (c *qConn) Close() error {
 	c.acceptOnce.Do(func() {
 		c.acceptErr = errQUICConnClosed
 	})
+	var err error
 	c.sendMu.Lock()
 	defer c.sendMu.Unlock()
 	if c.stream != nil {
-		_ = c.stream.Close()
+		err = c.stream.Close()
 	}
-	err := c.conn.CloseWithError(0, "")
+	e := c.conn.CloseWithError(0, "")
+	if e != nil && err == nil {
+		err = e
+	}
 	if c.rawConn != nil {
-		e := c.rawConn.Close()
+		e = c.rawConn.Close()
 		if e != nil && err == nil {
 			err = e
 		}
@@ -132,8 +139,42 @@ func (c *qConn) Close() error {
 	return err
 }
 
+var _ net.Listener = (*qListener)(nil)
+
 type qListener struct {
-	net.Listener
+	rawConn  net.PacketConn // see Conn
+	listener quic.Listener
+	timeout  time.Duration
+
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func (l *qListener) Accept() (net.Conn, error) {
+	c, err := l.listener.Accept(l.ctx)
+	if err != nil {
+		return nil, err
+	}
+	conn := qConn{
+		conn:    c,
+		timeout: l.timeout,
+	}
+	conn.ctx, conn.cancel = context.WithTimeout(l.ctx, l.timeout)
+	return &conn, nil
+}
+
+func (l *qListener) Addr() net.Addr {
+	return l.listener.Addr()
+}
+
+func (l *qListener) Close() error {
+	l.cancel()
+	err := l.listener.Close()
+	e := l.rawConn.Close()
+	if e != nil && err == nil {
+		err = e
+	}
+	return err
 }
 
 func (client *Client) dialQUIC() (net.Conn, error) {
