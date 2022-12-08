@@ -90,7 +90,6 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 			_ = tapDev.Close()
 		}
 	}()
-	pool := newConnPool(lg, tapDev, poolSize)
 	client := Client{
 		config:    cfg,
 		passHash:  passHash,
@@ -98,8 +97,8 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		logger:    lg,
 		tlsConfig: tlsConfig,
 		tapDev:    tapDev,
-		connPool:  pool,
-		packetCh:  make(chan *packet, 8192),
+		connPool:  newConnPool(poolSize),
+		packetCh:  make(chan *packet, 128*poolSize),
 	}
 	client.packetCache.New = func() interface{} {
 		return newPacket()
@@ -299,7 +298,8 @@ func (client *Client) connPoolWatcher() {
 			}
 			conn, err := client.connect()
 			if err == nil {
-				client.connPool.AddConn(conn)
+				client.wg.Add(1)
+				go client.connReader(conn)
 			} else {
 				client.logger.Error(err)
 			}
@@ -307,6 +307,48 @@ func (client *Client) connPoolWatcher() {
 			return
 		}
 		timer.Reset(period)
+	}
+}
+
+func (client *Client) connReader(conn net.Conn) {
+	defer client.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			client.logger.Fatal(r)
+		}
+	}()
+	defer func() {
+		err := conn.Close()
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			client.logger.Error(err)
+		}
+	}()
+	if !client.connPool.AddConn(&conn) {
+		return
+	}
+	defer client.connPool.DeleteConn(&conn)
+	buf := make([]byte, maxPacketSize)
+	var (
+		size uint16
+		err  error
+	)
+	for {
+		// read frame packet size
+		_, err = io.ReadFull(conn, buf[:frameHeaderSize])
+		if err != nil {
+			return
+		}
+		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
+		// read frame packet
+		_, err = io.ReadFull(conn, buf[:size])
+		if err != nil {
+			return
+		}
+		// write to the tap device
+		_, err = client.tapDev.Write(buf[:size])
+		if err != nil {
+			return
+		}
 	}
 }
 

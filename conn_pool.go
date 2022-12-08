@@ -2,9 +2,7 @@ package accelerator
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
-	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -18,9 +16,7 @@ var (
 
 // connPool is used to send frame packet with lower RTT.
 type connPool struct {
-	logger *logger
-	writer io.Writer
-	size   int
+	size int
 
 	conns   map[*net.Conn]bool
 	connsMu sync.Mutex
@@ -29,15 +25,12 @@ type connPool struct {
 
 	ctx    context.Context
 	cancel context.CancelFunc
-	wg     sync.WaitGroup
 }
 
-func newConnPool(logger *logger, writer io.Writer, size int) *connPool {
+func newConnPool(size int) *connPool {
 	pool := connPool{
-		logger: logger,
-		writer: writer,
-		size:   size,
-		conns:  make(map[*net.Conn]bool, size),
+		size:  size,
+		conns: make(map[*net.Conn]bool, size),
 	}
 	pool.ctx, pool.cancel = context.WithCancel(context.Background())
 	return &pool
@@ -50,73 +43,32 @@ func (pool *connPool) IsFull() bool {
 	}
 	pool.connsMu.Lock()
 	defer pool.connsMu.Unlock()
+	return pool.isFull()
+}
+
+func (pool *connPool) isFull() bool {
 	return len(pool.conns) >= pool.size
 }
 
 // AddConn is used to add new connection to the pool.
-func (pool *connPool) AddConn(conn net.Conn) {
+func (pool *connPool) AddConn(conn *net.Conn) bool {
 	pool.connsMu.Lock()
 	defer pool.connsMu.Unlock()
-	if len(pool.conns) >= pool.size || pool.isClosed() {
-		err := conn.Close()
-		if err != nil {
-			pool.logger.Error(err)
-		}
-		return
+	if pool.isFull() || pool.isClosed() {
+		return false
 	}
-	c := &conn
-	pool.conns[c] = false
-	pool.wg.Add(1)
-	go pool.readLoop(c)
+	pool.conns[conn] = false
+	return true
 }
 
-func (pool *connPool) deleteConn(conn *net.Conn) {
+// DeleteConn is used to delete connection in the pool.
+func (pool *connPool) DeleteConn(conn *net.Conn) {
 	pool.connsMu.Lock()
 	defer pool.connsMu.Unlock()
 	if pool.isClosed() {
 		return
 	}
 	delete(pool.conns, conn)
-}
-
-func (pool *connPool) readLoop(conn *net.Conn) {
-	defer pool.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			pool.logger.Fatal(r)
-		}
-	}()
-	defer pool.deleteConn(conn)
-	c := *conn
-	defer func() {
-		err := c.Close()
-		if err != nil && !errors.Is(err, net.ErrClosed) {
-			pool.logger.Error(err)
-		}
-	}()
-	buf := make([]byte, maxPacketSize)
-	var (
-		size uint16
-		err  error
-	)
-	for {
-		// read frame packet size
-		_, err = io.ReadFull(c, buf[:frameHeaderSize])
-		if err != nil {
-			return
-		}
-		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
-		// read frame packet
-		_, err = io.ReadFull(c, buf[:size])
-		if err != nil {
-			return
-		}
-		// write to under writer
-		_, err = pool.writer.Write(buf[:size])
-		if err != nil {
-			return
-		}
-	}
 }
 
 // Write is used to select one connection for write data.
@@ -190,6 +142,5 @@ func (pool *connPool) Close() error {
 		}
 		delete(pool.conns, conn)
 	}
-	pool.wg.Wait()
 	return err
 }
