@@ -184,7 +184,7 @@ func (l *qListener) Close() error {
 	return err
 }
 
-func qListen(network, address string, config *tls.Config, timeout time.Duration) (net.Listener, error) {
+func quicListen(network, address string, config *tls.Config, timeout time.Duration) (net.Listener, error) {
 	addr, err := net.ResolveUDPAddr(network, address)
 	if err != nil {
 		return nil, err
@@ -231,7 +231,7 @@ func qListen(network, address string, config *tls.Config, timeout time.Duration)
 	return &l, nil
 }
 
-func qDial(ctx context.Context, lAddr, rAddr *net.UDPAddr, config *tls.Config) (*qConn, error) {
+func quicDial(ctx context.Context, lAddr, rAddr *net.UDPAddr, config *tls.Config) (net.Conn, error) {
 	udpConn, err := net.ListenUDP("udp", lAddr)
 	if err != nil {
 		return nil, err

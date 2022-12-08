@@ -208,6 +208,8 @@ func (client *Client) connect() (net.Conn, error) {
 
 func (client *Client) dial() (net.Conn, error) {
 	var conn net.Conn
+	ctx, cancel := context.WithTimeout(client.ctx, 15*time.Second)
+	defer cancel()
 	switch client.config.Client.Mode {
 	case "tcp-tls":
 		lAddr, err := net.ResolveTCPAddr(client.localNet, client.localAddr)
@@ -218,7 +220,7 @@ func (client *Client) dial() (net.Conn, error) {
 			LocalAddr: lAddr,
 		}
 		tcp := client.config.TCP
-		conn, err = dialer.DialContext(client.ctx, tcp.RemoteNetwork, tcp.RemoteAddress)
+		conn, err = dialer.DialContext(ctx, tcp.RemoteNetwork, tcp.RemoteAddress)
 		if err != nil {
 			return nil, err
 		}
@@ -228,7 +230,19 @@ func (client *Client) dial() (net.Conn, error) {
 		_ = tcpConn.SetWriteBuffer(2048)
 		conn = tls.Client(conn, client.tlsConfig)
 	case "udp-quic":
-		// TODO
+		lAddr, err := net.ResolveUDPAddr(client.localNet, client.localAddr)
+		if err != nil {
+			return nil, err
+		}
+		udp := client.config.UDP
+		rAddr, err := net.ResolveUDPAddr(udp.RemoteNetwork, udp.RemoteAddress)
+		if err != nil {
+			return nil, err
+		}
+		conn, err = quicDial(ctx, lAddr, rAddr, client.tlsConfig)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return conn, nil
 }

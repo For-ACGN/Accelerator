@@ -8,9 +8,9 @@ import (
 	"net"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/google/gopacket/pcap"
-	"github.com/lucas-clemente/quic-go"
 	"github.com/pkg/errors"
 )
 
@@ -20,6 +20,7 @@ var errServerClosed = fmt.Errorf("accelerator server is closed")
 type Server struct {
 	config   *ServerConfig
 	passHash []byte
+	timeout  time.Duration
 
 	handle       *pcap.Handle
 	logger       *logger
@@ -62,6 +63,11 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	// set timeout
+	timeout := cfg.Common.Timeout
+	if timeout < 1 {
+		timeout = 10 * time.Second
+	}
 	var (
 		tlsListener  net.Listener
 		quicListener net.Listener
@@ -82,10 +88,13 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	}
 	// start UDP listener
 	if cfg.UDP.Enabled {
-		quic.Listen()
+		quicListener, err = quicListen(cfg.UDP.Network, cfg.UDP.Address, tlsConfig, timeout)
+		if err != nil {
+			return nil, err
+		}
 		defer func() {
 			if !ok {
-				_ = lg.Close()
+				_ = quicListener.Close()
 			}
 		}()
 		listened = true
@@ -96,6 +105,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	server := Server{
 		config:       cfg,
 		passHash:     passHash,
+		timeout:      timeout,
 		handle:       handle,
 		logger:       lg,
 		tlsListener:  tlsListener,
