@@ -57,6 +57,7 @@ func (c *qConn) acceptStream() error {
 		_ = c.stream.SetReadDeadline(time.Now().Add(c.timeout))
 		buf := make([]byte, 1)
 		_, c.acceptErr = c.stream.Read(buf)
+		_ = c.stream.SetDeadline(time.Time{})
 	})
 	return c.acceptErr
 }
@@ -198,7 +199,6 @@ func qListen(network, address string, config *tls.Config, timeout time.Duration)
 			_ = conn.Close()
 		}
 	}()
-
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
@@ -216,6 +216,11 @@ func qListen(network, address string, config *tls.Config, timeout time.Duration)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if !ok {
+			_ = quicListener.Close()
+		}
+	}()
 	l := qListener{
 		rawConn:  conn,
 		listener: quicListener,
@@ -231,6 +236,12 @@ func qDial(ctx context.Context, lAddr, rAddr *net.UDPAddr, config *tls.Config) (
 	if err != nil {
 		return nil, err
 	}
+	var ok bool
+	defer func() {
+		if !ok {
+			_ = udpConn.Close()
+		}
+	}()
 	quicCfg := quic.Config{
 		HandshakeIdleTimeout: defaultTimeout,
 		MaxIdleTimeout:       4 * defaultTimeout,
@@ -240,4 +251,27 @@ func qDial(ctx context.Context, lAddr, rAddr *net.UDPAddr, config *tls.Config) (
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if !ok {
+			_ = conn.CloseWithError(0, "")
+		}
+	}()
+	stream, err := conn.OpenStreamSync(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if !ok {
+			_ = stream.Close()
+		}
+	}()
+	// write data for trigger handshake
+	_ = stream.SetWriteDeadline(time.Now().Add(defaultTimeout))
+	_, err = stream.Write([]byte{0})
+	if err != nil {
+		return nil, err
+	}
+	_ = stream.SetDeadline(time.Time{})
+	ok = true
+	return &qConn{rawConn: udpConn, conn: conn, stream: stream}, nil
 }
