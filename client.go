@@ -528,7 +528,7 @@ func (client *Client) packetReader() {
 		binary.BigEndian.PutUint16(buf, uint16(n))
 		// build packet
 		pkt = client.packetCache.Get().(*packet)
-		size = n + frameHeaderSize
+		size = frameHeaderSize + n
 		copy(pkt.buf, buf[:size])
 		pkt.size = size
 		select {

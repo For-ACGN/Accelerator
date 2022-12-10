@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -27,6 +28,9 @@ type Server struct {
 
 	connPools    map[[tokenSize]byte]*connPool
 	connPoolsRWM sync.RWMutex
+
+	packetCh    chan *packet
+	packetCache sync.Pool
 
 	closed int32
 
@@ -115,6 +119,10 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		tlsListener:  tlsListener,
 		quicListener: quicListener,
 		connPools:    make(map[[tokenSize]byte]*connPool, 16),
+		packetCh:     make(chan *packet, 64*1024),
+	}
+	server.packetCache.New = func() interface{} {
+		return newPacket()
 	}
 	server.ctx, server.cancel = context.WithCancel(context.Background())
 	ok = true
@@ -185,8 +193,6 @@ func newServerTLSConfig(cfg *ServerConfig) (*tls.Config, error) {
 
 // Run is used to run the accelerator server.
 func (srv *Server) Run() {
-	srv.wg.Add(1)
-	go srv.capLoop()
 	if srv.tlsListener != nil {
 		srv.wg.Add(1)
 		go srv.serve(srv.tlsListener)
@@ -199,21 +205,9 @@ func (srv *Server) Run() {
 		addr := srv.quicListener.Addr()
 		srv.logger.Infof("start quic listener(%s %s)", addr.Network(), addr)
 	}
+	srv.wg.Add(1)
+	go srv.captureLoop()
 	srv.logger.Info("accelerator server is running")
-}
-
-func (srv *Server) capLoop() {
-	defer srv.wg.Done()
-	defer func() {
-		if r := recover(); r != nil {
-			srv.logger.Fatal(r)
-		}
-	}()
-	defer srv.handle.Close()
-
-	for {
-		srv.handle.ReadPacketData()
-	}
 }
 
 func (srv *Server) serve(listener net.Listener) {
@@ -279,6 +273,61 @@ func (srv *Server) handleConn(conn net.Conn) {
 
 func (srv *Server) authenticate(conn net.Conn) error {
 	return nil
+}
+
+// captureLoop is used to capture packet from destination network
+// interface and send it to the packet channel for packetSender.
+func (srv *Server) captureLoop() {
+	defer srv.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			srv.logger.Fatal(r)
+		}
+	}()
+	defer srv.handle.Close()
+	var (
+		data []byte
+		pkt  *packet
+		err  error
+	)
+	for {
+		data, _, err = srv.handle.ZeroCopyReadPacketData()
+		if err != nil {
+			return
+		}
+		pkt = srv.packetCache.Get().(*packet)
+		pkt.size = copy(pkt.buf, data)
+		select {
+		case srv.packetCh <- pkt:
+		case <-srv.ctx.Done():
+			return
+		}
+	}
+}
+
+// packetSender is used to parse packet from destination network
+// interface, if the source MAC address or IP address is matched
+// in clients map, it will be sent to the connection about client.
+func (srv *Server) packetSender() {
+	defer srv.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			srv.logger.Fatal("Server.packetSender:\n" + fmt.Sprint(r))
+		}
+	}()
+	var pkt *packet
+	for {
+		select {
+		case pkt = <-srv.packetCh:
+			srv.sendPacket(pkt)
+		case <-srv.ctx.Done():
+			return
+		}
+	}
+}
+
+func (srv *Server) sendPacket(pkt *packet) {
+	defer srv.packetCache.Put(pkt)
 }
 
 func (srv *Server) isClosed() bool {
