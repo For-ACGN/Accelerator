@@ -9,7 +9,7 @@ import (
 )
 
 // -----------------------------------------authentication-----------------------------------------
-//
+
 // Client side send authentication request.
 //
 // +------------------+--------------------------+-------------+
@@ -28,8 +28,7 @@ import (
 // |  1 byte  |         2 bytes          |     var     |
 // +----------+--------------------------+-------------+
 //
-// response field is always be 0x01.
-
+// response field is always be authOK.
 const authOK = 0x01
 
 func buildAuthRequest(hash []byte) ([]byte, error) {
@@ -69,8 +68,48 @@ func generateRandomData() ([]byte, error) {
 	return append(sizeBuf, padding...), nil
 }
 
-// -------------------------------------------transport--------------------------------------------
+// --------------------------------------------command---------------------------------------------
+
+// When the Client send cmdRegisterMAC, Server will create a new
+// connection pool for it, then return a session token to client
+// for unregister, In common Client will send cmdUnregisterMAC
+// before it closed, then Server will remove the connection pool
+// (all connections will be closed) about it.
 //
+// use extra session token is used to prevent other users force
+// unregister current user.
+//
+// When the Client send cmdTransport, Server will add new connection
+// to the exists connection pool.
+//
+// register client MAC address
+// +---------+-------------+
+// | command | MAC address |
+// +---------+-------------+
+// |  byte   |   6 bytes   |
+// +---------+-------------+
+//
+// unregister client MAC address
+// +---------+---------------+
+// | command | session token |
+// +---------+---------------+
+// |  byte   |   32 bytes    |
+// +---------+---------------+
+//
+// start transport
+// +---------+
+// | command |
+// +---------+
+// |  byte   |
+// +---------+
+const (
+	cmdRegisterMAC = iota
+	cmdUnregisterMAC
+	cmdTransport
+)
+
+// -------------------------------------------transport--------------------------------------------
+
 // frame packet structure
 //
 // +--------------+-------------+
@@ -78,7 +117,6 @@ func generateRandomData() ([]byte, error) {
 // +--------------+-------------+
 // |   2 bytes    |     var     |
 // +--------------+-------------+
-
 const (
 	maxPacketSize   = 32 * 1024 // 32 KiB (size+data)
 	frameHeaderSize = 2         // uint16, use big endian
