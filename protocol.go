@@ -70,50 +70,51 @@ func generateRandomData() ([]byte, error) {
 
 // --------------------------------------------command---------------------------------------------
 
-// When the Client send cmdRegisterMAC, Server will create a new
-// connection pool for it, then return a session token to client
-// for unregister, In common Client will send cmdUnregisterMAC
-// before it closed, then Server will remove the connection pool
-// (all connections will be closed) about it.
+// When the Client send cmdLogin, Server will create a new connection
+// pool for it, then return a session token to client for transport
+// and log off. Usually, Client will send cmdLogoff before it closed,
+// then Server will remove the connection pool (all connections will
+// be closed) about it.
 //
 // use extra session token is used to prevent other users force
-// unregister current user.
+// log off current user.
 //
 // When the Client send cmdTransport, Server will add new connection
 // to the exists connection pool.
 //
-// register client MAC address
-// +---------+-------------+
-// | command | MAC address |
-// +---------+-------------+
-// |  byte   |   6 bytes   |
-// +---------+-------------+
+// client log in request              server response
+// +---------+-------------+          +----------+---------------+
+// | command | random data |          | response | session token |
+// +---------+-------------+          +----------+---------------+
+// |  byte   |  16 bytes   |          |   byte   |   32 bytes    |
+// +---------+-------------+          +----------+---------------+
 //
-// unregister client MAC address
+// client log off request             server response
+// +---------+---------------+        +----------+
+// | command | session token |        | response |
+// +---------+---------------+        +----------+
+// |  byte   |   32 bytes    |        |   byte   |
+// +---------+---------------+        +----------+
+//
+// client start transport
 // +---------+---------------+
 // | command | session token |
 // +---------+---------------+
 // |  byte   |   32 bytes    |
 // +---------+---------------+
-//
-// start transport
-// +---------+
-// | command |
-// +---------+
-// |  byte   |
-// +---------+
 const (
-	cmdRegisterMAC = iota
-	cmdUnregisterMAC
+	cmdLogin = iota
+	cmdLogoff
 	cmdTransport
 )
 
 const (
 	cmdSize   = 1
+	obfSize   = 16
 	tokenSize = 32
 
-	registerOK   = 0x01
-	unregisterOK = 0x02
+	loginOK  = 0x01
+	logoffOK = 0x02
 )
 
 var emptySessionToken = make([]byte, tokenSize)
