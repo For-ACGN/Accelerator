@@ -222,6 +222,10 @@ func (srv *Server) serve(listener net.Listener) {
 	}
 }
 
+func (srv *Server) isClosed() bool {
+	return atomic.LoadInt32(&srv.closed) != 0
+}
+
 // Close is used to close accelerator server.
 func (srv *Server) Close() error {
 	atomic.StoreInt32(&srv.closed, 1)
@@ -243,7 +247,6 @@ func (srv *Server) Close() error {
 		}
 		srv.logger.Info("quic listener is closed")
 	}
-
 	srv.logger.Info("wait listener stop serve")
 	srv.wg.Wait()
 	srv.logger.Info("all listeners stop serve")
