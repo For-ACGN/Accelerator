@@ -106,6 +106,8 @@ const (
 	cmdRegisterMAC = iota
 	cmdUnregisterMAC
 	cmdTransport
+
+	tokenSize = 32
 )
 
 // -------------------------------------------transport--------------------------------------------

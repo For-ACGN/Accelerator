@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/errors"
@@ -24,11 +25,13 @@ type Client struct {
 	passHash  []byte
 	localNet  string
 	localAddr string
+	macAddr   []byte
 
 	logger    *logger
 	tlsConfig *tls.Config
 	tapDev    *water.Interface
 	connPool  *connPool
+	token     atomic.Value // []byte
 
 	packetCh    chan *packet
 	packetCache sync.Pool
@@ -94,11 +97,18 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 			_ = tapDev.Close()
 		}
 	}()
+	tap, err := net.InterfaceByName(tapDev.Name())
+	if err != nil {
+		return nil, err
+	}
+	macAddr := make([]byte, 6)
+	copy(macAddr, tap.HardwareAddr)
 	client := Client{
 		config:    cfg,
 		passHash:  passHash,
 		localNet:  localNet,
 		localAddr: localAddr,
+		macAddr:   macAddr,
 		logger:    lg,
 		tlsConfig: tlsConfig,
 		tapDev:    tapDev,
@@ -278,6 +288,33 @@ func (client *Client) authenticate(conn net.Conn) error {
 
 // Run is used to run the accelerator client.
 func (client *Client) Run() error {
+	err := client.login()
+	if err != nil {
+		return err
+	}
+	client.logger.Info("connect accelerator server successfully!")
+	// start connection pool watcher
+	client.wg.Add(1)
+	go client.connPoolWatcher()
+	client.logger.Info("wait connection pool watcher create new connection")
+	select {
+	case <-time.After(2 * time.Second):
+	case <-client.ctx.Done():
+		return errors.WithStack(errClientClosed)
+	}
+	// start packet reader
+	client.wg.Add(1)
+	go client.packetReader()
+	// start packet writer
+	for i := 0; i < client.config.Client.ConnPoolSize; i++ {
+		client.wg.Add(1)
+		go client.packetWriter()
+	}
+	client.logger.Info("accelerator client is running")
+	return nil
+}
+
+func (client *Client) login() error {
 	var (
 		conn net.Conn
 		err  error
@@ -301,29 +338,27 @@ func (client *Client) Run() error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to authenticate")
 	}
+	cmd := make([]byte, 1+6)
+	cmd[0] = cmdRegisterMAC
+	copy(cmd[1:], client.macAddr)
+	_, err = conn.Write(cmd)
+	if err != nil {
+		return errors.WithMessage(err, "failed to register mac address")
+	}
+	token := make([]byte, tokenSize)
+	_, err = io.ReadFull(conn, token)
+	if err != nil {
+		return errors.WithMessage(err, "failed to receive session token")
+	}
+	client.token.Store(token)
 	err = conn.Close()
 	if err != nil {
 		return errors.WithMessage(err, "failed to close authentication connection")
 	}
-	client.logger.Info("connect accelerator server successfully!")
-	// start connection pool watcher
-	client.wg.Add(1)
-	go client.connPoolWatcher()
-	client.logger.Info("wait connection pool watcher create new connection")
-	select {
-	case <-time.After(2 * time.Second):
-	case <-client.ctx.Done():
-		return errors.WithStack(errClientClosed)
-	}
-	// start packet reader
-	client.wg.Add(1)
-	go client.packetReader()
-	// start packet writer
-	for i := 0; i < client.config.Client.ConnPoolSize; i++ {
-		client.wg.Add(1)
-		go client.packetWriter()
-	}
-	client.logger.Info("accelerator client is running")
+	return nil
+}
+
+func (client *Client) logoff() error {
 	return nil
 }
 
@@ -476,6 +511,7 @@ func (client *Client) Close() error {
 	}
 	client.logger.Info("connection pool is closed")
 	client.wg.Wait()
+	// TODO logoff
 	client.logger.Info("accelerator client is stopped")
 	e = client.logger.Close()
 	if e != nil && err == nil {
