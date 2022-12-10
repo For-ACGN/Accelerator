@@ -76,32 +76,34 @@ func generateRandomData() ([]byte, error) {
 // then Server will remove the connection pool (all connections will
 // be closed) about it.
 //
-// use extra session token is used to prevent other users force
+// Use extra session token is used to prevent other users force
 // log off current user.
 //
 // When the Client send cmdTransport, Server will add new connection
 // to the exists connection pool.
 //
-// client log in request              server response
+// =========[client request] <------> [server response]===========
+//
+// Login
 // +---------+-------------+          +----------+---------------+
 // | command | random data |          | response | session token |
 // +---------+-------------+          +----------+---------------+
 // |  byte   |  16 bytes   |          |   byte   |   32 bytes    |
 // +---------+-------------+          +----------+---------------+
 //
-// client log off request             server response
+// Logoff
 // +---------+---------------+        +----------+
 // | command | session token |        | response |
 // +---------+---------------+        +----------+
 // |  byte   |   32 bytes    |        |   byte   |
 // +---------+---------------+        +----------+
 //
-// client start transport
-// +---------+---------------+
-// | command | session token |
-// +---------+---------------+
-// |  byte   |   32 bytes    |
-// +---------+---------------+
+// Transport
+// +---------+---------------+        +----------+
+// | command | session token |        | response |
+// +---------+---------------+        +----------+
+// |  byte   |   32 bytes    |        |   byte   |
+// +---------+---------------+        +----------+
 const (
 	cmdLogin = iota
 	cmdLogoff
@@ -115,6 +117,7 @@ const (
 
 	loginOK  = 0x01
 	logoffOK = 0x02
+	transOK  = 0x03
 )
 
 var emptySessionToken = make([]byte, tokenSize)

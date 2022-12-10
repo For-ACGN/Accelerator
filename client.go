@@ -3,6 +3,7 @@ package accelerator
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
@@ -116,11 +117,11 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		connPool:  newConnPool(poolSize),
 		packetCh:  make(chan *packet, 128*poolSize),
 	}
-	client.token.Store(emptySessionToken)
 	client.packetCache.New = func() interface{} {
 		return newPacket()
 	}
 	client.ctx, client.cancel = context.WithCancel(context.Background())
+	client.setSessionToken(emptySessionToken)
 	ok = true
 	return &client, nil
 }
@@ -317,6 +318,14 @@ func (client *Client) Run() error {
 	return nil
 }
 
+func (client *Client) getSessionToken() []byte {
+	return client.token.Load().([]byte)
+}
+
+func (client *Client) setSessionToken(token []byte) {
+	client.token.Store(token)
+}
+
 func (client *Client) login() error {
 	var (
 		conn net.Conn
@@ -347,24 +356,33 @@ func (client *Client) login() error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to authenticate")
 	}
-	cmd := make([]byte, cmdSize+6)
-	cmd[0] = cmdRegisterMAC
-	copy(cmd[1:], client.macAddr)
-	_, err = conn.Write(cmd)
+	req := make([]byte, cmdSize+obfSize)
+	req[0] = cmdLogin
+	_, err = rand.Read(req[1:])
 	if err != nil {
-		return errors.WithMessage(err, "failed to register mac address")
+		return errors.WithMessage(err, "failed to generate random data for log in")
+	}
+	_, err = conn.Write(req)
+	if err != nil {
+		return errors.WithMessage(err, "failed to send log in request")
+	}
+	buf := make([]byte, cmdSize+tokenSize)
+	_, err = io.ReadFull(conn, buf)
+	if err != nil {
+		return errors.WithMessage(err, "failed to receive log in response")
+	}
+	resp := buf[0]
+	if resp != loginOK {
+		return errors.Errorf("invalid log in response: %d", resp)
 	}
 	token := make([]byte, tokenSize)
-	_, err = io.ReadFull(conn, token)
-	if err != nil {
-		return errors.WithMessage(err, "failed to receive session token")
-	}
-	client.token.Store(token)
+	copy(token, buf[cmdSize:])
+	client.setSessionToken(token)
 	return nil
 }
 
 func (client *Client) logoff() error {
-	token := client.token.Load().([]byte)
+	token := client.getSessionToken()
 	if bytes.Equal(token, emptySessionToken) {
 		return nil
 	}
@@ -378,23 +396,23 @@ func (client *Client) logoff() error {
 			client.logger.Error("failed to close connection for log off", err)
 		}
 	}()
-	cmd := make([]byte, cmdSize+tokenSize)
-	cmd[0] = cmdUnregisterMAC
-	copy(cmd[1:], token)
-	_, err = conn.Write(cmd)
+	req := make([]byte, cmdSize+tokenSize)
+	req[0] = cmdLogoff
+	copy(req[1:], token)
+	_, err = conn.Write(req)
 	if err != nil {
-		return errors.WithMessage(err, "failed to unregister mac address")
+		return errors.WithMessage(err, "failed to send log off request")
 	}
-	buf := make([]byte, 1)
+	buf := make([]byte, cmdSize)
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
-		return errors.WithMessage(err, "failed to receive unregister response")
+		return errors.WithMessage(err, "failed to receive log off response")
 	}
 	resp := buf[0]
-	if resp != unregisterOK {
-		return errors.Errorf("receive invalid response about unregister: %d", resp)
+	if resp != logoffOK {
+		return errors.Errorf("invalid log off response: %d", resp)
 	}
-	client.token.Store(emptySessionToken)
+	client.setSessionToken(emptySessionToken)
 	return nil
 }
 
@@ -445,15 +463,32 @@ func (client *Client) transport(conn net.Conn) {
 			client.logger.Error(err)
 		}
 	}()
-	_, err := conn.Write([]byte{cmdTransport})
+	token := client.getSessionToken()
+	if bytes.Equal(token, emptySessionToken) {
+		return
+	}
+	req := make([]byte, cmdSize+tokenSize)
+	req[0] = cmdTransport
+	copy(req[1:], token)
+	_, err := conn.Write(req)
 	if err != nil {
+		return
+	}
+	buf := make([]byte, cmdSize)
+	_, err = io.ReadFull(conn, buf)
+	if err != nil {
+		return
+	}
+	resp := buf[0]
+	if resp != transOK {
+		client.logger.Errorf("invalid transport response: %d", resp)
 		return
 	}
 	if !client.connPool.AddConn(&conn) {
 		return
 	}
 	defer client.connPool.DeleteConn(&conn)
-	buf := make([]byte, maxPacketSize)
+	buf = make([]byte, maxPacketSize)
 	var size uint16
 	for {
 		// read frame packet size
