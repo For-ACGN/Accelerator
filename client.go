@@ -1,6 +1,7 @@
 package accelerator
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -115,6 +116,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		connPool:  newConnPool(poolSize),
 		packetCh:  make(chan *packet, 128*poolSize),
 	}
+	client.token.Store(emptySessionToken)
 	client.packetCache.New = func() interface{} {
 		return newPacket()
 	}
@@ -269,16 +271,17 @@ func (client *Client) authenticate(conn net.Conn) error {
 	}
 	// read authentication response
 	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
-	resp := make([]byte, 1+2)
-	_, err = io.ReadFull(conn, resp)
+	buf := make([]byte, 1+2)
+	_, err = io.ReadFull(conn, buf)
 	if err != nil {
 		return errors.Wrap(err, "failed to read authentication response")
 	}
-	if resp[0] != authOK {
-		return errors.New("invalid authentication response")
+	resp := buf[0]
+	if resp != authOK {
+		return errors.Errorf("invalid authentication response: %d", resp)
 	}
 	// read padding random data
-	size := binary.BigEndian.Uint16(resp[1:])
+	size := binary.BigEndian.Uint16(buf[1:])
 	_, err = io.CopyN(io.Discard, conn, int64(size))
 	if err != nil {
 		return errors.Wrap(err, "failed to read padding random data")
@@ -290,7 +293,7 @@ func (client *Client) authenticate(conn net.Conn) error {
 func (client *Client) Run() error {
 	err := client.login()
 	if err != nil {
-		return err
+		return errors.WithMessage(err, "failed to log in")
 	}
 	client.logger.Info("connect accelerator server successfully!")
 	// start connection pool watcher
@@ -334,11 +337,17 @@ func (client *Client) login() error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		err = conn.Close()
+		if err != nil {
+			client.logger.Error("failed to close connection for log in", err)
+		}
+	}()
 	err = client.authenticate(conn)
 	if err != nil {
 		return errors.WithMessage(err, "failed to authenticate")
 	}
-	cmd := make([]byte, 1+6)
+	cmd := make([]byte, cmdSize+6)
 	cmd[0] = cmdRegisterMAC
 	copy(cmd[1:], client.macAddr)
 	_, err = conn.Write(cmd)
@@ -351,17 +360,46 @@ func (client *Client) login() error {
 		return errors.WithMessage(err, "failed to receive session token")
 	}
 	client.token.Store(token)
-	err = conn.Close()
-	if err != nil {
-		return errors.WithMessage(err, "failed to close authentication connection")
-	}
 	return nil
 }
 
 func (client *Client) logoff() error {
+	token := client.token.Load().([]byte)
+	if bytes.Equal(token, emptySessionToken) {
+		return nil
+	}
+	conn, err := client.connect()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err = conn.Close()
+		if err != nil {
+			client.logger.Error("failed to close connection for log off", err)
+		}
+	}()
+	cmd := make([]byte, cmdSize+tokenSize)
+	cmd[0] = cmdUnregisterMAC
+	copy(cmd[1:], token)
+	_, err = conn.Write(cmd)
+	if err != nil {
+		return errors.WithMessage(err, "failed to unregister mac address")
+	}
+	buf := make([]byte, 1)
+	_, err = io.ReadFull(conn, buf)
+	if err != nil {
+		return errors.WithMessage(err, "failed to receive unregister response")
+	}
+	resp := buf[0]
+	if resp != unregisterOK {
+		return errors.Errorf("receive invalid response about unregister: %d", resp)
+	}
+	client.token.Store(emptySessionToken)
 	return nil
 }
 
+// connPoolWatcher is used to check connection pool is full,
+// if it is not full, connect and add new connection to pool.
 func (client *Client) connPoolWatcher() {
 	defer client.wg.Done()
 	defer func() {
@@ -381,7 +419,7 @@ func (client *Client) connPoolWatcher() {
 			conn, err := client.connect()
 			if err == nil {
 				client.wg.Add(1)
-				go client.connReader(conn)
+				go client.transport(conn)
 			} else {
 				client.logger.Error(err)
 			}
@@ -392,7 +430,9 @@ func (client *Client) connPoolWatcher() {
 	}
 }
 
-func (client *Client) connReader(conn net.Conn) {
+// transport will send transport command to server, then it
+// starts read packet from server and write to TAP device.
+func (client *Client) transport(conn net.Conn) {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
@@ -405,15 +445,16 @@ func (client *Client) connReader(conn net.Conn) {
 			client.logger.Error(err)
 		}
 	}()
+	_, err := conn.Write([]byte{cmdTransport})
+	if err != nil {
+		return
+	}
 	if !client.connPool.AddConn(&conn) {
 		return
 	}
 	defer client.connPool.DeleteConn(&conn)
 	buf := make([]byte, maxPacketSize)
-	var (
-		size uint16
-		err  error
-	)
+	var size uint16
 	for {
 		// read frame packet size
 		_, err = io.ReadFull(conn, buf[:frameHeaderSize])
@@ -434,6 +475,8 @@ func (client *Client) connReader(conn net.Conn) {
 	}
 }
 
+// packetReader is used to read packet from TAP device
+// and send it to the packet channel.
 func (client *Client) packetReader() {
 	defer client.wg.Done()
 	defer func() {
@@ -469,6 +512,8 @@ func (client *Client) packetReader() {
 	}
 }
 
+// packetWriter is used to read packet from packet channel
+// and write it to the server by the connection pool.
 func (client *Client) packetWriter() {
 	defer client.wg.Done()
 	defer func() {
@@ -511,7 +556,13 @@ func (client *Client) Close() error {
 	}
 	client.logger.Info("connection pool is closed")
 	client.wg.Wait()
-	// TODO logoff
+	e = client.logoff()
+	if e != nil {
+		client.logger.Error("failed to log off:", e)
+		if err == nil {
+			err = e
+		}
+	}
 	client.logger.Info("accelerator client is stopped")
 	e = client.logger.Close()
 	if e != nil && err == nil {

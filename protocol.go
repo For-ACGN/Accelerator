@@ -106,9 +106,17 @@ const (
 	cmdRegisterMAC = iota
 	cmdUnregisterMAC
 	cmdTransport
-
-	tokenSize = 32
 )
+
+const (
+	cmdSize   = 1
+	tokenSize = 32
+
+	registerOK   = 0x01
+	unregisterOK = 0x02
+)
+
+var emptySessionToken = make([]byte, tokenSize)
 
 // -------------------------------------------transport--------------------------------------------
 
