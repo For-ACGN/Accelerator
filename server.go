@@ -25,7 +25,7 @@ type Server struct {
 	tlsListener  net.Listener
 	quicListener net.Listener
 
-	connPools    map[[32]byte]*connPool
+	connPools    map[[tokenSize]byte]*connPool
 	connPoolsRWM sync.RWMutex
 
 	closed int32
@@ -105,6 +105,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	if !listened {
 		return nil, errors.New("no listener is enabled")
 	}
+	// TODO initialize NAT
 	server := Server{
 		config:       cfg,
 		passHash:     passHash,
@@ -113,9 +114,8 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		logger:       lg,
 		tlsListener:  tlsListener,
 		quicListener: quicListener,
-		connPools:    make(map[[32]byte]*connPool, 16),
+		connPools:    make(map[[tokenSize]byte]*connPool, 16),
 	}
-	// TODO initialize NAT
 	server.ctx, server.cancel = context.WithCancel(context.Background())
 	ok = true
 	return &server, nil
@@ -185,6 +185,8 @@ func newServerTLSConfig(cfg *ServerConfig) (*tls.Config, error) {
 
 // Run is used to run the accelerator server.
 func (srv *Server) Run() {
+	srv.wg.Add(1)
+	go srv.capLoop()
 	if srv.tlsListener != nil {
 		srv.wg.Add(1)
 		go srv.serve(srv.tlsListener)
@@ -200,6 +202,20 @@ func (srv *Server) Run() {
 	srv.logger.Info("accelerator server is running")
 }
 
+func (srv *Server) capLoop() {
+	defer srv.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			srv.logger.Fatal(r)
+		}
+	}()
+	defer srv.handle.Close()
+
+	for {
+		srv.handle.ReadPacketData()
+	}
+}
+
 func (srv *Server) serve(listener net.Listener) {
 	defer srv.wg.Done()
 	defer func() {
@@ -213,13 +229,56 @@ func (srv *Server) serve(listener net.Listener) {
 			srv.logger.Error(err)
 		}
 	}()
+	const maxDelay = time.Second
+	var delay time.Duration // how long to sleep on accept failure
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-
+			// check error type
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				if delay == 0 {
+					delay = 5 * time.Millisecond
+				} else {
+					delay *= 2
+				}
+				if delay > maxDelay {
+					delay = maxDelay
+				}
+				if delay != maxDelay {
+					const format = "accept error: %s; retrying in %v"
+					srv.logger.Warningf(format, err, delay)
+				}
+				time.Sleep(delay)
+				continue
+			}
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+			srv.logger.Error("failed to accept:", err)
 		}
-		_ = conn.Close()
+		srv.wg.Add(1)
+		go srv.handleConn(conn)
 	}
+}
+
+func (srv *Server) handleConn(conn net.Conn) {
+	defer srv.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			srv.logger.Fatal(r)
+		}
+	}()
+	defer func() {
+		err := conn.Close()
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			srv.logger.Error(err)
+		}
+	}()
+	srv.authenticate(conn)
+}
+
+func (srv *Server) authenticate(conn net.Conn) error {
+	return nil
 }
 
 func (srv *Server) isClosed() bool {
@@ -247,7 +306,7 @@ func (srv *Server) Close() error {
 		}
 		srv.logger.Info("quic listener is closed")
 	}
-	srv.logger.Info("wait listener stop serve")
+	srv.logger.Info("wait listeners stop serve")
 	srv.wg.Wait()
 	srv.logger.Info("all listeners stop serve")
 

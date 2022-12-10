@@ -27,13 +27,12 @@ type Client struct {
 	passHash  []byte
 	localNet  string
 	localAddr string
-	macAddr   []byte
 
 	logger    *logger
 	tlsConfig *tls.Config
 	tapDev    *water.Interface
 	connPool  *connPool
-	token     atomic.Value // []byte
+	token     atomic.Value
 
 	packetCh    chan *packet
 	packetCache sync.Pool
@@ -99,18 +98,11 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 			_ = tapDev.Close()
 		}
 	}()
-	tap, err := net.InterfaceByName(tapDev.Name())
-	if err != nil {
-		return nil, err
-	}
-	macAddr := make([]byte, 6)
-	copy(macAddr, tap.HardwareAddr)
 	client := Client{
 		config:    cfg,
 		passHash:  passHash,
 		localNet:  localNet,
 		localAddr: localAddr,
-		macAddr:   macAddr,
 		logger:    lg,
 		tlsConfig: tlsConfig,
 		tapDev:    tapDev,
