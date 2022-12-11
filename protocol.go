@@ -19,8 +19,8 @@ import (
 // +------------------+--------------------------+-------------+
 //
 // If authenticate successfully, Server side will send response,
-// otherwise Server will read data until it reach 65536 bytes
-// or client side close connection.
+// otherwise Server will read data until connection reach the
+// deadline or client side close the connection.
 //
 // +----------+--------------------------+-------------+
 // | response | random data size(uint16) | random data |

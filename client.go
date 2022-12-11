@@ -263,7 +263,6 @@ func (client *Client) authenticate(conn net.Conn) error {
 		return errors.Wrap(err, "failed to send authentication request")
 	}
 	// read authentication response
-	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	buf := make([]byte, 1+2)
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
@@ -344,6 +343,7 @@ func (client *Client) login() error {
 			client.logger.Error("failed to close connection for log in", err)
 		}
 	}()
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	err = client.authenticate(conn)
 	if err != nil {
 		return errors.WithMessage(err, "failed to authenticate")
@@ -388,6 +388,7 @@ func (client *Client) logoff() error {
 			client.logger.Error("failed to close connection for log off", err)
 		}
 	}()
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdLogoff
 	copy(req[1:], token)
@@ -459,6 +460,7 @@ func (client *Client) transport(conn net.Conn) {
 	if bytes.Equal(token, emptySessionToken) {
 		return
 	}
+	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdTransport
 	copy(req[1:], token)
@@ -480,6 +482,7 @@ func (client *Client) transport(conn net.Conn) {
 		return
 	}
 	defer client.connPool.DeleteConn(&conn)
+	_ = conn.SetDeadline(time.Time{})
 	buf = make([]byte, maxPacketSize)
 	var size uint16
 	for {

@@ -2,8 +2,12 @@ package accelerator
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
+	"io"
+	"math/rand"
 	"net"
 	"os"
 	"sync"
@@ -25,12 +29,15 @@ type Server struct {
 	tlsListener  net.Listener
 	quicListener net.Listener
 
-	macs     map[[6]byte][tokenSize]byte
-	macsRWM  sync.Mutex
-	ipv4s    map[[net.IPv4len]byte][tokenSize]byte
-	ipv4sRWM sync.Mutex
-	ipv6s    map[[net.IPv6len]byte][tokenSize]byte
-	ipv6sRWM sync.Mutex
+	tokens    map[[tokenSize]byte]struct{}
+	tokensRWM sync.RWMutex
+
+	macs    map[[6]byte][tokenSize]byte
+	macsMu  sync.Mutex
+	ipv4s   map[[net.IPv4len]byte][tokenSize]byte
+	ipv4sMu sync.Mutex
+	ipv6s   map[[net.IPv6len]byte][tokenSize]byte
+	ipv6sMu sync.Mutex
 
 	connPools    map[[tokenSize]byte]*connPool
 	connPoolsRWM sync.RWMutex
@@ -124,6 +131,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		logger:       lg,
 		tlsListener:  tlsListener,
 		quicListener: quicListener,
+		tokens:       make(map[[tokenSize]byte]struct{}, 16),
 		connPools:    make(map[[tokenSize]byte]*connPool, 16),
 		packetCh:     make(chan *packet, 64*1024),
 	}
@@ -274,11 +282,113 @@ func (srv *Server) handleConn(conn net.Conn) {
 			srv.logger.Error(err)
 		}
 	}()
-	srv.authenticate(conn)
+	_ = conn.SetDeadline(time.Now().Add(3 * srv.timeout))
+	err := srv.authenticate(conn)
+	if err != nil {
+		const format = "[%s] failed to authenticate: %s"
+		srv.logger.Warningf(format, conn.RemoteAddr(), err)
+		return
+	}
+	// read command
+	buf := make([]byte, cmdSize)
+	_, err = io.ReadFull(conn, buf)
+	if err != nil {
+		const format = "[%s] failed to read command: %s"
+		srv.logger.Warningf(format, conn.RemoteAddr(), err)
+		return
+	}
+	cmd := buf[0]
+	switch cmd {
+	case cmdLogin:
+		srv.handleLogin(conn)
+	case cmdLogoff:
+		srv.handleLogoff(conn)
+	case cmdTransport:
+		srv.handleTransport(conn)
+	default:
+		const format = "[%s] read invalid command: %d"
+		srv.logger.Warningf(format, conn.RemoteAddr(), cmd)
+		return
+	}
 }
 
 func (srv *Server) authenticate(conn net.Conn) error {
+	passHash := make([]byte, sha256.Size)
+	_, err := io.ReadFull(conn, passHash)
+	if err != nil {
+		return errors.Wrap(err, "failed to read password hash")
+	}
+	if subtle.ConstantTimeCompare(srv.passHash, passHash) != 1 {
+		srv.defend(conn)
+		return errors.New("invalid password hash")
+	}
+	// send authentication response
+	resp, err := buildAuthResponse()
+	if err != nil {
+		return errors.WithMessage(err, "failed to build authentication response")
+	}
+	_, err = conn.Write(resp)
+	if err != nil {
+		return errors.Wrap(err, "failed to send authentication response")
+	}
 	return nil
+}
+
+func (srv *Server) defend(conn net.Conn) {
+	const format = "defend client [%s] "
+	srv.logger.Warningf(format, conn.RemoteAddr())
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				srv.logger.Fatal("Server.defend", r)
+			}
+		}()
+		_, _ = io.Copy(io.Discard, conn)
+	}()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				srv.logger.Fatal("Server.defend", r)
+			}
+		}()
+		timer := time.NewTimer(3 * time.Second)
+		defer timer.Stop()
+		for {
+			select {
+			case <-timer.C:
+				data, err := generateRandomData()
+				if err != nil {
+					return
+				}
+				data = data[2:] // skip size header
+				_, err = conn.Write(data)
+				if err != nil {
+					return
+				}
+			case <-srv.ctx.Done():
+				return
+			}
+			timer.Reset(time.Duration(1+rand.Intn(3)) * time.Second) // #nosec
+		}
+	}()
+	wg.Wait()
+}
+
+func (srv *Server) handleLogin(conn net.Conn) {
+
+}
+
+func (srv *Server) handleLogoff(conn net.Conn) {
+
+}
+
+func (srv *Server) handleTransport(conn net.Conn) {
+	_ = conn.SetDeadline(time.Time{})
 }
 
 // captureLoop is used to capture packet from destination network
