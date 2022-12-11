@@ -266,7 +266,7 @@ func (client *Client) authenticate(conn net.Conn) error {
 	buf := make([]byte, cmdSize+2)
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
-		return errors.Wrap(err, "failed to read authentication response")
+		return errors.Wrap(err, "failed to receive authentication response")
 	}
 	resp := buf[0]
 	if resp != authOK {
@@ -276,7 +276,7 @@ func (client *Client) authenticate(conn net.Conn) error {
 	size := binary.BigEndian.Uint16(buf[cmdSize:])
 	_, err = io.CopyN(io.Discard, conn, int64(size))
 	if err != nil {
-		return errors.Wrap(err, "failed to read padding random data")
+		return errors.Wrap(err, "failed to receive padding random data")
 	}
 	return nil
 }

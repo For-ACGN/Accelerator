@@ -294,7 +294,7 @@ func (srv *Server) handleConn(conn net.Conn) {
 	buf := make([]byte, cmdSize)
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
-		const format = "[%s] failed to read command: %s"
+		const format = "[%s] failed to receive command: %s"
 		srv.logger.Errorf(format, conn.RemoteAddr(), err)
 		return
 	}
@@ -307,7 +307,7 @@ func (srv *Server) handleConn(conn net.Conn) {
 	case cmdTransport:
 		srv.handleTransport(conn)
 	default:
-		const format = "[%s] read invalid command: %d"
+		const format = "[%s] receive invalid command: %d"
 		srv.logger.Warningf(format, conn.RemoteAddr(), cmd)
 		return
 	}
@@ -317,7 +317,7 @@ func (srv *Server) authenticate(conn net.Conn) error {
 	passHash := make([]byte, sha256.Size)
 	_, err := io.ReadFull(conn, passHash)
 	if err != nil {
-		return errors.Wrap(err, "failed to read password hash")
+		return errors.Wrap(err, "failed to receive password hash")
 	}
 	if subtle.ConstantTimeCompare(srv.passHash, passHash) != 1 {
 		srv.defend(conn)
@@ -385,7 +385,7 @@ func (srv *Server) handleLogin(conn net.Conn) {
 	obf := make([]byte, obfSize)
 	_, err := io.ReadFull(conn, obf)
 	if err != nil {
-		const format = "[%s] failed to read random data: %s"
+		const format = "[%s] failed to receive random data: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
@@ -416,11 +416,54 @@ func (srv *Server) handleLogin(conn net.Conn) {
 }
 
 func (srv *Server) handleLogoff(conn net.Conn) {
-
+	remoteAddr := conn.RemoteAddr()
+	token := sessionToken{}
+	_, err := io.ReadFull(conn, token[:])
+	if err != nil {
+		const format = "[%s] failed to receive session token: %s"
+		srv.logger.Errorf(format, remoteAddr, err)
+		return
+	}
+	buf := make([]byte, cmdSize)
+	buf[0] = logoffOK
+	_, err = conn.Write(buf)
+	if err != nil {
+		const format = "[%s] failed to send log off response: %s"
+		srv.logger.Errorf(format, remoteAddr, err)
+		return
+	}
+	srv.deleteSessionToken(token)
+	srv.logger.Infof("[%s] logoff successfully", remoteAddr)
 }
 
 func (srv *Server) handleTransport(conn net.Conn) {
+	remoteAddr := conn.RemoteAddr()
+	token := sessionToken{}
+	_, err := io.ReadFull(conn, token[:])
+	if err != nil {
+		const format = "[%s] failed to receive session token: %s"
+		srv.logger.Errorf(format, remoteAddr, err)
+		return
+	}
+	if !srv.isValidSessionToken(token) {
+		const format = "[%s] receive invalid session token"
+		srv.logger.Errorf(format, remoteAddr)
+		return
+	}
+	buf := make([]byte, cmdSize)
+	buf[0] = transOK
+	_, err = conn.Write(buf)
+	if err != nil {
+		const format = "[%s] failed to send transport response: %s"
+		srv.logger.Errorf(format, remoteAddr, err)
+		return
+	}
 	_ = conn.SetDeadline(time.Time{})
+	srv.transportConn(conn)
+}
+
+func (srv *Server) transportConn(conn net.Conn) {
+
 }
 
 // captureLoop is used to capture packet from destination network
