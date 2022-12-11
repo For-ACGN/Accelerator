@@ -4,9 +4,15 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"net"
 
 	"github.com/pkg/errors"
 )
+
+// for server map key
+type mac [6]byte
+type ipv4 [net.IPv4len]byte
+type ipv6 [net.IPv6len]byte
 
 // -----------------------------------------authentication-----------------------------------------
 
@@ -122,7 +128,7 @@ const (
 
 type sessionToken = [tokenSize]byte
 
-var emptySessionToken = make([]byte, tokenSize)
+var emptySessionToken = sessionToken{}
 
 // -------------------------------------------transport--------------------------------------------
 

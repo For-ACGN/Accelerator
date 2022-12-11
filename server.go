@@ -34,11 +34,11 @@ type Server struct {
 	tokens    map[sessionToken]time.Time
 	tokensRWM sync.RWMutex
 
-	macs     map[[6]byte]sessionToken
+	macs     map[mac]sessionToken
 	macsRWM  sync.RWMutex
-	ipv4s    map[[net.IPv4len]byte]sessionToken
+	ipv4s    map[ipv4]sessionToken
 	ipv4sRWM sync.RWMutex
-	ipv6s    map[[net.IPv6len]byte]sessionToken
+	ipv6s    map[ipv6]sessionToken
 	ipv6sRWM sync.RWMutex
 
 	connPools    map[sessionToken]*connPool
@@ -139,6 +139,9 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		tlsListener:  tlsListener,
 		quicListener: quicListener,
 		tokens:       make(map[sessionToken]time.Time, 16),
+		macs:         make(map[mac]sessionToken, 16),
+		ipv4s:        make(map[ipv4]sessionToken, 16),
+		ipv6s:        make(map[ipv6]sessionToken, 16),
 		connPools:    make(map[sessionToken]*connPool, 16),
 		packetCh:     make(chan *packet, 64*1024),
 	}
@@ -571,7 +574,7 @@ func (srv *Server) isValidSessionToken(token sessionToken) bool {
 	return now.Before(e)
 }
 
-func (srv *Server) bindMAC(token sessionToken, mac [6]byte) {
+func (srv *Server) bindMAC(token sessionToken, mac mac) {
 	srv.macsRWM.Lock()
 	defer srv.macsRWM.Unlock()
 	srv.macs[mac] = token
@@ -580,16 +583,12 @@ func (srv *Server) bindMAC(token sessionToken, mac [6]byte) {
 func (srv *Server) unbindMAC(token sessionToken) {
 	srv.macsRWM.Lock()
 	defer srv.macsRWM.Unlock()
-	for mac, t := range srv.macs {
+	for m, t := range srv.macs {
 		if t != token {
 			continue
 		}
-		delete(srv.macs, mac)
+		delete(srv.macs, m)
 	}
-}
-
-func (srv *Server) macToSessionToken() {
-
 }
 
 func (srv *Server) prepareConnPool(token sessionToken) {
@@ -602,12 +601,6 @@ func (srv *Server) prepareConnPool(token sessionToken) {
 		return
 	}
 	srv.connPools[token] = newConnPool(srv.poolSize)
-}
-
-func (srv *Server) getConnPool(token sessionToken) *connPool {
-	srv.connPoolsRWM.RLock()
-	defer srv.connPoolsRWM.RUnlock()
-	return srv.connPools[token]
 }
 
 func (srv *Server) removeConnPool(token sessionToken) {
@@ -623,6 +616,26 @@ func (srv *Server) removeConnPool(token sessionToken) {
 		return
 	}
 	srv.logger.Error("failed to close connection:", err)
+}
+
+func (srv *Server) getConnPool(token sessionToken) *connPool {
+	srv.connPoolsRWM.RLock()
+	defer srv.connPoolsRWM.RUnlock()
+	return srv.connPools[token]
+}
+
+func (srv *Server) getSessionTokenByMAC(mac mac) sessionToken {
+	srv.macsRWM.RLock()
+	defer srv.macsRWM.RUnlock()
+	return srv.macs[mac]
+}
+
+func (srv *Server) getConnPoolByMAC(mac mac) *connPool {
+	token := srv.getSessionTokenByMAC(mac)
+	if token == emptySessionToken {
+		return nil
+	}
+	return srv.getConnPool(token)
 }
 
 func (srv *Server) isClosed() bool {

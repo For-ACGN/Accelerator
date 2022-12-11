@@ -174,8 +174,8 @@ func (tc *transConn) isNewSourceMAC() {
 		return
 	}
 	// must copy, because DecodeLayers use reference
-	mac := [6]byte{}
-	copy(mac[:], tc.eth.SrcMAC)
-	tc.srcMAC = append(tc.srcMAC, mac[:])
-	tc.ctx.bindMAC(tc.token, mac)
+	srcMAC := mac{}
+	copy(srcMAC[:], tc.eth.SrcMAC)
+	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
+	tc.ctx.bindMAC(tc.token, srcMAC)
 }
