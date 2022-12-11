@@ -10,11 +10,15 @@ import (
 // ServerConfig contains accelerator server configurations.
 type ServerConfig struct {
 	Common struct {
-		Interface string        `toml:"interface"`
-		PassHash  string        `toml:"pwd_hash"`
-		LogPath   string        `toml:"log_path"`
-		Timeout   time.Duration `toml:"timeout"`
+		Interface string `toml:"interface"`
+		PassHash  string `toml:"pwd_hash"`
+		LogPath   string `toml:"log_path"`
 	} `toml:"common"`
+
+	Server struct {
+		ConnPoolSize int           `toml:"conn_pool_size"`
+		Timeout      time.Duration `toml:"timeout"`
+	} `toml:"server"`
 
 	TCP struct {
 		Enabled bool   `toml:"enabled"`

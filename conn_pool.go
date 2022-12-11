@@ -17,12 +17,12 @@ var (
 // connPool is used to send frame packet with lower RTT.
 type connPool struct {
 	size int
-
+	
 	conns   map[*net.Conn]bool
 	connsMu sync.Mutex
-
+	
 	closed int32
-
+	
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -39,7 +39,7 @@ func newConnPool(size int) *connPool {
 // IsFull is used to check connection pool is full.
 func (pool *connPool) IsFull() bool {
 	if pool.isClosed() {
-		return false
+		return true
 	}
 	pool.connsMu.Lock()
 	defer pool.connsMu.Unlock()
