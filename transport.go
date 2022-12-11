@@ -132,7 +132,7 @@ func (tc *transConn) decodeWithoutNAT(buf []byte) {
 	if decoded[0] != layers.LayerTypeEthernet {
 		return
 	}
-	tc.checkSrcMAC()
+	tc.isNewSourceMAC()
 	_ = tc.handle.WritePacketData(buf)
 }
 
@@ -145,6 +145,7 @@ func (tc *transConn) decodeWithNAT(buf []byte) {
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
 		case layers.LayerTypeEthernet:
+			tc.isNewSourceMAC()
 		case layers.LayerTypeARP:
 		case layers.LayerTypeIPv4:
 		case layers.LayerTypeIPv6:
@@ -161,7 +162,7 @@ func (tc *transConn) decodeWithNAT(buf []byte) {
 	// }
 }
 
-func (tc *transConn) checkSrcMAC() {
+func (tc *transConn) isNewSourceMAC() {
 	var exist bool
 	for i := 0; i < len(tc.srcMAC); i++ {
 		if bytes.Equal(tc.srcMAC[i], tc.eth.SrcMAC) {

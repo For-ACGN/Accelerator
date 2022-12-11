@@ -23,6 +23,7 @@ import (
 type Server struct {
 	config   *ServerConfig
 	passHash []byte
+	poolSize int
 	timeout  time.Duration
 
 	handle       *pcap.Handle
@@ -33,12 +34,12 @@ type Server struct {
 	tokens    map[sessionToken]time.Time
 	tokensRWM sync.RWMutex
 
-	macs    map[[6]byte]sessionToken
-	macsMu  sync.Mutex
-	ipv4s   map[[net.IPv4len]byte]sessionToken
-	ipv4sMu sync.Mutex
-	ipv6s   map[[net.IPv6len]byte]sessionToken
-	ipv6sMu sync.Mutex
+	macs     map[[6]byte]sessionToken
+	macsRWM  sync.RWMutex
+	ipv4s    map[[net.IPv4len]byte]sessionToken
+	ipv4sRWM sync.RWMutex
+	ipv6s    map[[net.IPv6len]byte]sessionToken
+	ipv6sRWM sync.RWMutex
 
 	connPools    map[sessionToken]*connPool
 	connPoolsRWM sync.RWMutex
@@ -84,8 +85,12 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	poolSize := cfg.Server.ConnPoolSize
+	if poolSize < 1 || poolSize > 256 {
+		return nil, errors.Errorf("invalid conn pool size: \"%d\"", poolSize)
+	}
 	// set timeout
-	timeout := cfg.Common.Timeout
+	timeout := cfg.Server.Timeout
 	if timeout < 1 {
 		timeout = 10 * time.Second
 	}
@@ -127,6 +132,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	server := Server{
 		config:       cfg,
 		passHash:     passHash,
+		poolSize:     poolSize,
 		timeout:      timeout,
 		handle:       handle,
 		logger:       lg,
@@ -412,6 +418,7 @@ func (srv *Server) handleLogin(conn net.Conn) {
 		return
 	}
 	srv.addSessionToken(token)
+	srv.prepareConnPool(token)
 	srv.logger.Infof("[%s] login successfully", remoteAddr)
 }
 
@@ -432,6 +439,8 @@ func (srv *Server) handleLogoff(conn net.Conn) {
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
+	srv.removeConnPool(token)
+	srv.unbindMAC(token)
 	srv.deleteSessionToken(token)
 	srv.logger.Infof("[%s] logoff successfully", remoteAddr)
 }
@@ -458,7 +467,22 @@ func (srv *Server) handleTransport(conn net.Conn) {
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
-	srv.newTransportConn(conn).transport()
+	// add connection to pool
+	pool := srv.getConnPool(token)
+	if pool == nil {
+		return
+	}
+	if pool.IsFull() {
+		return
+	}
+	c := &conn
+	if !pool.AddConn(c) {
+		return
+	}
+	defer pool.DeleteConn(c)
+	// start transport packet
+	tc := srv.newTransportConn(conn, token)
+	tc.transport()
 }
 
 // captureLoop is used to capture packet from destination network
@@ -545,6 +569,60 @@ func (srv *Server) isValidSessionToken(token sessionToken) bool {
 		return false
 	}
 	return now.Before(e)
+}
+
+func (srv *Server) bindMAC(token sessionToken, mac [6]byte) {
+	srv.macsRWM.Lock()
+	defer srv.macsRWM.Unlock()
+	srv.macs[mac] = token
+}
+
+func (srv *Server) unbindMAC(token sessionToken) {
+	srv.macsRWM.Lock()
+	defer srv.macsRWM.Unlock()
+	for mac, t := range srv.macs {
+		if t != token {
+			continue
+		}
+		delete(srv.macs, mac)
+	}
+}
+
+func (srv *Server) macToSessionToken() {
+
+}
+
+func (srv *Server) prepareConnPool(token sessionToken) {
+	srv.connPoolsRWM.Lock()
+	defer srv.connPoolsRWM.Unlock()
+	if srv.isClosed() {
+		return
+	}
+	if srv.connPools[token] != nil {
+		return
+	}
+	srv.connPools[token] = newConnPool(srv.poolSize)
+}
+
+func (srv *Server) getConnPool(token sessionToken) *connPool {
+	srv.connPoolsRWM.RLock()
+	defer srv.connPoolsRWM.RUnlock()
+	return srv.connPools[token]
+}
+
+func (srv *Server) removeConnPool(token sessionToken) {
+	srv.connPoolsRWM.Lock()
+	defer srv.connPoolsRWM.Unlock()
+	pool, ok := srv.connPools[token]
+	if !ok {
+		return
+	}
+	delete(srv.connPools, token)
+	err := pool.Close()
+	if err == nil {
+		return
+	}
+	srv.logger.Error("failed to close connection:", err)
 }
 
 func (srv *Server) isClosed() bool {
