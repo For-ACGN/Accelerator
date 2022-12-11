@@ -414,7 +414,7 @@ func (client *Client) connPoolWatcher() {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			client.logger.Fatal(r)
+			client.logger.Fatal("Client.connPoolWatcher", r)
 		}
 	}()
 	const period = 100 * time.Millisecond
@@ -446,7 +446,7 @@ func (client *Client) transport(conn net.Conn) {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			client.logger.Fatal(r)
+			client.logger.Fatal("Client.transport", r)
 		}
 	}()
 	defer func() {
@@ -508,7 +508,7 @@ func (client *Client) packetReader() {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			client.logger.Fatal(r)
+			client.logger.Fatal("Client.packetReader", r)
 		}
 	}()
 	var (
@@ -545,7 +545,7 @@ func (client *Client) packetWriter() {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			client.logger.Fatal(r)
+			client.logger.Fatal("Client.packetWriter", r)
 		}
 	}()
 	var (

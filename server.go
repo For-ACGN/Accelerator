@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -25,6 +24,13 @@ type Server struct {
 	logger       *logger
 	tlsListener  net.Listener
 	quicListener net.Listener
+
+	macs     map[[6]byte][tokenSize]byte
+	macsRWM  sync.Mutex
+	ipv4s    map[[net.IPv4len]byte][tokenSize]byte
+	ipv4sRWM sync.Mutex
+	ipv6s    map[[net.IPv6len]byte][tokenSize]byte
+	ipv6sRWM sync.Mutex
 
 	connPools    map[[tokenSize]byte]*connPool
 	connPoolsRWM sync.RWMutex
@@ -214,7 +220,7 @@ func (srv *Server) serve(listener net.Listener) {
 	defer srv.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			srv.logger.Fatal(r)
+			srv.logger.Fatal("Server.serve", r)
 		}
 	}()
 	defer func() {
@@ -259,7 +265,7 @@ func (srv *Server) handleConn(conn net.Conn) {
 	defer srv.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			srv.logger.Fatal(r)
+			srv.logger.Fatal("Server.handleConn", r)
 		}
 	}()
 	defer func() {
@@ -281,7 +287,7 @@ func (srv *Server) captureLoop() {
 	defer srv.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			srv.logger.Fatal(r)
+			srv.logger.Fatal("Server.captureLoop", r)
 		}
 	}()
 	defer srv.handle.Close()
@@ -312,7 +318,7 @@ func (srv *Server) packetSender() {
 	defer srv.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			srv.logger.Fatal("Server.packetSender:\n" + fmt.Sprint(r))
+			srv.logger.Fatal("Server.packetSender", r)
 		}
 	}()
 	var pkt *packet
@@ -358,11 +364,10 @@ func (srv *Server) Close() error {
 	srv.logger.Info("wait listeners stop serve")
 	srv.wg.Wait()
 	srv.logger.Info("all listeners stop serve")
-
 	srv.logger.Info("close all connection pools")
 	srv.connPoolsRWM.Lock()
 	defer srv.connPoolsRWM.Unlock()
-	for mac, pool := range srv.connPools {
+	for token, pool := range srv.connPools {
 		e := pool.Close()
 		if e != nil {
 			srv.logger.Error("failed to close connection pool:", e)
@@ -370,10 +375,9 @@ func (srv *Server) Close() error {
 				err = e
 			}
 		}
-		delete(srv.connPools, mac)
+		delete(srv.connPools, token)
 	}
 	srv.logger.Info("all connection pools is closed")
-
 	srv.handle.Close()
 	srv.logger.Info("pcap handle is closed")
 	srv.logger.Info("accelerator server is stopped")

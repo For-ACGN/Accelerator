@@ -36,56 +36,58 @@ func newLogger(path string) (*logger, error) {
 
 func (l *logger) Info(v ...interface{}) {
 	buf := bytes.NewBuffer(make([]byte, 64))
-	buf.WriteString("[info]")
+	buf.WriteString("[info] ")
 	_, _ = fmt.Fprintln(buf, v...)
 	l.logger.Println(buf)
 }
 
 func (l *logger) Infof(format string, v ...interface{}) {
 	buf := bytes.NewBuffer(make([]byte, 64))
-	buf.WriteString("[info]")
+	buf.WriteString("[info] ")
 	_, _ = fmt.Fprintf(buf, format, v...)
 	l.logger.Println(buf)
 }
 
 func (l *logger) Warning(v ...interface{}) {
 	buf := bytes.NewBuffer(make([]byte, 64))
-	buf.WriteString("[warning]")
+	buf.WriteString("[warning] ")
 	_, _ = fmt.Fprintln(buf, v...)
 	l.logger.Println(buf)
 }
 
 func (l *logger) Warningf(format string, v ...interface{}) {
 	buf := bytes.NewBuffer(make([]byte, 64))
-	buf.WriteString("[warning]")
+	buf.WriteString("[warning] ")
 	_, _ = fmt.Fprintf(buf, format, v...)
 	l.logger.Println(buf)
 }
 
 func (l *logger) Error(v ...interface{}) {
 	buf := bytes.NewBuffer(make([]byte, 64))
-	buf.WriteString("[error]")
+	buf.WriteString("[error] ")
 	_, _ = fmt.Fprintln(buf, v...)
 	l.logger.Println(buf)
 }
 
 func (l *logger) Errorf(format string, v ...interface{}) {
 	buf := bytes.NewBuffer(make([]byte, 64))
-	buf.WriteString("[error]")
+	buf.WriteString("[error] ")
 	_, _ = fmt.Fprintf(buf, format, v...)
 	l.logger.Println(buf)
 }
 
-func (l *logger) Fatal(v ...interface{}) {
+func (l *logger) Fatal(fn string, v ...interface{}) {
 	buf := bytes.NewBuffer(make([]byte, 64))
-	buf.WriteString("[fatal]")
+	buf.WriteString("[fatal] ")
+	buf.WriteString("panic in " + fn + "\n")
 	_, _ = fmt.Fprintln(buf, v...)
 	l.logger.Println(buf)
 }
 
-func (l *logger) Fatalf(format string, v ...interface{}) {
+func (l *logger) Fatalf(fn, format string, v ...interface{}) {
 	buf := bytes.NewBuffer(make([]byte, 64))
-	buf.WriteString("[fatal]")
+	buf.WriteString("[fatal] ")
+	buf.WriteString("panic in " + fn + "\n")
 	_, _ = fmt.Fprintf(buf, format, v...)
 	l.logger.Println(buf)
 }
