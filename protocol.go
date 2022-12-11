@@ -120,6 +120,8 @@ const (
 	transOK  = 0x03
 )
 
+type sessionToken = [tokenSize]byte
+
 var emptySessionToken = make([]byte, tokenSize)
 
 // -------------------------------------------transport--------------------------------------------

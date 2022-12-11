@@ -263,7 +263,7 @@ func (client *Client) authenticate(conn net.Conn) error {
 		return errors.Wrap(err, "failed to send authentication request")
 	}
 	// read authentication response
-	buf := make([]byte, 1+2)
+	buf := make([]byte, cmdSize+2)
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
 		return errors.Wrap(err, "failed to read authentication response")
@@ -273,7 +273,7 @@ func (client *Client) authenticate(conn net.Conn) error {
 		return errors.Errorf("invalid authentication response: %d", resp)
 	}
 	// read padding random data
-	size := binary.BigEndian.Uint16(buf[1:])
+	size := binary.BigEndian.Uint16(buf[cmdSize:])
 	_, err = io.CopyN(io.Discard, conn, int64(size))
 	if err != nil {
 		return errors.Wrap(err, "failed to read padding random data")
@@ -350,7 +350,7 @@ func (client *Client) login() error {
 	}
 	req := make([]byte, cmdSize+obfSize)
 	req[0] = cmdLogin
-	_, err = rand.Read(req[1:])
+	_, err = rand.Read(req[cmdSize:])
 	if err != nil {
 		return errors.WithMessage(err, "failed to generate random data for log in")
 	}
@@ -391,7 +391,7 @@ func (client *Client) logoff() error {
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdLogoff
-	copy(req[1:], token)
+	copy(req[cmdSize:], token)
 	_, err = conn.Write(req)
 	if err != nil {
 		return errors.WithMessage(err, "failed to send log off request")
@@ -463,7 +463,7 @@ func (client *Client) transport(conn net.Conn) {
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdTransport
-	copy(req[1:], token)
+	copy(req[cmdSize:], token)
 	_, err := conn.Write(req)
 	if err != nil {
 		return

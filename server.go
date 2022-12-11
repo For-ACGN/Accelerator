@@ -3,6 +3,7 @@ package accelerator
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
@@ -29,17 +30,17 @@ type Server struct {
 	tlsListener  net.Listener
 	quicListener net.Listener
 
-	tokens    map[[tokenSize]byte]struct{}
+	tokens    map[sessionToken]time.Time
 	tokensRWM sync.RWMutex
 
-	macs    map[[6]byte][tokenSize]byte
+	macs    map[[6]byte]sessionToken
 	macsMu  sync.Mutex
-	ipv4s   map[[net.IPv4len]byte][tokenSize]byte
+	ipv4s   map[[net.IPv4len]byte]sessionToken
 	ipv4sMu sync.Mutex
-	ipv6s   map[[net.IPv6len]byte][tokenSize]byte
+	ipv6s   map[[net.IPv6len]byte]sessionToken
 	ipv6sMu sync.Mutex
 
-	connPools    map[[tokenSize]byte]*connPool
+	connPools    map[sessionToken]*connPool
 	connPoolsRWM sync.RWMutex
 
 	packetCh    chan *packet
@@ -131,8 +132,8 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		logger:       lg,
 		tlsListener:  tlsListener,
 		quicListener: quicListener,
-		tokens:       make(map[[tokenSize]byte]struct{}, 16),
-		connPools:    make(map[[tokenSize]byte]*connPool, 16),
+		tokens:       make(map[sessionToken]time.Time, 16),
+		connPools:    make(map[sessionToken]*connPool, 16),
 		packetCh:     make(chan *packet, 64*1024),
 	}
 	server.packetCache.New = func() interface{} {
@@ -254,7 +255,7 @@ func (srv *Server) serve(listener net.Listener) {
 				}
 				if delay != maxDelay {
 					const format = "accept error: %s; retrying in %v"
-					srv.logger.Warningf(format, err, delay)
+					srv.logger.Errorf(format, err, delay)
 				}
 				time.Sleep(delay)
 				continue
@@ -294,7 +295,7 @@ func (srv *Server) handleConn(conn net.Conn) {
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
 		const format = "[%s] failed to read command: %s"
-		srv.logger.Warningf(format, conn.RemoteAddr(), err)
+		srv.logger.Errorf(format, conn.RemoteAddr(), err)
 		return
 	}
 	cmd := buf[0]
@@ -380,7 +381,38 @@ func (srv *Server) defend(conn net.Conn) {
 }
 
 func (srv *Server) handleLogin(conn net.Conn) {
-
+	remoteAddr := conn.RemoteAddr()
+	obf := make([]byte, obfSize)
+	_, err := io.ReadFull(conn, obf)
+	if err != nil {
+		const format = "[%s] failed to read random data: %s"
+		srv.logger.Errorf(format, remoteAddr, err)
+		return
+	}
+	// generate session token
+	h := sha512.New()
+	data, err := generateRandomData()
+	if err != nil {
+		const format = "[%s] failed to generate random data: %s"
+		srv.logger.Errorf(format, remoteAddr, err)
+		return
+	}
+	h.Write(data)
+	h.Write(obf)
+	token := sessionToken{}
+	copy(token[:], h.Sum(nil))
+	// send session token
+	buf := make([]byte, cmdSize+tokenSize)
+	buf[0] = loginOK
+	copy(buf[cmdSize:], token[:])
+	_, err = conn.Write(buf)
+	if err != nil {
+		const format = "[%s] failed to send session token: %s"
+		srv.logger.Errorf(format, remoteAddr, err)
+		return
+	}
+	srv.addSessionToken(token)
+	srv.logger.Infof("[%s] login successfully", remoteAddr)
 }
 
 func (srv *Server) handleLogoff(conn net.Conn) {
@@ -444,6 +476,37 @@ func (srv *Server) packetSender() {
 
 func (srv *Server) sendPacket(pkt *packet) {
 	defer srv.packetCache.Put(pkt)
+}
+
+func (srv *Server) addSessionToken(token sessionToken) {
+	now := time.Now()
+	srv.tokensRWM.Lock()
+	defer srv.tokensRWM.Unlock()
+	// clean expired session token
+	for t, d := range srv.tokens {
+		if now.After(d) {
+			delete(srv.tokens, t)
+		}
+	}
+	// add session token
+	srv.tokens[token] = now.Add(3 * 24 * time.Hour)
+}
+
+func (srv *Server) deleteSessionToken(token sessionToken) {
+	srv.tokensRWM.Lock()
+	defer srv.tokensRWM.Unlock()
+	delete(srv.tokens, token)
+}
+
+func (srv *Server) isValidSessionToken(token sessionToken) bool {
+	now := time.Now()
+	srv.tokensRWM.RLock()
+	defer srv.tokensRWM.RUnlock()
+	d, ok := srv.tokens[token]
+	if !ok {
+		return false
+	}
+	return now.Before(d)
 }
 
 func (srv *Server) isClosed() bool {
