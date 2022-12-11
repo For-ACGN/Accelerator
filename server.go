@@ -458,12 +458,7 @@ func (srv *Server) handleTransport(conn net.Conn) {
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
-	_ = conn.SetDeadline(time.Time{})
-	srv.transportConn(conn)
-}
-
-func (srv *Server) transportConn(conn net.Conn) {
-
+	srv.newTransportConn(conn).transport()
 }
 
 // captureLoop is used to capture packet from destination network
@@ -526,8 +521,8 @@ func (srv *Server) addSessionToken(token sessionToken) {
 	srv.tokensRWM.Lock()
 	defer srv.tokensRWM.Unlock()
 	// clean expired session token
-	for t, d := range srv.tokens {
-		if now.After(d) {
+	for t, e := range srv.tokens {
+		if now.After(e) {
 			delete(srv.tokens, t)
 		}
 	}
@@ -545,11 +540,11 @@ func (srv *Server) isValidSessionToken(token sessionToken) bool {
 	now := time.Now()
 	srv.tokensRWM.RLock()
 	defer srv.tokensRWM.RUnlock()
-	d, ok := srv.tokens[token]
+	e, ok := srv.tokens[token]
 	if !ok {
 		return false
 	}
-	return now.Before(d)
+	return now.Before(e)
 }
 
 func (srv *Server) isClosed() bool {
