@@ -17,12 +17,12 @@ var (
 // connPool is used to send frame packet with lower RTT.
 type connPool struct {
 	size int
-	
+
 	conns   map[*net.Conn]bool
 	connsMu sync.Mutex
-	
+
 	closed int32
-	
+
 	ctx    context.Context
 	cancel context.CancelFunc
 }
