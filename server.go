@@ -591,6 +591,40 @@ func (srv *Server) unbindMAC(token sessionToken) {
 	}
 }
 
+func (srv *Server) bindIPv4(token sessionToken, ip ipv4) {
+	srv.ipv4sRWM.Lock()
+	defer srv.ipv4sRWM.Unlock()
+	srv.ipv4s[ip] = token
+}
+
+func (srv *Server) unbindIPv4(token sessionToken) {
+	srv.ipv4sRWM.Lock()
+	defer srv.ipv4sRWM.Unlock()
+	for ip, t := range srv.ipv4s {
+		if t != token {
+			continue
+		}
+		delete(srv.ipv4s, ip)
+	}
+}
+
+func (srv *Server) bindIPv6(token sessionToken, ip ipv6) {
+	srv.ipv6sRWM.Lock()
+	defer srv.ipv6sRWM.Unlock()
+	srv.ipv6s[ip] = token
+}
+
+func (srv *Server) unbindIPv6(token sessionToken) {
+	srv.ipv6sRWM.Lock()
+	defer srv.ipv6sRWM.Unlock()
+	for ip, t := range srv.ipv6s {
+		if t != token {
+			continue
+		}
+		delete(srv.ipv6s, ip)
+	}
+}
+
 func (srv *Server) prepareConnPool(token sessionToken) {
 	srv.connPoolsRWM.Lock()
 	defer srv.connPoolsRWM.Unlock()
@@ -624,18 +658,46 @@ func (srv *Server) getConnPool(token sessionToken) *connPool {
 	return srv.connPools[token]
 }
 
-func (srv *Server) getSessionTokenByMAC(mac mac) sessionToken {
-	srv.macsRWM.RLock()
-	defer srv.macsRWM.RUnlock()
-	return srv.macs[mac]
-}
-
 func (srv *Server) getConnPoolByMAC(mac mac) *connPool {
 	token := srv.getSessionTokenByMAC(mac)
 	if token == emptySessionToken {
 		return nil
 	}
 	return srv.getConnPool(token)
+}
+
+func (srv *Server) getSessionTokenByMAC(mac mac) sessionToken {
+	srv.macsRWM.RLock()
+	defer srv.macsRWM.RUnlock()
+	return srv.macs[mac]
+}
+
+func (srv *Server) getConnPoolByIPv4(ip ipv4) *connPool {
+	token := srv.getSessionTokenByIPv4(ip)
+	if token == emptySessionToken {
+		return nil
+	}
+	return srv.getConnPool(token)
+}
+
+func (srv *Server) getSessionTokenByIPv4(ip ipv4) sessionToken {
+	srv.ipv4sRWM.RLock()
+	defer srv.ipv4sRWM.RUnlock()
+	return srv.ipv4s[ip]
+}
+
+func (srv *Server) getConnPoolByIPv6(ip ipv6) *connPool {
+	token := srv.getSessionTokenByIPv6(ip)
+	if token == emptySessionToken {
+		return nil
+	}
+	return srv.getConnPool(token)
+}
+
+func (srv *Server) getSessionTokenByIPv6(ip ipv6) sessionToken {
+	srv.ipv6sRWM.RLock()
+	defer srv.ipv6sRWM.RUnlock()
+	return srv.ipv6s[ip]
 }
 
 func (srv *Server) isClosed() bool {
