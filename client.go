@@ -1,7 +1,6 @@
 package accelerator
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -309,11 +308,11 @@ func (client *Client) Run() error {
 	return nil
 }
 
-func (client *Client) getSessionToken() []byte {
-	return client.token.Load().([]byte)
+func (client *Client) getSessionToken() sessionToken {
+	return client.token.Load().(sessionToken)
 }
 
-func (client *Client) setSessionToken(token []byte) {
+func (client *Client) setSessionToken(token sessionToken) {
 	client.token.Store(token)
 }
 
@@ -367,15 +366,15 @@ func (client *Client) login() error {
 	if resp != loginOK {
 		return errors.Errorf("invalid log in response: %d", resp)
 	}
-	token := make([]byte, tokenSize)
-	copy(token, buf[cmdSize:])
+	token := sessionToken{}
+	copy(token[:], buf[cmdSize:])
 	client.setSessionToken(token)
 	return nil
 }
 
 func (client *Client) logoff() error {
 	token := client.getSessionToken()
-	if bytes.Equal(token, emptySessionToken) {
+	if token == emptySessionToken {
 		return nil
 	}
 	conn, err := client.connect()
@@ -391,7 +390,7 @@ func (client *Client) logoff() error {
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdLogoff
-	copy(req[cmdSize:], token)
+	copy(req[cmdSize:], token[:])
 	_, err = conn.Write(req)
 	if err != nil {
 		return errors.WithMessage(err, "failed to send log off request")
@@ -457,13 +456,13 @@ func (client *Client) transport(conn net.Conn) {
 		}
 	}()
 	token := client.getSessionToken()
-	if bytes.Equal(token, emptySessionToken) {
+	if token == emptySessionToken {
 		return
 	}
 	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdTransport
-	copy(req[cmdSize:], token)
+	copy(req[cmdSize:], token[:])
 	_, err := conn.Write(req)
 	if err != nil {
 		return

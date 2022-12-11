@@ -10,9 +10,9 @@ import (
 )
 
 // for server map key
-type mac [6]byte
-type ipv4 [net.IPv4len]byte
-type ipv6 [net.IPv6len]byte
+type mac = [6]byte
+type ipv4 = [net.IPv4len]byte
+type ipv6 = [net.IPv6len]byte
 
 // -----------------------------------------authentication-----------------------------------------
 
