@@ -45,7 +45,7 @@ type Server struct {
 	connPoolsRWM sync.RWMutex
 
 	packetCh    chan *packet
-	packetCache sync.Pool
+	packetCache *sync.Pool
 
 	closed int32
 
@@ -119,6 +119,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		ipv6s:        make(map[ipv6]sessionToken, 16),
 		connPools:    make(map[sessionToken]*connPool, 16),
 		packetCh:     make(chan *packet, 64*1024),
+		packetCache:  new(sync.Pool),
 	}
 	server.packetCache.New = func() interface{} {
 		return newPacket()
@@ -251,6 +252,15 @@ func (srv *Server) Run() {
 		go srv.serve(srv.quicListener)
 		addr := srv.quicListener.Addr()
 		srv.logger.Infof("start quic listener(%s %s)", addr.Network(), addr)
+	}
+	num := srv.config.Server.NumSender
+	if num < 8 {
+		num = 8
+	}
+	for i := 0; i < num; i++ {
+		sender := srv.newPacketSender()
+		srv.wg.Add(1)
+		go sender.sendLoop()
 	}
 	srv.wg.Add(1)
 	go srv.captureLoop()
@@ -467,6 +477,8 @@ func (srv *Server) handleLogoff(conn net.Conn) {
 	}
 	srv.removeConnPool(token)
 	srv.unbindMAC(token)
+	srv.unbindIPv4(token)
+	srv.unbindIPv6(token)
 	srv.deleteSessionToken(token)
 	srv.logger.Infof("[%s] logoff successfully", remoteAddr)
 }
@@ -509,6 +521,36 @@ func (srv *Server) handleTransport(conn net.Conn) {
 	// start transport packet
 	tc := srv.newTransportConn(conn, token)
 	tc.transport()
+}
+
+// captureLoop is used to capture packet from destination network
+// interface and send it to the packet channel for packetSender.
+func (srv *Server) captureLoop() {
+	defer srv.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			srv.logger.Fatal("Server.captureLoop", r)
+		}
+	}()
+	defer srv.handle.Close()
+	var (
+		data []byte
+		pkt  *packet
+		err  error
+	)
+	for {
+		data, _, err = srv.handle.ZeroCopyReadPacketData()
+		if err != nil {
+			return
+		}
+		pkt = srv.packetCache.Get().(*packet)
+		pkt.size = copy(pkt.buf, data)
+		select {
+		case srv.packetCh <- pkt:
+		case <-srv.ctx.Done():
+			return
+		}
+	}
 }
 
 func (srv *Server) addSessionToken(token sessionToken) {

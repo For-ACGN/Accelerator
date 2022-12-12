@@ -17,6 +17,7 @@ type ServerConfig struct {
 
 	Server struct {
 		ConnPoolSize int           `toml:"conn_pool_size"`
+		NumSender    int           `toml:"num_sender"`
 		Timeout      time.Duration `toml:"timeout"`
 	} `toml:"server"`
 
