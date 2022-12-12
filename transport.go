@@ -12,6 +12,9 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
+// transConn is used to read packet from client side and
+// process it, then write it to the destination network
+// interface or the other client connection.
 type transConn struct {
 	ctx *Server
 
@@ -31,16 +34,17 @@ type transConn struct {
 
 	parser  *gopacket.DecodingLayerParser
 	decoded *[]gopacket.LayerType
+	slOpt   gopacket.SerializeOptions
+	slBuf   gopacket.SerializeBuffer
 
-	// check client is income new
-	srcMAC []net.HardwareAddr
-
-	slOpt gopacket.SerializeOptions
-	slBuf gopacket.SerializeBuffer
+	// check has new
+	srcMAC  []net.HardwareAddr
+	srcIPv4 []net.IP
+	srcIPv6 []net.IP
 }
 
 func (srv *Server) newTransportConn(conn net.Conn, token sessionToken) *transConn {
-	nat := srv.config.NAT.Enabled
+	nat := srv.nat
 	eth := new(layers.Ethernet)
 	arp := new(layers.ARP)
 	ipv4 := new(layers.IPv4)
@@ -133,6 +137,8 @@ func (tc *transConn) decodeWithoutNAT(buf []byte) {
 		return
 	}
 	tc.isNewSourceMAC()
+
+	// TODO check is client mac
 	_ = tc.handle.WritePacketData(buf)
 }
 

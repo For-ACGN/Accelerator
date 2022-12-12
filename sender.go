@@ -2,6 +2,9 @@ package accelerator
 
 import (
 	"sync"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 // packetSender is used to parse packet from destination network
@@ -10,13 +13,30 @@ import (
 type packetSender struct {
 	ctx *Server
 
+	nat bool
+
 	packetCh    chan *packet
 	packetCache *sync.Pool
+
+	eth   *layers.Ethernet
+	arp   *layers.ARP
+	ipv4  *layers.IPv4
+	ipv6  *layers.IPv6
+	icmp4 *layers.ICMPv4
+	icmp6 *layers.ICMPv6
+	tcp   *layers.TCP
+	udp   *layers.UDP
+
+	parser  *gopacket.DecodingLayerParser
+	decoded *[]gopacket.LayerType
+	slOpt   gopacket.SerializeOptions
+	slBuf   gopacket.SerializeBuffer
 }
 
 func (srv *Server) newPacketSender() *packetSender {
 	sender := packetSender{
 		ctx:         srv,
+		nat:         srv.nat,
 		packetCh:    srv.packetCh,
 		packetCache: srv.packetCache,
 	}

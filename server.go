@@ -19,12 +19,19 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	defaultServerPoolSize  = 128
+	defaultServerNumSender = 16
+	defaultServerTimeout   = 10 * time.Second
+)
+
 // Server is the accelerator server.
 type Server struct {
-	config   *ServerConfig
-	passHash []byte
-	poolSize int
-	timeout  time.Duration
+	passHash  []byte
+	poolSize  int
+	numSender int
+	timeout   time.Duration
+	nat       bool
 
 	handle       *pcap.Handle
 	logger       *logger
@@ -86,13 +93,16 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		return nil, err
 	}
 	poolSize := cfg.Server.ConnPoolSize
-	if poolSize < 1 || poolSize > 256 {
-		return nil, errors.Errorf("invalid conn pool size: \"%d\"", poolSize)
+	if poolSize < 1 {
+		poolSize = defaultServerPoolSize
 	}
-	// set timeout
+	numSender := cfg.Server.NumSender
+	if numSender < 8 {
+		numSender = defaultServerNumSender
+	}
 	timeout := cfg.Server.Timeout
 	if timeout < 1 {
-		timeout = 10 * time.Second
+		timeout = defaultServerTimeout
 	}
 	listeners, err := bindListeners(cfg, tlsConfig, timeout)
 	if err != nil {
@@ -105,10 +115,11 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	}()
 	// TODO initialize NAT
 	server := Server{
-		config:       cfg,
 		passHash:     passHash,
+		numSender:    numSender,
 		poolSize:     poolSize,
 		timeout:      timeout,
+		nat:          cfg.NAT.Enabled,
 		handle:       handle,
 		logger:       lg,
 		tlsListener:  listeners[0],
@@ -253,11 +264,7 @@ func (srv *Server) Run() {
 		addr := srv.quicListener.Addr()
 		srv.logger.Infof("start quic listener(%s %s)", addr.Network(), addr)
 	}
-	num := srv.config.Server.NumSender
-	if num < 8 {
-		num = 8
-	}
-	for i := 0; i < num; i++ {
+	for i := 0; i < srv.numSender; i++ {
 		sender := srv.newPacketSender()
 		srv.wg.Add(1)
 		go sender.sendLoop()
