@@ -94,40 +94,15 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	if timeout < 1 {
 		timeout = 10 * time.Second
 	}
-	var (
-		tlsListener  net.Listener
-		quicListener net.Listener
-		listened     bool
-	)
-	// start TCP listener
-	if cfg.TCP.Enabled {
-		tlsListener, err = tls.Listen(cfg.TCP.Network, cfg.TCP.Address, tlsConfig)
-		if err != nil {
-			return nil, err
+	listeners, err := bindListeners(cfg, tlsConfig, timeout)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if !ok {
+			unbindListeners(listeners)
 		}
-		defer func() {
-			if !ok {
-				_ = tlsListener.Close()
-			}
-		}()
-		listened = true
-	}
-	// start UDP listener
-	if cfg.UDP.Enabled {
-		quicListener, err = quicListen(cfg.UDP.Network, cfg.UDP.Address, tlsConfig, timeout)
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			if !ok {
-				_ = quicListener.Close()
-			}
-		}()
-		listened = true
-	}
-	if !listened {
-		return nil, errors.New("no listener is enabled")
-	}
+	}()
 	// TODO initialize NAT
 	server := Server{
 		config:       cfg,
@@ -136,8 +111,8 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		timeout:      timeout,
 		handle:       handle,
 		logger:       lg,
-		tlsListener:  tlsListener,
-		quicListener: quicListener,
+		tlsListener:  listeners[0],
+		quicListener: listeners[1],
 		tokens:       make(map[sessionToken]time.Time, 16),
 		macs:         make(map[mac]sessionToken, 16),
 		ipv4s:        make(map[ipv4]sessionToken, 16),
@@ -213,6 +188,54 @@ func newServerTLSConfig(cfg *ServerConfig) (*tls.Config, error) {
 	}
 	config.ClientCAs.AddCert(cert)
 	return &config, nil
+}
+
+func bindListeners(cfg *ServerConfig, tc *tls.Config, t time.Duration) ([]net.Listener, error) {
+	var (
+		tlsListener  net.Listener
+		quicListener net.Listener
+		listened     bool
+		ok           bool
+		err          error
+	)
+	// bind TCP listener
+	if cfg.TCP.Enabled {
+		tlsListener, err = tls.Listen(cfg.TCP.Network, cfg.TCP.Address, tc)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			if !ok {
+				_ = tlsListener.Close()
+			}
+		}()
+		listened = true
+	}
+	// bind UDP listener
+	if cfg.UDP.Enabled {
+		quicListener, err = quicListen(cfg.UDP.Network, cfg.UDP.Address, tc, t)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			if !ok {
+				_ = quicListener.Close()
+			}
+		}()
+		listened = true
+	}
+	if !listened {
+		return nil, errors.New("no listener is enabled")
+	}
+	return []net.Listener{tlsListener, quicListener}, nil
+}
+
+func unbindListeners(listeners []net.Listener) {
+	for i := 0; i < len(listeners); i++ {
+		if listeners[i] != nil {
+			_ = listeners[i].Close()
+		}
+	}
 }
 
 // Run is used to run the accelerator server.
