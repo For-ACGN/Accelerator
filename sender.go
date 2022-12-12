@@ -2,6 +2,7 @@ package accelerator
 
 import (
 	"sync"
+	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -34,11 +35,54 @@ type packetSender struct {
 }
 
 func (srv *Server) newPacketSender() *packetSender {
+	nat := srv.nat
+	eth := new(layers.Ethernet)
+	arp := new(layers.ARP)
+	ipv4 := new(layers.IPv4)
+	ipv6 := new(layers.IPv6)
+	icmp4 := new(layers.ICMPv4)
+	icmp6 := new(layers.ICMPv6)
+	tcp := new(layers.TCP)
+	udp := new(layers.UDP)
+	var parser *gopacket.DecodingLayerParser
+	if nat {
+		parser = gopacket.NewDecodingLayerParser(
+			layers.LayerTypeEthernet,
+			eth, arp,
+			ipv4, icmp4,
+			ipv6, icmp6,
+			tcp, udp,
+		)
+	} else {
+		parser = gopacket.NewDecodingLayerParser(
+			layers.LayerTypeEthernet,
+			eth,
+		)
+	}
+	parser.IgnoreUnsupported = true
+	decoded := new([]gopacket.LayerType)
+	slOpt := gopacket.SerializeOptions{
+		FixLengths:       true,
+		ComputeChecksums: true,
+	}
+	slBuf := gopacket.NewSerializeBuffer()
 	sender := packetSender{
 		ctx:         srv,
-		nat:         srv.nat,
+		nat:         nat,
 		packetCh:    srv.packetCh,
 		packetCache: srv.packetCache,
+		eth:         eth,
+		arp:         arp,
+		ipv4:        ipv4,
+		ipv6:        ipv6,
+		icmp4:       icmp4,
+		icmp6:       icmp6,
+		tcp:         tcp,
+		udp:         udp,
+		parser:      parser,
+		decoded:     decoded,
+		slOpt:       slOpt,
+		slBuf:       slBuf,
 	}
 	return &sender
 }
@@ -48,6 +92,10 @@ func (s *packetSender) sendLoop() {
 	defer func() {
 		if r := recover(); r != nil {
 			s.ctx.logger.Fatal("packetSender.sendLoop", r)
+			// restart sender
+			time.Sleep(time.Second)
+			s.ctx.wg.Add(1)
+			go s.sendLoop()
 		}
 	}()
 	var pkt *packet
