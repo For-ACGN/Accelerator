@@ -16,9 +16,9 @@ type ServerConfig struct {
 	} `toml:"common"`
 
 	Server struct {
-		ConnPoolSize int           `toml:"conn_pool_size"`
-		NumSender    int           `toml:"num_sender"`
-		Timeout      time.Duration `toml:"timeout"`
+		ConnPoolSize    int           `toml:"conn_pool_size"`
+		NumPacketSender int           `toml:"num_pkt_sender"`
+		Timeout         time.Duration `toml:"timeout"`
 	} `toml:"server"`
 
 	TCP struct {
@@ -76,9 +76,9 @@ type ClientConfig struct {
 	} `toml:"udp"`
 
 	TLS struct {
-		RootCA     string `toml:"root_ca"`
 		ClientCert string `toml:"client_cert"`
 		ClientKey  string `toml:"client_key"`
+		RootCA     string `toml:"root_ca"`
 	} `toml:"tls"`
 
 	TAP struct {

@@ -14,7 +14,7 @@ import (
 type packetSender struct {
 	ctx *Server
 
-	nat bool
+	enableNAT bool
 
 	packetCh    chan *packet
 	packetCache *sync.Pool
@@ -39,7 +39,7 @@ type packetSender struct {
 }
 
 func (srv *Server) newPacketSender() *packetSender {
-	nat := srv.nat
+	enableNAT := srv.enableNAT
 	eth := new(layers.Ethernet)
 	arp := new(layers.ARP)
 	ip4 := new(layers.IPv4)
@@ -49,7 +49,7 @@ func (srv *Server) newPacketSender() *packetSender {
 	tcp := new(layers.TCP)
 	udp := new(layers.UDP)
 	var parser *gopacket.DecodingLayerParser
-	if nat {
+	if enableNAT {
 		parser = gopacket.NewDecodingLayerParser(
 			layers.LayerTypeEthernet,
 			eth, arp,
@@ -72,7 +72,7 @@ func (srv *Server) newPacketSender() *packetSender {
 	slBuf := gopacket.NewSerializeBuffer()
 	sender := packetSender{
 		ctx:         srv,
-		nat:         nat,
+		enableNAT:   enableNAT,
 		packetCh:    srv.packetCh,
 		packetCache: srv.packetCache,
 		eth:         eth,
@@ -115,7 +115,7 @@ func (s *packetSender) sendLoop() {
 	for {
 		select {
 		case pkt = <-s.packetCh:
-			if s.nat {
+			if s.enableNAT {
 				s.sendWithNAT(pkt)
 			} else {
 				s.sendWithoutNAT(pkt)

@@ -20,18 +20,18 @@ import (
 )
 
 const (
-	defaultServerPoolSize  = 128
-	defaultServerNumSender = 16
-	defaultServerTimeout   = 10 * time.Second
+	defaultServerConnPoolSize    = 128
+	defaultServerNumPacketSender = 16
+	defaultServerTimeout         = 10 * time.Second
 )
 
 // Server is the accelerator server.
 type Server struct {
-	passHash  []byte
-	poolSize  int
-	numSender int
-	timeout   time.Duration
-	nat       bool
+	passHash     []byte
+	connPoolSize int
+	numPktSender int
+	timeout      time.Duration
+	enableNAT    bool
 
 	handle       *pcap.Handle
 	logger       *logger
@@ -94,11 +94,11 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	}
 	poolSize := cfg.Server.ConnPoolSize
 	if poolSize < 1 {
-		poolSize = defaultServerPoolSize
+		poolSize = defaultServerConnPoolSize
 	}
-	numSender := cfg.Server.NumSender
+	numSender := cfg.Server.NumPacketSender
 	if numSender < 8 {
-		numSender = defaultServerNumSender
+		numSender = defaultServerNumPacketSender
 	}
 	timeout := cfg.Server.Timeout
 	if timeout < 1 {
@@ -116,10 +116,10 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	// TODO initialize NAT
 	server := Server{
 		passHash:     passHash,
-		numSender:    numSender,
-		poolSize:     poolSize,
+		numPktSender: numSender,
+		connPoolSize: poolSize,
 		timeout:      timeout,
-		nat:          cfg.NAT.Enabled,
+		enableNAT:    cfg.NAT.Enabled,
 		handle:       handle,
 		logger:       lg,
 		tlsListener:  listeners[0],
@@ -264,7 +264,7 @@ func (srv *Server) Run() {
 		addr := srv.quicListener.Addr()
 		srv.logger.Infof("start quic listener(%s %s)", addr.Network(), addr)
 	}
-	for i := 0; i < srv.numSender; i++ {
+	for i := 0; i < srv.numPktSender; i++ {
 		sender := srv.newPacketSender()
 		srv.wg.Add(1)
 		go sender.sendLoop()
@@ -651,7 +651,7 @@ func (srv *Server) prepareConnPool(token sessionToken) {
 	if srv.connPools[token] != nil {
 		return
 	}
-	srv.connPools[token] = newConnPool(srv.poolSize)
+	srv.connPools[token] = newConnPool(srv.connPoolSize)
 }
 
 func (srv *Server) removeConnPool(token sessionToken) {

@@ -19,7 +19,8 @@ import (
 type transConn struct {
 	ctx *Server
 
-	nat    bool
+	enableNAT bool
+
 	handle *pcap.Handle
 	conn   net.Conn
 	token  sessionToken
@@ -49,7 +50,7 @@ type transConn struct {
 }
 
 func (srv *Server) newTransportConn(conn net.Conn, token sessionToken) *transConn {
-	nat := srv.nat
+	enableNAT := srv.enableNAT
 	eth := new(layers.Ethernet)
 	arp := new(layers.ARP)
 	ip4 := new(layers.IPv4)
@@ -59,7 +60,7 @@ func (srv *Server) newTransportConn(conn net.Conn, token sessionToken) *transCon
 	tcp := new(layers.TCP)
 	udp := new(layers.UDP)
 	var parser *gopacket.DecodingLayerParser
-	if nat {
+	if enableNAT {
 		parser = gopacket.NewDecodingLayerParser(
 			layers.LayerTypeEthernet,
 			eth, arp,
@@ -81,23 +82,23 @@ func (srv *Server) newTransportConn(conn net.Conn, token sessionToken) *transCon
 	}
 	slBuf := gopacket.NewSerializeBuffer()
 	tc := transConn{
-		ctx:     srv,
-		nat:     nat,
-		handle:  srv.handle,
-		conn:    conn,
-		token:   token,
-		eth:     eth,
-		arp:     arp,
-		ipv4:    ip4,
-		ipv6:    ip6,
-		icmp4:   icmp4,
-		icmp6:   icmp6,
-		tcp:     tcp,
-		udp:     udp,
-		parser:  parser,
-		decoded: decoded,
-		slOpt:   slOpt,
-		slBuf:   slBuf,
+		ctx:       srv,
+		enableNAT: enableNAT,
+		handle:    srv.handle,
+		conn:      conn,
+		token:     token,
+		eth:       eth,
+		arp:       arp,
+		ipv4:      ip4,
+		ipv6:      ip6,
+		icmp4:     icmp4,
+		icmp6:     icmp6,
+		tcp:       tcp,
+		udp:       udp,
+		parser:    parser,
+		decoded:   decoded,
+		slOpt:     slOpt,
+		slBuf:     slBuf,
 	}
 	tc.macCache.New = func() interface{} {
 		return new(mac)
@@ -130,7 +131,7 @@ func (tc *transConn) transport() {
 		if err != nil {
 			return
 		}
-		if tc.nat {
+		if tc.enableNAT {
 			tc.decodeWithNAT(buf[:size])
 		} else {
 			tc.decodeWithoutNAT(buf[:size])
