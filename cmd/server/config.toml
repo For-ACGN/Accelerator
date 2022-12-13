@@ -1,5 +1,31 @@
 [common]
-  interface = "Ethernet"
+  interface = "eth0"
   pwd_hash  = "bfc6885fabb921c9c9094cb0118864a4605bec2cdf81869ee844ec2c7f1b7f73" # test
   log_path  = "server.log"
 
+[server]
+  conn_pool_size = 128
+  num_pkt_sender = 32
+  timeout        = "15s"
+
+[tcp]
+  enabled = true
+  network = "tcp"
+  address = "0.0.0.0:2080"
+
+[udp]
+  enabled = true
+  network = "udp"
+  address = "0.0.0.0:2080"
+
+[tls]
+  server_cert = "cert/server_cert.pem"
+  server_key  = "cert/server_key.pem"
+  client_ca   = "cert/client_ca.pem"
+
+[nat]
+  enabled      = false
+  gateway_ipv4 = "192.168.1.1"
+  gateway_ipv6 = "240c::1"
+  gateway_mac  = "AB:FF:FF:FF:FF:FF"
+  udp_timeout  = "1m"

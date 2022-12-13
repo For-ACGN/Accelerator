@@ -27,7 +27,7 @@ func init() {
 func main() {
 	if password != "" {
 		hash := accelerator.GeneratePasswordHash([]byte(password))
-		fmt.Println("hash:", hash)
+		fmt.Println("password hash:", hash)
 		return
 	}
 

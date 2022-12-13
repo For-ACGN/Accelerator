@@ -1,1 +1,1 @@
-go build -v -trimpath -ldflags "-s -w" -o server
+go build -v -trimpath -ldflags "-s -w" -o acc-server
