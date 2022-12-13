@@ -666,7 +666,7 @@ func (srv *Server) removeConnPool(token sessionToken) {
 	if err == nil {
 		return
 	}
-	srv.logger.Error("failed to close connection:", err)
+	srv.logger.Error("failed to remove connection pool:", err)
 }
 
 func (srv *Server) getConnPool(token sessionToken) *connPool {

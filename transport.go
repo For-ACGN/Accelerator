@@ -100,13 +100,13 @@ func (srv *Server) newTransportConn(conn net.Conn, token sessionToken) *transCon
 		slBuf:   slBuf,
 	}
 	tc.macCache.New = func() interface{} {
-		return mac{}
+		return new(mac)
 	}
 	tc.ipv4Cache.New = func() interface{} {
-		return ipv4{}
+		return new(ipv4)
 	}
 	tc.ipv6Cache.New = func() interface{} {
-		return ipv6{}
+		return new(ipv6)
 	}
 	return &tc
 }
@@ -151,8 +151,9 @@ func (tc *transConn) decodeWithoutNAT(buf []byte) {
 		return
 	}
 	tc.isNewSourceMAC()
-	dstMAC := tc.macCache.Get().(mac)
-	defer tc.macCache.Put(dstMAC)
+	dstMACPtr := tc.macCache.Get().(*mac)
+	defer tc.macCache.Put(dstMACPtr)
+	dstMAC := *dstMACPtr
 	copy(dstMAC[:], tc.eth.DstMAC)
 	if dstMAC == broadcast {
 		_ = tc.handle.WritePacketData(buf)

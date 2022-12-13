@@ -32,6 +32,10 @@ type packetSender struct {
 	decoded *[]gopacket.LayerType
 	slOpt   gopacket.SerializeOptions
 	slBuf   gopacket.SerializeBuffer
+
+	macCache  sync.Pool
+	ipv4Cache sync.Pool
+	ipv6Cache sync.Pool
 }
 
 func (srv *Server) newPacketSender() *packetSender {
@@ -84,6 +88,15 @@ func (srv *Server) newPacketSender() *packetSender {
 		slOpt:       slOpt,
 		slBuf:       slBuf,
 	}
+	sender.macCache.New = func() interface{} {
+		return new(mac)
+	}
+	sender.ipv4Cache.New = func() interface{} {
+		return new(ipv4)
+	}
+	sender.ipv6Cache.New = func() interface{} {
+		return new(ipv6)
+	}
 	return &sender
 }
 
@@ -102,13 +115,47 @@ func (s *packetSender) sendLoop() {
 	for {
 		select {
 		case pkt = <-s.packetCh:
-			s.send(pkt)
+			if s.nat {
+				s.sendWithNAT(pkt)
+			} else {
+				s.sendWithoutNAT(pkt)
+			}
 		case <-s.ctx.ctx.Done():
 			return
 		}
 	}
 }
 
-func (s *packetSender) send(pkt *packet) {
+func (s *packetSender) sendWithoutNAT(pkt *packet) {
+	defer s.packetCache.Put(pkt)
+	buf := pkt.buf[:pkt.size]
+	err := s.parser.DecodeLayers(buf, s.decoded)
+	if err != nil {
+		return
+	}
+	decoded := *s.decoded
+	if len(decoded) < 1 {
+		return
+	}
+	if decoded[0] != layers.LayerTypeEthernet {
+		return
+	}
+	dstMACPtr := s.macCache.Get().(*mac)
+	defer s.macCache.Put(dstMACPtr)
+	dstMAC := *dstMACPtr
+	copy(dstMAC[:], s.eth.DstMAC)
+	if dstMAC == broadcast {
+		s.ctx.broadcast(buf)
+		return
+	}
+	// check it is sent to one client
+	pool := s.ctx.getConnPoolByMAC(dstMAC)
+	if pool == nil {
+		return
+	}
+	_, _ = pool.Write(buf)
+}
+
+func (s *packetSender) sendWithNAT(pkt *packet) {
 	defer s.packetCache.Put(pkt)
 }
