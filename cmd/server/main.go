@@ -31,7 +31,7 @@ func main() {
 		return
 	}
 
-	cfgData, err := os.ReadFile(cfgPath)
+	cfgData, err := os.ReadFile(cfgPath) // #nosec
 	checkError(err)
 	decoder := toml.NewDecoder(bytes.NewReader(cfgData))
 	decoder.DisallowUnknownFields()

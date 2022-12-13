@@ -1,0 +1,29 @@
+[common]
+  interface = "Ethernet"
+  pwd_hash  = "bfc6885fabb921c9c9094cb0118864a4605bec2cdf81869ee844ec2c7f1b7f73" # test
+  log_path  = "client.log"
+
+[client]
+  mode           = "tcp-tls" # tcp-tls or udp-quic
+  conn_pool_size = 128
+
+[tcp]
+  remote_network = "tcp"
+  remote_address = "1.2.3.4:2080"
+  local_network  = ""
+  local_address  = ""
+
+[udp]
+  remote_network = "udp"
+  remote_address = "1.2.3.4:2080"
+  local_network  = ""
+  local_address  = ""
+
+[tls]
+  client_cert = "cert/client_cert.pem"
+  client_key  = "cert/client_key.pem"
+  root_ca     = "cert/root_ca.pem"
+
+[tap]
+  component_id = "tap_ovpnconnect"
+  device_name  = "tap0"
