@@ -38,8 +38,8 @@ func (srv *Server) newPacketSender() *packetSender {
 	nat := srv.nat
 	eth := new(layers.Ethernet)
 	arp := new(layers.ARP)
-	ipv4 := new(layers.IPv4)
-	ipv6 := new(layers.IPv6)
+	ip4 := new(layers.IPv4)
+	ip6 := new(layers.IPv6)
 	icmp4 := new(layers.ICMPv4)
 	icmp6 := new(layers.ICMPv6)
 	tcp := new(layers.TCP)
@@ -49,8 +49,8 @@ func (srv *Server) newPacketSender() *packetSender {
 		parser = gopacket.NewDecodingLayerParser(
 			layers.LayerTypeEthernet,
 			eth, arp,
-			ipv4, icmp4,
-			ipv6, icmp6,
+			ip4, icmp4,
+			ip6, icmp6,
 			tcp, udp,
 		)
 	} else {
@@ -73,8 +73,8 @@ func (srv *Server) newPacketSender() *packetSender {
 		packetCache: srv.packetCache,
 		eth:         eth,
 		arp:         arp,
-		ipv4:        ipv4,
-		ipv6:        ipv6,
+		ipv4:        ip4,
+		ipv6:        ip6,
 		icmp4:       icmp4,
 		icmp6:       icmp6,
 		tcp:         tcp,

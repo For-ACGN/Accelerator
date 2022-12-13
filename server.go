@@ -717,6 +717,14 @@ func (srv *Server) getSessionTokenByIPv6(ip ipv6) sessionToken {
 	return srv.ipv6s[ip]
 }
 
+func (srv *Server) broadcast(data []byte) {
+	srv.connPoolsRWM.RLock()
+	defer srv.connPoolsRWM.RUnlock()
+	for _, pool := range srv.connPools {
+		_, _ = pool.Write(data)
+	}
+}
+
 func (srv *Server) isClosed() bool {
 	return atomic.LoadInt32(&srv.closed) != 0
 }

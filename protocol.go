@@ -9,10 +9,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-// for server map key
+// for server map key and network
 type mac = [6]byte
 type ipv4 = [net.IPv4len]byte
 type ipv6 = [net.IPv6len]byte
+
+var broadcast = mac{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
 // -----------------------------------------authentication-----------------------------------------
 
