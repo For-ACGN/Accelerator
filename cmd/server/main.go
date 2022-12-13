@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -12,18 +13,29 @@ import (
 	"github.com/For-ACGN/Accelerator"
 )
 
-var cfgPath string
+var (
+	cfgPath  string
+	password string
+)
 
 func init() {
-	flag.StringVar(&cfgPath, "c", "config.toml", "configuration file path")
+	flag.StringVar(&cfgPath, "config", "config.toml", "configuration file path")
+	flag.StringVar(&password, "gen-hash", "", "generate password hash")
 	flag.Parse()
 }
 
 func main() {
+	if password != "" {
+		hash := accelerator.GeneratePasswordHash([]byte(password))
+		fmt.Println("hash:", hash)
+		return
+	}
+
 	cfgData, err := os.ReadFile(cfgPath)
 	checkError(err)
 	decoder := toml.NewDecoder(bytes.NewReader(cfgData))
 	decoder.DisallowUnknownFields()
+
 	var config accelerator.ServerConfig
 	err = decoder.Decode(&config)
 	checkError(err)
