@@ -29,9 +29,9 @@ var errClientClosed = fmt.Errorf("accelerator client is closed")
 type Client struct {
 	config    *ClientConfig
 	passHash  []byte
+	timeout   time.Duration
 	localNet  string
 	localAddr string
-	timeout   time.Duration
 
 	logger    *logger
 	tlsConfig *tls.Config
@@ -110,9 +110,9 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	client := Client{
 		config:    cfg,
 		passHash:  passHash,
+		timeout:   timeout,
 		localNet:  localNet,
 		localAddr: localAddr,
-		timeout:   timeout,
 		logger:    lg,
 		tlsConfig: tlsConfig,
 		tapDev:    tapDev,

@@ -26,5 +26,5 @@
   root_ca     = "certs/root_ca.pem"
 
 [tap]
-  component_id = "tap_ovpnconnect"
+  component_id = "tap0901"
   device_name  = "tap0"
