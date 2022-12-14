@@ -48,28 +48,28 @@
 
 [Version]
    Signature = "$Windows NT$"
-   CatalogFile = tap_ovpnconnect.cat
+   CatalogFile = tap0901.cat
    ClassGUID = {4d36e972-e325-11ce-bfc1-08002be10318}
    Provider = %Provider%
    Class = Net
 
 ; This version number should match the version
 ; number given in ..\version.m4.
-   DriverVer = 09/27/2019,9.24.2.601
+   DriverVer = 04/12/2022,9.24.7.601
 
 [Strings]
-   DeviceDescription = "TAP-Windows Adapter V9 for OpenVPN Connect"
-   Provider = "TAP-Windows Provider V9 for OpenVPN Connect"
+   DeviceDescription = "TAP-Windows Adapter V9"
+   Provider = "TAP-Windows Provider V9"
 
 ;----------------------------------------------------------------
 ;                      Manufacturer + Product Section (Done)
 ;----------------------------------------------------------------
 [Manufacturer]
-   %Provider% = tap_ovpnconnect, NTx86
+   %Provider% = tap0901, NTARM64
 
-[tap_ovpnconnect.NTx86]
-   %DeviceDescription% = tap_ovpnconnect.ndi, root\tap_ovpnconnect ; Root enumerated
-   %DeviceDescription% = tap_ovpnconnect.ndi, tap_ovpnconnect      ; Legacy
+[tap0901.NTARM64]
+   %DeviceDescription% = tap0901.ndi, root\tap0901 ; Root enumerated
+   %DeviceDescription% = tap0901.ndi, tap0901      ; Legacy
 
 ;---------------------------------------------------------------
 ;                             Driver Section (Done)
@@ -84,26 +84,27 @@
 ;    NCF_HAS_UI = 0x80
 ;----------------- Characteristics ------------
 
-[tap_ovpnconnect.ndi]
-   CopyFiles       = tap_ovpnconnect.driver, tap_ovpnconnect.files
-   AddReg          = tap_ovpnconnect.reg
-   AddReg          = tap_ovpnconnect.params.reg
+[tap0901.ndi]
+   CopyFiles       = tap0901.driver, tap0901.files
+   AddReg          = tap0901.reg
+   AddReg          = tap0901.params.reg
+   DelReg          = tap0901.params.delreg
    Characteristics = 0x1
    *IfType            = 53  ; IF_TYPE_PROP_VIRTUAL
    *MediaType         = 0x0 ; NdisMedium802_3
    *PhysicalMediaType = 0   ; NdisPhysicalMediumUnspecified
 
-[tap_ovpnconnect.ndi.Services]
-   AddService = tap_ovpnconnect,        2, tap_ovpnconnect.service
+[tap0901.ndi.Services]
+   AddService = tap0901,        2, tap0901.service
 
-[tap_ovpnconnect.reg]
-   HKR, Ndi,            Service,      0, "tap_ovpnconnect"
+[tap0901.reg]
+   HKR, Ndi,            Service,      0, "tap0901"
    HKR, Ndi\Interfaces, UpperRange,   0, "ndis5"
    HKR, Ndi\Interfaces, LowerRange,   0, "ethernet"
    HKR, ,               Manufacturer, 0, "%Provider%"
    HKR, ,               ProductName,  0, "%DeviceDescription%"
 
-[tap_ovpnconnect.params.reg]
+[tap0901.params.reg]
    HKR, Ndi\params\MTU,                  ParamDesc, 0, "MTU"
    HKR, Ndi\params\MTU,                  Type,      0, "int"
    HKR, Ndi\params\MTU,                  Default,   0, "1500"
@@ -117,15 +118,18 @@
    HKR, Ndi\params\MediaStatus,          Optional,  0, "0"
    HKR, Ndi\params\MediaStatus\enum,     "0",       0, "Application Controlled"
    HKR, Ndi\params\MediaStatus\enum,     "1",       0, "Always Connected"
-   HKR, Ndi\params\MAC,                  ParamDesc, 0, "MAC Address"
-   HKR, Ndi\params\MAC,                  Type,      0, "edit"
-   HKR, Ndi\params\MAC,                  Optional,  0, "1"
+   HKR, Ndi\params\NetworkAddress,       ParamDesc, 0, "MAC Address"
+   HKR, Ndi\params\NetworkAddress,       Type,      0, "edit"
+   HKR, Ndi\params\NetworkAddress,       Optional,  0, "1"
    HKR, Ndi\params\AllowNonAdmin,        ParamDesc, 0, "Non-Admin Access"
    HKR, Ndi\params\AllowNonAdmin,        Type,      0, "enum"
    HKR, Ndi\params\AllowNonAdmin,        Default,   0, "1"
    HKR, Ndi\params\AllowNonAdmin,        Optional,  0, "0"
    HKR, Ndi\params\AllowNonAdmin\enum,   "0",       0, "Not Allowed"
    HKR, Ndi\params\AllowNonAdmin\enum,   "1",       0, "Allowed"
+
+[tap0901.params.delreg]
+   HKR, Ndi\params\MAC
 
 ;----------------------------------------------------------------
 ;                             Service Section
@@ -144,13 +148,13 @@
 ;    SERVICE_DISABLED     = 0x4
 ;---------- Start Mode ---------------
 
-[tap_ovpnconnect.service]
+[tap0901.service]
    DisplayName = %DeviceDescription%
    ServiceType = 1
    StartType = 3
    ErrorControl = 1
    LoadOrderGroup = NDIS
-   ServiceBinary = %12%\tap_ovpnconnect.sys
+   ServiceBinary = %12%\tap0901.sys
 
 ;-----------------------------------------------------------------
 ;                                File Installation
@@ -166,25 +170,25 @@
 ; 1 = "Intel Driver Disk 1",e100bex.sys,,
 
 [SourceDisksNames]
-   1 = %DeviceDescription%, tap_ovpnconnect.sys
+   1 = %DeviceDescription%, tap0901.sys
 
 ; SourceDisksFiles
 ; filename_on_source = diskID[, [subdir][, size]]
 ; e100bex.sys = 1,, ; on distribution disk 1
 
 [SourceDisksFiles]
-tap_ovpnconnect.sys = 1
+tap0901.sys = 1
 
 [DestinationDirs]
-   tap_ovpnconnect.files  = 11
-   tap_ovpnconnect.driver = 12
+   tap0901.files  = 11
+   tap0901.driver = 12
 
-[tap_ovpnconnect.files]
+[tap0901.files]
 ;   TapPanel.cpl,,,6   ; COPYFLG_NOSKIP | COPYFLG_NOVERSIONCHECK
 ;   cipsrvr.exe,,,6     ; COPYFLG_NOSKIP | COPYFLG_NOVERSIONCHECK
 
-[tap_ovpnconnect.driver]
-   tap_ovpnconnect.sys,,,6     ; COPYFLG_NOSKIP | COPYFLG_NOVERSIONCHECK
+[tap0901.driver]
+   tap0901.sys,,,6     ; COPYFLG_NOSKIP | COPYFLG_NOVERSIONCHECK
 
 ;---------------------------------------------------------------
 ;                                      End
