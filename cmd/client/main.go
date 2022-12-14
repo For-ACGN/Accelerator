@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 
 	"github.com/pelletier/go-toml/v2"
 
@@ -42,16 +43,25 @@ func main() {
 
 	client, err := accelerator.NewClient(&config)
 	checkError(err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		// stop signal
+		signalCh := make(chan os.Signal, 1)
+		signal.Notify(signalCh, os.Interrupt)
+		<-signalCh
+
+		err = client.Close()
+		checkError(err)
+	}()
+
 	err = client.Run()
 	checkError(err)
 
-	// stop signal
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt)
-	<-signalCh
-
-	err = client.Close()
-	checkError(err)
+	wg.Wait()
 }
 
 func checkError(err error) {
