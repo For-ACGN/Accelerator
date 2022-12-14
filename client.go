@@ -18,6 +18,11 @@ import (
 	"github.com/songgao/water"
 )
 
+const (
+	defaultClientConnPoolSize = 64
+	defaultClientTimeout      = 15 * time.Second
+)
+
 var errClientClosed = fmt.Errorf("accelerator client is closed")
 
 // Client is the accelerator client.
@@ -26,6 +31,7 @@ type Client struct {
 	passHash  []byte
 	localNet  string
 	localAddr string
+	timeout   time.Duration
 
 	logger    *logger
 	tlsConfig *tls.Config
@@ -48,18 +54,14 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	switch mode {
 	case "tcp-tls", "udp-quic":
 	default:
-		return nil, errors.Errorf("invalid mode: \"%s\"", mode)
-	}
-	poolSize := cfg.Client.ConnPoolSize
-	if poolSize < 1 || poolSize > 256 {
-		return nil, errors.Errorf("invalid conn pool size: \"%d\"", poolSize)
+		return nil, errors.Errorf("invalid transport mode: \"%s\"", mode)
 	}
 	passHash, err := decodePasswordHash(cfg.Common.PassHash)
 	if err != nil {
 		return nil, err
 	}
-	localNet := getLocalNetwork(cfg)
-	localAddr, err := getLocalAddress(cfg)
+	localNet := getClientLocalNetwork(cfg)
+	localAddr, err := getClientLocalAddress(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +69,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to check local network and address")
 	}
-	err = checkRemoteNetworkAndAddress(cfg)
+	err = checkClientRemoteNetworkAndAddress(cfg)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to check remote network and address")
 	}
@@ -97,11 +99,20 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 			_ = tapDev.Close()
 		}
 	}()
+	poolSize := cfg.Client.ConnPoolSize
+	if poolSize < 1 {
+		poolSize = defaultClientConnPoolSize
+	}
+	timeout := time.Duration(cfg.Client.Timeout)
+	if timeout < 1 {
+		timeout = defaultClientTimeout
+	}
 	client := Client{
 		config:    cfg,
 		passHash:  passHash,
 		localNet:  localNet,
 		localAddr: localAddr,
+		timeout:   timeout,
 		logger:    lg,
 		tlsConfig: tlsConfig,
 		tapDev:    tapDev,
@@ -117,7 +128,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	return &client, nil
 }
 
-func getLocalNetwork(cfg *ClientConfig) string {
+func getClientLocalNetwork(cfg *ClientConfig) string {
 	var network string
 	switch cfg.Client.Mode {
 	case "tcp-tls":
@@ -137,7 +148,7 @@ func getLocalNetwork(cfg *ClientConfig) string {
 	return network
 }
 
-func getLocalAddress(cfg *ClientConfig) (string, error) {
+func getClientLocalAddress(cfg *ClientConfig) (string, error) {
 	var address string
 	switch cfg.Client.Mode {
 	case "tcp-tls":
@@ -169,7 +180,7 @@ func getLocalAddress(cfg *ClientConfig) (string, error) {
 	return net.JoinHostPort(address, "0"), nil
 }
 
-func checkRemoteNetworkAndAddress(cfg *ClientConfig) error {
+func checkClientRemoteNetworkAndAddress(cfg *ClientConfig) error {
 	var err error
 	switch cfg.Client.Mode {
 	case "tcp-tls":
@@ -218,7 +229,7 @@ func (client *Client) connect() (net.Conn, error) {
 
 func (client *Client) dial() (net.Conn, error) {
 	var conn net.Conn
-	ctx, cancel := context.WithTimeout(client.ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(client.ctx, client.timeout)
 	defer cancel()
 	switch client.config.Client.Mode {
 	case "tcp-tls":
@@ -268,7 +279,7 @@ func (client *Client) authenticate(conn net.Conn) error {
 		return errors.Wrap(err, "failed to send authentication request")
 	}
 	// read authentication response
-	buf := make([]byte, cmdSize+2)
+	buf := make([]byte, cmdSize+2) // uint16
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
 		return errors.Wrap(err, "failed to receive authentication response")
@@ -348,7 +359,7 @@ func (client *Client) login() error {
 			client.logger.Error("failed to close connection for log in", err)
 		}
 	}()
-	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(client.timeout))
 	err = client.authenticate(conn)
 	if err != nil {
 		return errors.WithMessage(err, "failed to authenticate")
@@ -393,7 +404,7 @@ func (client *Client) logoff() error {
 			client.logger.Error("failed to close connection for log off", err)
 		}
 	}()
-	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(client.timeout))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdLogoff
 	copy(req[cmdSize:], token[:])
@@ -465,7 +476,7 @@ func (client *Client) transport(conn net.Conn) {
 	if token == emptySessionToken {
 		return
 	}
-	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(client.timeout))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdTransport
 	copy(req[cmdSize:], token[:])
