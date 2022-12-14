@@ -16,9 +16,9 @@ type ServerConfig struct {
 	} `toml:"common"`
 
 	Server struct {
-		ConnPoolSize    int           `toml:"conn_pool_size"`
-		NumPacketSender int           `toml:"num_pkt_sender"`
-		Timeout         time.Duration `toml:"timeout"`
+		ConnPoolSize    int      `toml:"conn_pool_size"`
+		NumPacketSender int      `toml:"num_pkt_sender"`
+		Timeout         Duration `toml:"timeout"`
 	} `toml:"server"`
 
 	TCP struct {
@@ -40,11 +40,11 @@ type ServerConfig struct {
 	} `toml:"tls"`
 
 	NAT struct {
-		Enabled     bool          `toml:"enabled"`
-		GatewayIPv4 string        `toml:"gateway_ipv4"`
-		GatewayIPv6 string        `toml:"gateway_ipv6"`
-		GatewayMAC  string        `toml:"gateway_mac"`
-		UDPTimeout  time.Duration `toml:"udp_timeout"`
+		Enabled     bool     `toml:"enabled"`
+		GatewayIPv4 string   `toml:"gateway_ipv4"`
+		GatewayIPv6 string   `toml:"gateway_ipv6"`
+		GatewayMAC  string   `toml:"gateway_mac"`
+		UDPTimeout  Duration `toml:"udp_timeout"`
 	} `toml:"nat"`
 }
 
@@ -57,8 +57,9 @@ type ClientConfig struct {
 	} `toml:"common"`
 
 	Client struct {
-		Mode         string `toml:"mode"`
-		ConnPoolSize int    `toml:"conn_pool_size"`
+		Mode         string   `toml:"mode"`
+		ConnPoolSize int      `toml:"conn_pool_size"`
+		Timeout      Duration `toml:"timeout"`
 	} `toml:"client"`
 
 	TCP struct {
@@ -85,6 +86,24 @@ type ClientConfig struct {
 		ComponentID string `toml:"component_id"`
 		DeviceName  string `toml:"device_name"`
 	} `toml:"tap"`
+}
+
+// Duration is patch for toml v2.
+type Duration time.Duration
+
+// MarshalText implement encoding.TextMarshaler.
+func (d Duration) MarshalText() ([]byte, error) {
+	return []byte(time.Duration(d).String()), nil
+}
+
+// UnmarshalText implement encoding.TextUnmarshaler.
+func (d *Duration) UnmarshalText(b []byte) error {
+	x, err := time.ParseDuration(string(b))
+	if err != nil {
+		return err
+	}
+	*d = Duration(x)
+	return nil
 }
 
 // checkNetworkAndAddress is used to check network is supported and address is valid.

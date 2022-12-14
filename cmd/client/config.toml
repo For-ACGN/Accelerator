@@ -6,6 +6,7 @@
 [client]
   mode           = "tcp-tls" # tcp-tls or udp-quic
   conn_pool_size = 64
+  timeout        = "10s"
 
 [tcp]
   remote_network = "tcp"
