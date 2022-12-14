@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/binary"
 	"io"
 	"math/rand"
 	"net"
@@ -20,8 +21,8 @@ import (
 )
 
 const (
-	defaultServerConnPoolSize    = 128
-	defaultServerNumPacketSender = 16
+	defaultServerConnPoolSize    = 64
+	defaultServerNumPacketSender = 32
 	defaultServerTimeout         = 10 * time.Second
 )
 
@@ -100,7 +101,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	if numSender < 8 {
 		numSender = defaultServerNumPacketSender
 	}
-	timeout := cfg.Server.Timeout
+	timeout := time.Duration(cfg.Server.Timeout)
 	if timeout < 1 {
 		timeout = defaultServerTimeout
 	}
@@ -239,6 +240,7 @@ func bindListeners(cfg *ServerConfig, tc *tls.Config, t time.Duration) ([]net.Li
 	if !listened {
 		return nil, errors.New("no listener is enabled")
 	}
+	ok = true
 	return []net.Listener{tlsListener, quicListener}, nil
 }
 
@@ -309,10 +311,11 @@ func (srv *Server) serve(listener net.Listener) {
 				time.Sleep(delay)
 				continue
 			}
-			if errors.Is(err, net.ErrClosed) {
+			if errors.Is(err, net.ErrClosed) || errors.Is(err, context.Canceled) {
 				return
 			}
 			srv.logger.Error("failed to accept:", err)
+			return
 		}
 		srv.wg.Add(1)
 		go srv.handleConn(conn)
@@ -335,7 +338,7 @@ func (srv *Server) handleConn(conn net.Conn) {
 	_ = conn.SetDeadline(time.Now().Add(3 * srv.timeout))
 	err := srv.authenticate(conn)
 	if err != nil {
-		const format = "[%s] failed to authenticate: %s"
+		const format = "(%s) failed to authenticate: %s"
 		srv.logger.Warningf(format, conn.RemoteAddr(), err)
 		return
 	}
@@ -343,7 +346,7 @@ func (srv *Server) handleConn(conn net.Conn) {
 	buf := make([]byte, cmdSize)
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
-		const format = "[%s] failed to receive command: %s"
+		const format = "(%s) failed to receive command: %s"
 		srv.logger.Errorf(format, conn.RemoteAddr(), err)
 		return
 	}
@@ -356,7 +359,7 @@ func (srv *Server) handleConn(conn net.Conn) {
 	case cmdTransport:
 		srv.handleTransport(conn)
 	default:
-		const format = "[%s] receive invalid command: %d"
+		const format = "(%s) receive invalid command: %d"
 		srv.logger.Warningf(format, conn.RemoteAddr(), cmd)
 		return
 	}
@@ -372,6 +375,17 @@ func (srv *Server) authenticate(conn net.Conn) error {
 		srv.defend(conn)
 		return errors.New("invalid password hash")
 	}
+	// read padding random data
+	buf := make([]byte, 2)
+	_, err = io.ReadFull(conn, buf)
+	if err != nil {
+		return errors.Wrap(err, "failed to receive padding random data size")
+	}
+	size := binary.BigEndian.Uint16(buf)
+	_, err = io.CopyN(io.Discard, conn, int64(size))
+	if err != nil {
+		return errors.Wrap(err, "failed to receive padding random data")
+	}
 	// send authentication response
 	resp, err := buildAuthResponse()
 	if err != nil {
@@ -385,7 +399,7 @@ func (srv *Server) authenticate(conn net.Conn) error {
 }
 
 func (srv *Server) defend(conn net.Conn) {
-	const format = "defend client [%s] "
+	const format = "defend client (%s) "
 	srv.logger.Warningf(format, conn.RemoteAddr())
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -434,7 +448,7 @@ func (srv *Server) handleLogin(conn net.Conn) {
 	obf := make([]byte, obfSize)
 	_, err := io.ReadFull(conn, obf)
 	if err != nil {
-		const format = "[%s] failed to receive random data: %s"
+		const format = "(%s) failed to receive random data: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
@@ -442,7 +456,7 @@ func (srv *Server) handleLogin(conn net.Conn) {
 	h := sha512.New()
 	data, err := generateRandomData()
 	if err != nil {
-		const format = "[%s] failed to generate random data: %s"
+		const format = "(%s) failed to generate random data: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
@@ -456,13 +470,13 @@ func (srv *Server) handleLogin(conn net.Conn) {
 	copy(buf[cmdSize:], token[:])
 	_, err = conn.Write(buf)
 	if err != nil {
-		const format = "[%s] failed to send session token: %s"
+		const format = "(%s) failed to send session token: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
 	srv.addSessionToken(token)
 	srv.prepareConnPool(token)
-	srv.logger.Infof("[%s] login successfully", remoteAddr)
+	srv.logger.Infof("(%s) login successfully", remoteAddr)
 }
 
 func (srv *Server) handleLogoff(conn net.Conn) {
@@ -470,7 +484,7 @@ func (srv *Server) handleLogoff(conn net.Conn) {
 	token := sessionToken{}
 	_, err := io.ReadFull(conn, token[:])
 	if err != nil {
-		const format = "[%s] failed to receive session token: %s"
+		const format = "(%s) failed to receive session token: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
@@ -478,7 +492,7 @@ func (srv *Server) handleLogoff(conn net.Conn) {
 	buf[0] = logoffOK
 	_, err = conn.Write(buf)
 	if err != nil {
-		const format = "[%s] failed to send log off response: %s"
+		const format = "(%s) failed to send log off response: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
@@ -487,7 +501,7 @@ func (srv *Server) handleLogoff(conn net.Conn) {
 	srv.unbindIPv4(token)
 	srv.unbindIPv6(token)
 	srv.deleteSessionToken(token)
-	srv.logger.Infof("[%s] logoff successfully", remoteAddr)
+	srv.logger.Infof("(%s) logoff successfully", remoteAddr)
 }
 
 func (srv *Server) handleTransport(conn net.Conn) {
@@ -495,12 +509,12 @@ func (srv *Server) handleTransport(conn net.Conn) {
 	token := sessionToken{}
 	_, err := io.ReadFull(conn, token[:])
 	if err != nil {
-		const format = "[%s] failed to receive session token: %s"
+		const format = "(%s) failed to receive session token: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
 	if !srv.isValidSessionToken(token) {
-		const format = "[%s] receive invalid session token"
+		const format = "(%s) receive invalid session token"
 		srv.logger.Errorf(format, remoteAddr)
 		return
 	}
@@ -508,7 +522,7 @@ func (srv *Server) handleTransport(conn net.Conn) {
 	buf[0] = transOK
 	_, err = conn.Write(buf)
 	if err != nil {
-		const format = "[%s] failed to send transport response: %s"
+		const format = "(%s) failed to send transport response: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
@@ -543,6 +557,7 @@ func (srv *Server) captureLoop() {
 	var (
 		data []byte
 		pkt  *packet
+		size int
 		err  error
 	)
 	for {
@@ -551,7 +566,8 @@ func (srv *Server) captureLoop() {
 			return
 		}
 		pkt = srv.packetCache.Get().(*packet)
-		pkt.size = copy(pkt.buf, data)
+		size = copy(pkt.buf[frameHeaderSize:], data)
+		pkt.size = uint16(size)
 		select {
 		case srv.packetCh <- pkt:
 		case <-srv.ctx.Done():
@@ -732,17 +748,21 @@ func (srv *Server) isClosed() bool {
 // Close is used to close accelerator server.
 func (srv *Server) Close() error {
 	atomic.StoreInt32(&srv.closed, 1)
+	srv.cancel()
+	srv.handle.Close()
+	srv.logger.Info("pcap handle is closed")
 	var err error
 	if srv.tlsListener != nil {
-		err = srv.tlsListener.Close()
-		if err != nil {
-			srv.logger.Error("failed to close tls listener:", err)
+		e := srv.tlsListener.Close()
+		if e != nil && !errors.Is(e, net.ErrClosed) {
+			srv.logger.Error("failed to close tls listener:", e)
+			err = e
 		}
 		srv.logger.Info("tls listener is closed")
 	}
 	if srv.quicListener != nil {
 		e := srv.quicListener.Close()
-		if e != nil {
+		if e != nil && !errors.Is(e, net.ErrClosed) {
 			srv.logger.Error("failed to close quic listener:", e)
 			if err == nil {
 				err = e
@@ -767,8 +787,6 @@ func (srv *Server) Close() error {
 		delete(srv.connPools, token)
 	}
 	srv.logger.Info("all connection pools is closed")
-	srv.handle.Close()
-	srv.logger.Info("pcap handle is closed")
 	srv.logger.Info("accelerator server is stopped")
 	e := srv.logger.Close()
 	if e != nil && err == nil {

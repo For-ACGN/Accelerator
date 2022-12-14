@@ -1,6 +1,7 @@
 package accelerator
 
 import (
+	"encoding/binary"
 	"sync"
 	"time"
 
@@ -128,8 +129,8 @@ func (s *packetSender) sendLoop() {
 
 func (s *packetSender) sendWithoutNAT(pkt *packet) {
 	defer s.packetCache.Put(pkt)
-	buf := pkt.buf[:pkt.size]
-	err := s.parser.DecodeLayers(buf, s.decoded)
+	data := pkt.buf[frameHeaderSize : frameHeaderSize+pkt.size]
+	err := s.parser.DecodeLayers(data, s.decoded)
 	if err != nil {
 		return
 	}
@@ -144,6 +145,9 @@ func (s *packetSender) sendWithoutNAT(pkt *packet) {
 	defer s.macCache.Put(dstMACPtr)
 	dstMAC := *dstMACPtr
 	copy(dstMAC[:], s.eth.DstMAC)
+	// encode packet size
+	buf := pkt.buf[:frameHeaderSize+pkt.size]
+	binary.BigEndian.PutUint16(buf, pkt.size)
 	if dstMAC == broadcast {
 		s.ctx.broadcast(buf)
 		return

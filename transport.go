@@ -126,6 +126,9 @@ func (tc *transConn) transport() {
 			return
 		}
 		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
+		if size > maxPacketSize {
+			continue
+		}
 		// read frame packet
 		_, err = io.ReadFull(tc.conn, buf[:size])
 		if err != nil {
