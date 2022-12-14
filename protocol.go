@@ -148,7 +148,7 @@ const (
 
 type packet struct {
 	buf  []byte
-	size int
+	size uint16
 }
 
 func newPacket() *packet {

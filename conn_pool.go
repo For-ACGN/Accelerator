@@ -137,7 +137,7 @@ func (pool *connPool) Close() error {
 	defer pool.connsMu.Unlock()
 	for conn := range pool.conns {
 		e := (*conn).Close()
-		if e != nil && err == nil {
+		if e != nil && !errors.Is(e, net.ErrClosed) && err == nil {
 			err = e
 		}
 		delete(pool.conns, conn)

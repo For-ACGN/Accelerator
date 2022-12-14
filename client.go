@@ -160,7 +160,13 @@ func getLocalAddress(cfg *ClientConfig) (string, error) {
 	if len(addresses) < 1 {
 		return "", errors.Errorf("empty address on interface: \"%s\"", name)
 	}
-	return net.JoinHostPort(addresses[0].String(), "0"), nil
+	switch addr := addresses[0].(type) {
+	case *net.IPAddr:
+		address = addr.IP.String()
+	case *net.IPNet:
+		address = addr.IP.String()
+	}
+	return net.JoinHostPort(address, "0"), nil
 }
 
 func checkRemoteNetworkAndAddress(cfg *ClientConfig) error {
@@ -223,16 +229,16 @@ func (client *Client) dial() (net.Conn, error) {
 		dialer := net.Dialer{
 			LocalAddr: lAddr,
 		}
-		tcp := client.config.TCP
-		conn, err = dialer.DialContext(ctx, tcp.RemoteNetwork, tcp.RemoteAddress)
+		network := client.config.TCP.RemoteNetwork
+		address := client.config.TCP.RemoteAddress
+		conn, err = tls.DialWithDialer(&dialer, network, address, client.tlsConfig)
 		if err != nil {
 			return nil, err
 		}
 		// set the buffer size near the MTU value
-		tcpConn := conn.(*net.TCPConn)
+		tcpConn := conn.(*tls.Conn).NetConn().(*net.TCPConn)
 		_ = tcpConn.SetReadBuffer(2048)
 		_ = tcpConn.SetWriteBuffer(2048)
-		conn = tls.Client(conn, client.tlsConfig)
 	case "udp-quic":
 		lAddr, err := net.ResolveUDPAddr(client.localNet, client.localAddr)
 		if err != nil {
@@ -290,7 +296,7 @@ func (client *Client) Run() error {
 	// start connection pool watcher
 	client.wg.Add(1)
 	go client.connPoolWatcher()
-	client.logger.Info("wait connection pool watcher create new connection")
+	client.logger.Info("initialize connection pool watcher")
 	select {
 	case <-time.After(2 * time.Second):
 	case <-client.ctx.Done():
@@ -491,6 +497,9 @@ func (client *Client) transport(conn net.Conn) {
 			return
 		}
 		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
+		if size > maxPacketSize {
+			continue
+		}
 		// read frame packet
 		_, err = io.ReadFull(conn, buf[:size])
 		if err != nil {
@@ -515,7 +524,7 @@ func (client *Client) packetReader() {
 	}()
 	var (
 		n    int
-		size int
+		size uint16
 		pkt  *packet
 		err  error
 	)
@@ -530,7 +539,7 @@ func (client *Client) packetReader() {
 		binary.BigEndian.PutUint16(buf, uint16(n))
 		// build packet
 		pkt = client.packetCache.Get().(*packet)
-		size = frameHeaderSize + n
+		size = uint16(frameHeaderSize + n)
 		copy(pkt.buf, buf[:size])
 		pkt.size = size
 		select {

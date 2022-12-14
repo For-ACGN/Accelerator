@@ -18,7 +18,7 @@ type ServerConfig struct {
 	Server struct {
 		ConnPoolSize    int      `toml:"conn_pool_size"`
 		NumPacketSender int      `toml:"num_pkt_sender"`
-		Timeout         Duration `toml:"timeout"`
+		Timeout         duration `toml:"timeout"`
 	} `toml:"server"`
 
 	TCP struct {
@@ -44,7 +44,7 @@ type ServerConfig struct {
 		GatewayIPv4 string   `toml:"gateway_ipv4"`
 		GatewayIPv6 string   `toml:"gateway_ipv6"`
 		GatewayMAC  string   `toml:"gateway_mac"`
-		UDPTimeout  Duration `toml:"udp_timeout"`
+		UDPTimeout  duration `toml:"udp_timeout"`
 	} `toml:"nat"`
 }
 
@@ -59,7 +59,7 @@ type ClientConfig struct {
 	Client struct {
 		Mode         string   `toml:"mode"`
 		ConnPoolSize int      `toml:"conn_pool_size"`
-		Timeout      Duration `toml:"timeout"`
+		Timeout      duration `toml:"timeout"`
 	} `toml:"client"`
 
 	TCP struct {
@@ -88,21 +88,21 @@ type ClientConfig struct {
 	} `toml:"tap"`
 }
 
-// Duration is patch for toml v2.
-type Duration time.Duration
+// duration is patch for toml v2.
+type duration time.Duration
 
 // MarshalText implement encoding.TextMarshaler.
-func (d Duration) MarshalText() ([]byte, error) {
+func (d duration) MarshalText() ([]byte, error) {
 	return []byte(time.Duration(d).String()), nil
 }
 
 // UnmarshalText implement encoding.TextUnmarshaler.
-func (d *Duration) UnmarshalText(b []byte) error {
+func (d *duration) UnmarshalText(b []byte) error {
 	x, err := time.ParseDuration(string(b))
 	if err != nil {
 		return err
 	}
-	*d = Duration(x)
+	*d = duration(x)
 	return nil
 }
 
