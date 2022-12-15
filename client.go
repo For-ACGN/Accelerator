@@ -229,8 +229,6 @@ func (client *Client) connect() (net.Conn, error) {
 
 func (client *Client) dial() (net.Conn, error) {
 	var conn net.Conn
-	ctx, cancel := context.WithTimeout(client.ctx, client.timeout)
-	defer cancel()
 	switch client.config.Client.Mode {
 	case "tcp-tls":
 		lAddr, err := net.ResolveTCPAddr(client.localNet, client.localAddr)
@@ -251,6 +249,8 @@ func (client *Client) dial() (net.Conn, error) {
 		_ = tcpConn.SetReadBuffer(2048)
 		_ = tcpConn.SetWriteBuffer(2048)
 	case "udp-quic":
+		ctx, cancel := context.WithTimeout(context.Background(), client.timeout)
+		defer cancel()
 		lAddr, err := net.ResolveUDPAddr(client.localNet, client.localAddr)
 		if err != nil {
 			return nil, err
@@ -509,7 +509,9 @@ func (client *Client) transport(conn net.Conn) {
 		}
 		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
 		if size > maxPacketSize {
-			continue
+			const format = "receive too large packet: 0x%X"
+			client.logger.Warningf(format, buf[:frameHeaderSize])
+			return
 		}
 		// read frame packet
 		_, err = io.ReadFull(conn, buf[:size])
@@ -517,7 +519,11 @@ func (client *Client) transport(conn net.Conn) {
 			return
 		}
 		// write to the tap device
-		_, err = client.tapDev.Write(buf[:size])
+		// copy data in buffer for prevent potential
+		// data race in the under driver
+		p := make([]byte, len(buf[:size]))
+		copy(p, buf[:size])
+		_, err = client.tapDev.Write(p)
 		if err != nil {
 			return
 		}
@@ -548,9 +554,9 @@ func (client *Client) packetReader() {
 		}
 		// put frame data size
 		binary.BigEndian.PutUint16(buf, uint16(n))
+		size = uint16(frameHeaderSize + n)
 		// build packet
 		pkt = client.packetCache.Get().(*packet)
-		size = uint16(frameHeaderSize + n)
 		copy(pkt.buf, buf[:size])
 		pkt.size = size
 		select {
