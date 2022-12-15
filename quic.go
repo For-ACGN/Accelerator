@@ -202,15 +202,15 @@ func quicListen(network, address string, config *tls.Config, timeout time.Durati
 	if timeout < 1 {
 		timeout = defaultTimeout
 	}
-	quicCfg := quic.Config{
-		HandshakeIdleTimeout: timeout,
-		MaxIdleTimeout:       4 * timeout,
-		KeepAlivePeriod:      15 * time.Second,
-	}
 	if len(config.NextProtos) == 0 {
 		c := config.Clone()
 		c.NextProtos = []string{defaultNextProto}
 		config = c
+	}
+	quicCfg := quic.Config{
+		HandshakeIdleTimeout: timeout,
+		MaxIdleTimeout:       4 * timeout,
+		KeepAlivePeriod:      15 * time.Second,
 	}
 	quicListener, err := quic.Listen(conn, config, &quicCfg)
 	if err != nil {
@@ -242,6 +242,11 @@ func quicDial(ctx context.Context, lAddr, rAddr *net.UDPAddr, config *tls.Config
 			_ = udpConn.Close()
 		}
 	}()
+	if len(config.NextProtos) == 0 {
+		c := config.Clone()
+		c.NextProtos = []string{defaultNextProto}
+		config = c
+	}
 	quicCfg := quic.Config{
 		HandshakeIdleTimeout: defaultTimeout,
 		MaxIdleTimeout:       4 * defaultTimeout,
