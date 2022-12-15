@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -60,6 +61,10 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = checkClientRemoteNetworkAndAddress(cfg)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to check remote network and address")
+	}
 	localNet := getClientLocalNetwork(cfg)
 	localAddr, err := getClientLocalAddress(cfg)
 	if err != nil {
@@ -68,10 +73,6 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	err = checkNetworkAndAddress(localNet, localAddr)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to check local network and address")
-	}
-	err = checkClientRemoteNetworkAndAddress(cfg)
-	if err != nil {
-		return nil, errors.WithMessage(err, "failed to check remote network and address")
 	}
 	// initialize logger
 	var ok bool
@@ -168,16 +169,39 @@ func getClientLocalAddress(cfg *ClientConfig) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get network address")
 	}
-	if len(addresses) < 1 {
-		return "", errors.Errorf("empty address on interface: \"%s\"", name)
+	var remoteAddr string
+	switch cfg.Client.Mode {
+	case "tcp-tls":
+		remoteAddr = cfg.TCP.RemoteAddress
+	case "udp-quic":
+		remoteAddr = cfg.UDP.RemoteAddress
 	}
-	switch addr := addresses[0].(type) {
-	case *net.IPAddr:
-		address = addr.IP.String()
-	case *net.IPNet:
-		address = addr.IP.String()
+	addrPort, err := netip.ParseAddrPort(remoteAddr)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to split remote address")
 	}
-	return net.JoinHostPort(address, "0"), nil
+	isIPv4 := addrPort.Addr().Is4()
+	var localIP string
+	for i := 0; i < len(addresses); i++ {
+		switch addr := addresses[i].(type) {
+		case *net.IPAddr:
+			address = addr.IP.String()
+		case *net.IPNet:
+			address = addr.IP.String()
+		}
+		addr, err := netip.ParseAddr(address)
+		if err != nil {
+			return "", errors.Wrap(err, "failed to parse ip address")
+		}
+		if addr.Is4() == isIPv4 {
+			localIP = address
+			break
+		}
+	}
+	if len(localIP) < 1 {
+		return "", errors.Errorf("failed to select address on interface: \"%s\"", name)
+	}
+	return net.JoinHostPort(localIP, "0"), nil
 }
 
 func checkClientRemoteNetworkAndAddress(cfg *ClientConfig) error {
