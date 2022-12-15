@@ -54,7 +54,7 @@ func main() {
 		signal.Notify(signalCh, os.Interrupt)
 		<-signalCh
 
-		err = client.Close()
+		err := client.Close()
 		checkError(err)
 	}()
 
