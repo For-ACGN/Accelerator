@@ -28,11 +28,14 @@ var errClientClosed = fmt.Errorf("accelerator client is closed")
 
 // Client is the accelerator client.
 type Client struct {
-	config    *ClientConfig
-	passHash  []byte
-	timeout   time.Duration
-	localNet  string
-	localAddr string
+	passHash     []byte
+	mode         string
+	connPoolSize int
+	timeout      time.Duration
+	remoteNet    string
+	remoteAddr   string
+	localNet     string
+	localAddr    string
 
 	logger    *logger
 	tlsConfig *tls.Config
@@ -51,19 +54,27 @@ type Client struct {
 // NewClient is used to create a new client from configuration.
 func NewClient(cfg *ClientConfig) (*Client, error) {
 	// check common config
+	passHash, err := decodePasswordHash(cfg.Common.PassHash)
+	if err != nil {
+		return nil, err
+	}
 	mode := cfg.Client.Mode
 	switch mode {
 	case "tcp-tls", "udp-quic":
 	default:
 		return nil, errors.Errorf("invalid transport mode: \"%s\"", mode)
 	}
-	passHash, err := decodePasswordHash(cfg.Common.PassHash)
-	if err != nil {
-		return nil, err
+	poolSize := cfg.Client.ConnPoolSize
+	if poolSize < 1 {
+		poolSize = defaultClientConnPoolSize
 	}
-	err = checkClientRemoteNetworkAndAddress(cfg)
+	timeout := time.Duration(cfg.Client.Timeout)
+	if timeout < 1 {
+		timeout = defaultClientTimeout
+	}
+	remoteNet, remoteAddr, err := getClientRemoteNetworkAndAddress(cfg)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to check remote network and address")
+		return nil, errors.WithMessage(err, "failed to get remote network and address")
 	}
 	localNet := getClientLocalNetwork(cfg)
 	localAddr, err := getClientLocalAddress(cfg)
@@ -100,25 +111,20 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 			_ = tapDev.Close()
 		}
 	}()
-	poolSize := cfg.Client.ConnPoolSize
-	if poolSize < 1 {
-		poolSize = defaultClientConnPoolSize
-	}
-	timeout := time.Duration(cfg.Client.Timeout)
-	if timeout < 1 {
-		timeout = defaultClientTimeout
-	}
 	client := Client{
-		config:    cfg,
-		passHash:  passHash,
-		timeout:   timeout,
-		localNet:  localNet,
-		localAddr: localAddr,
-		logger:    lg,
-		tlsConfig: tlsConfig,
-		tapDev:    tapDev,
-		connPool:  newConnPool(poolSize),
-		packetCh:  make(chan *packet, 128*poolSize),
+		passHash:     passHash,
+		mode:         mode,
+		connPoolSize: poolSize,
+		timeout:      timeout,
+		remoteNet:    remoteNet,
+		remoteAddr:   remoteAddr,
+		localNet:     localNet,
+		localAddr:    localAddr,
+		logger:       lg,
+		tlsConfig:    tlsConfig,
+		tapDev:       tapDev,
+		connPool:     newConnPool(poolSize),
+		packetCh:     make(chan *packet, 128*poolSize),
 	}
 	client.packetCache.New = func() interface{} {
 		return newPacket()
@@ -127,6 +133,26 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 	client.setSessionToken(emptySessionToken)
 	ok = true
 	return &client, nil
+}
+
+func getClientRemoteNetworkAndAddress(cfg *ClientConfig) (string, string, error) {
+	var (
+		network string
+		address string
+	)
+	switch cfg.Client.Mode {
+	case "tcp-tls":
+		network = cfg.TCP.RemoteNetwork
+		address = cfg.TCP.RemoteAddress
+	case "udp-quic":
+		network = cfg.UDP.RemoteNetwork
+		address = cfg.UDP.RemoteAddress
+	}
+	err := checkNetworkAndAddress(network, address)
+	if err != nil {
+		return "", "", err
+	}
+	return network, address, nil
 }
 
 func getClientLocalNetwork(cfg *ClientConfig) string {
@@ -204,17 +230,6 @@ func getClientLocalAddress(cfg *ClientConfig) (string, error) {
 	return net.JoinHostPort(localIP, "0"), nil
 }
 
-func checkClientRemoteNetworkAndAddress(cfg *ClientConfig) error {
-	var err error
-	switch cfg.Client.Mode {
-	case "tcp-tls":
-		err = checkNetworkAndAddress(cfg.TCP.RemoteNetwork, cfg.TCP.RemoteAddress)
-	case "udp-quic":
-		err = checkNetworkAndAddress(cfg.UDP.RemoteNetwork, cfg.UDP.RemoteAddress)
-	}
-	return err
-}
-
 func newClientTLSConfig(cfg *ClientConfig) (*tls.Config, error) {
 	caPEM, err := os.ReadFile(cfg.TLS.RootCA)
 	if err != nil {
@@ -255,7 +270,7 @@ func (client *Client) dial(ctx context.Context) (net.Conn, error) {
 	ctx, cancel := context.WithTimeout(ctx, client.timeout)
 	defer cancel()
 	var conn net.Conn
-	switch client.config.Client.Mode {
+	switch client.mode {
 	case "tcp-tls":
 		lAddr, err := net.ResolveTCPAddr(client.localNet, client.localAddr)
 		if err != nil {
@@ -267,9 +282,7 @@ func (client *Client) dial(ctx context.Context) (net.Conn, error) {
 			},
 			Config: client.tlsConfig,
 		}
-		network := client.config.TCP.RemoteNetwork
-		address := client.config.TCP.RemoteAddress
-		conn, err = dialer.DialContext(ctx, network, address)
+		conn, err = dialer.DialContext(ctx, client.remoteNet, client.remoteAddr)
 		if err != nil {
 			return nil, err
 		}
@@ -282,8 +295,7 @@ func (client *Client) dial(ctx context.Context) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		udp := client.config.UDP
-		rAddr, err := net.ResolveUDPAddr(udp.RemoteNetwork, udp.RemoteAddress)
+		rAddr, err := net.ResolveUDPAddr(client.remoteNet, client.remoteAddr)
 		if err != nil {
 			return nil, err
 		}
@@ -344,7 +356,7 @@ func (client *Client) Run() error {
 	client.wg.Add(1)
 	go client.packetReader()
 	// start packet writer
-	for i := 0; i < client.config.Client.ConnPoolSize; i++ {
+	for i := 0; i < client.connPoolSize; i++ {
 		client.wg.Add(1)
 		go client.packetWriter()
 	}
