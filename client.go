@@ -215,8 +215,8 @@ func newClientTLSConfig(cfg *ClientConfig) (*tls.Config, error) {
 	return &config, nil
 }
 
-func (client *Client) connect() (net.Conn, error) {
-	conn, err := client.dial()
+func (client *Client) connect(ctx context.Context) (net.Conn, error) {
+	conn, err := client.dial(ctx)
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to connect server")
 	}
@@ -227,7 +227,9 @@ func (client *Client) connect() (net.Conn, error) {
 	return conn, nil
 }
 
-func (client *Client) dial() (net.Conn, error) {
+func (client *Client) dial(ctx context.Context) (net.Conn, error) {
+	ctx, cancel := context.WithTimeout(ctx, client.timeout)
+	defer cancel()
 	var conn net.Conn
 	switch client.config.Client.Mode {
 	case "tcp-tls":
@@ -235,12 +237,15 @@ func (client *Client) dial() (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		dialer := net.Dialer{
-			LocalAddr: lAddr,
+		dialer := tls.Dialer{
+			NetDialer: &net.Dialer{
+				LocalAddr: lAddr,
+			},
+			Config: client.tlsConfig,
 		}
 		network := client.config.TCP.RemoteNetwork
 		address := client.config.TCP.RemoteAddress
-		conn, err = tls.DialWithDialer(&dialer, network, address, client.tlsConfig)
+		conn, err = dialer.DialContext(ctx, network, address)
 		if err != nil {
 			return nil, err
 		}
@@ -249,8 +254,6 @@ func (client *Client) dial() (net.Conn, error) {
 		_ = tcpConn.SetReadBuffer(2048)
 		_ = tcpConn.SetWriteBuffer(2048)
 	case "udp-quic":
-		ctx, cancel := context.WithTimeout(context.Background(), client.timeout)
-		defer cancel()
 		lAddr, err := net.ResolveUDPAddr(client.localNet, client.localAddr)
 		if err != nil {
 			return nil, err
@@ -303,11 +306,11 @@ func (client *Client) Run() error {
 	if err != nil {
 		return errors.WithMessage(err, "failed to log in")
 	}
-	client.logger.Info("connect accelerator server successfully!")
-	// start connection pool watcher
+	client.logger.Info("connect accelerator server successfully")
+	// start status watcher
 	client.wg.Add(1)
-	go client.connPoolWatcher()
-	client.logger.Info("initialize connection pool watcher")
+	go client.watcher()
+	client.logger.Info("initialize accelerator status watcher")
 	select {
 	case <-time.After(2 * time.Second):
 	case <-client.ctx.Done():
@@ -339,7 +342,7 @@ func (client *Client) login() error {
 		err  error
 	)
 	for i := 0; i < 3; i++ {
-		conn, err = client.dial()
+		conn, err = client.dial(client.ctx)
 		if err == nil {
 			break
 		}
@@ -394,7 +397,7 @@ func (client *Client) logoff() error {
 	if token == emptySessionToken {
 		return nil
 	}
-	conn, err := client.connect()
+	conn, err := client.connect(context.Background())
 	if err != nil {
 		return err
 	}
@@ -425,13 +428,14 @@ func (client *Client) logoff() error {
 	return nil
 }
 
-// connPoolWatcher is used to check connection pool is full,
-// if it is not full, connect and add new connection to pool.
-func (client *Client) connPoolWatcher() {
+// watcher is used to check connection pool is full, if it is not full,
+// connect and add new connection to pool. If the server restart, the
+// token session will be invalid, watcher will log in again.
+func (client *Client) watcher() {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			client.logger.Fatal("Client.connPoolWatcher", r)
+			client.logger.Fatal("Client.watcher", r)
 		}
 	}()
 	const period = 100 * time.Millisecond
@@ -443,7 +447,7 @@ func (client *Client) connPoolWatcher() {
 			if client.connPool.IsFull() {
 				break
 			}
-			conn, err := client.connect()
+			conn, err := client.connect(client.ctx)
 			if err == nil {
 				client.wg.Add(1)
 				go client.transport(conn)
@@ -604,19 +608,19 @@ func (client *Client) Close() error {
 	client.logger.Info("tap device is closed")
 	e := client.connPool.Close()
 	if e != nil {
-		client.logger.Error("failed to close connection pool:", e)
 		if err == nil {
 			err = e
 		}
+		client.logger.Error("failed to close connection pool:", e)
 	}
 	client.logger.Info("connection pool is closed")
 	client.wg.Wait()
 	e = client.logoff()
 	if e != nil {
-		client.logger.Error("failed to log off:", e)
 		if err == nil {
 			err = e
 		}
+		client.logger.Error("failed to log off:", e)
 	}
 	client.logger.Info("accelerator client is stopped")
 	e = client.logger.Close()
