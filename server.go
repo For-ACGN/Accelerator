@@ -737,6 +737,23 @@ func (srv *Server) broadcast(data []byte) {
 	srv.connPoolsRWM.RLock()
 	defer srv.connPoolsRWM.RUnlock()
 	for _, pool := range srv.connPools {
+		if srv.isClosed() {
+			return
+		}
+		_, _ = pool.Write(data)
+	}
+}
+
+func (srv *Server) broadcastExcept(data []byte, token sessionToken) {
+	srv.connPoolsRWM.RLock()
+	defer srv.connPoolsRWM.RUnlock()
+	for t, pool := range srv.connPools {
+		if srv.isClosed() {
+			return
+		}
+		if t == token {
+			continue
+		}
 		_, _ = pool.Write(data)
 	}
 }
@@ -770,10 +787,7 @@ func (srv *Server) Close() error {
 		}
 		srv.logger.Info("quic listener is closed")
 	}
-	srv.logger.Info("wait listeners stop serve")
-	srv.wg.Wait()
 	srv.logger.Info("all listeners stop serve")
-	srv.logger.Info("close all connection pools")
 	srv.connPoolsRWM.Lock()
 	defer srv.connPoolsRWM.Unlock()
 	for token, pool := range srv.connPools {
@@ -787,6 +801,7 @@ func (srv *Server) Close() error {
 		delete(srv.connPools, token)
 	}
 	srv.logger.Info("all connection pools is closed")
+	srv.wg.Wait()
 	srv.logger.Info("accelerator server is stopped")
 	e := srv.logger.Close()
 	if e != nil && err == nil {
