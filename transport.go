@@ -127,7 +127,9 @@ func (tc *transConn) transport() {
 		}
 		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
 		if size > maxPacketSize {
-			continue
+			const format = "(%s) receive too large packet: 0x%X"
+			tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), buf[:frameHeaderSize])
+			return
 		}
 		// read frame packet
 		_, err = io.ReadFull(tc.conn, buf[:size])
@@ -160,17 +162,32 @@ func (tc *transConn) decodeWithoutNAT(buf []byte) {
 	dstMAC := *dstMACPtr
 	copy(dstMAC[:], tc.eth.DstMAC)
 	if dstMAC == broadcast {
+		// TODO check handle is closed
+		if tc.ctx.isClosed() {
+			return
+		}
 		_ = tc.handle.WritePacketData(buf)
-		tc.ctx.broadcast(buf)
+
+		b := make([]byte, 2+len(buf))
+		binary.BigEndian.PutUint16(b, uint16(len(buf)))
+		copy(b[2:], buf)
+
+		tc.ctx.broadcastExcept(b, tc.token)
 		return
 	}
 	// check it is sent to one client
 	pool := tc.ctx.getConnPoolByMAC(dstMAC)
 	if pool != nil {
-		_, _ = pool.Write(buf)
+
+		b := make([]byte, 2+len(buf))
+		binary.BigEndian.PutUint16(b, uint16(len(buf)))
+		copy(b[2:], buf)
+
+		_, _ = pool.Write(b)
 		return
 	}
 	// send to the under interface
+	// TODO add lock for close handle
 	_ = tc.handle.WritePacketData(buf)
 }
 
@@ -214,6 +231,9 @@ func (tc *transConn) isNewSourceMAC() {
 	// must copy, because DecodeLayers use reference
 	srcMAC := mac{}
 	copy(srcMAC[:], tc.eth.SrcMAC)
+	if srcMAC == broadcast {
+		return
+	}
 	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
 	tc.ctx.bindMAC(tc.token, srcMAC)
 }
