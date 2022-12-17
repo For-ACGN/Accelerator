@@ -48,10 +48,15 @@ type nat struct {
 	gatewayIPv6 net.IP
 	mapTimeout  time.Duration
 
-	ipv4    map[ipv4RI]*ipv4LI
-	ipv4RWM sync.RWMutex
-	ipv6    map[ipv6RI]*ipv6LI
-	ipv6RWM sync.RWMutex
+	tcpIPv4    map[ipv4RI]*ipv4LI
+	tcpIPv4RWM sync.RWMutex
+	udpIPv4    map[ipv4RI]*ipv4LI
+	udpIPv4RWM sync.RWMutex
+
+	tcpIPv6    map[ipv6RI]*ipv6LI
+	tcpIPv6RWM sync.RWMutex
+	udpIPv6    map[ipv6RI]*ipv6LI
+	udpIPv6RWM sync.RWMutex
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -103,8 +108,10 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 		gatewayIPv4: gatewayIPv4,
 		gatewayIPv6: gatewayIPv6,
 		mapTimeout:  mapTimeout,
-		ipv4:        make(map[ipv4RI]*ipv4LI, 512),
-		ipv6:        make(map[ipv6RI]*ipv6LI, 512),
+		tcpIPv4:     make(map[ipv4RI]*ipv4LI, 512),
+		udpIPv4:     make(map[ipv4RI]*ipv4LI, 512),
+		tcpIPv6:     make(map[ipv6RI]*ipv6LI, 512),
+		udpIPv6:     make(map[ipv6RI]*ipv6LI, 512),
 	}
 	n.ctx, n.cancel = context.WithCancel(context.Background())
 	return &n, nil
@@ -115,28 +122,39 @@ func (nat *nat) Run() {
 	go nat.cleaner()
 }
 
-func (nat *nat) AddIPv4Map(ri ipv4RI) {
-	nat.ipv4RWM.Lock()
-	defer nat.ipv4RWM.Unlock()
+func (nat *nat) AddTCPIPv4Map(ri ipv4RI) {
+	nat.tcpIPv4RWM.Lock()
+	defer nat.tcpIPv4RWM.Unlock()
 
 }
 
-func (nat *nat) AddIPv6Map(ri ipv4RI) {
-	nat.ipv6RWM.Lock()
-	defer nat.ipv6RWM.Unlock()
-
+func (nat *nat) AddUDPIPv6Map(ri ipv4RI) {
+	nat.tcpIPv6RWM.Lock()
+	defer nat.tcpIPv6RWM.Unlock()
 }
 
-func (nat *nat) DeleteIPv4Map(ri ipv4RI) {
-	nat.ipv4RWM.Lock()
-	defer nat.ipv4RWM.Unlock()
-	delete(nat.ipv4, ri)
+func (nat *nat) DeleteTCPIPv4Map(ri ipv4RI) {
+	nat.tcpIPv4RWM.Lock()
+	defer nat.tcpIPv4RWM.Unlock()
+	delete(nat.tcpIPv4, ri)
 }
 
-func (nat *nat) DeleteIPv6Map(ri ipv6RI) {
-	nat.ipv6RWM.Lock()
-	defer nat.ipv6RWM.Unlock()
-	delete(nat.ipv6, ri)
+func (nat *nat) DeleteUDPIPv4Map(ri ipv4RI) {
+	nat.udpIPv4RWM.Lock()
+	defer nat.udpIPv4RWM.Unlock()
+	delete(nat.udpIPv4, ri)
+}
+
+func (nat *nat) DeleteTCPIPv6Map(ri ipv6RI) {
+	nat.tcpIPv6RWM.Lock()
+	defer nat.tcpIPv6RWM.Unlock()
+	delete(nat.tcpIPv6, ri)
+}
+
+func (nat *nat) DeleteUDPIPv6Map(ri ipv6RI) {
+	nat.udpIPv6RWM.Lock()
+	defer nat.udpIPv6RWM.Unlock()
+	delete(nat.udpIPv6, ri)
 }
 
 func (nat *nat) cleaner() {
@@ -165,22 +183,24 @@ func (nat *nat) cleaner() {
 
 func (nat *nat) clean() {
 	if nat.gatewayIPv4 != nil {
-		nat.cleanIPv4()
+		nat.cleanTCPIPv4()
+		nat.cleanUDPIPv4()
 	}
 	if nat.gatewayIPv6 != nil {
-		nat.cleanIPv6()
+		nat.cleanTCPIPv6()
+		nat.cleanUDPIPv6()
 	}
 }
 
-func (nat *nat) cleanIPv4() {
+func (nat *nat) cleanTCPIPv4() {
 	var (
 		prevent uint32
 		current uint32
 	)
 	now := time.Now()
-	nat.ipv4RWM.Lock()
-	defer nat.ipv4RWM.Unlock()
-	for ri, li := range nat.ipv4 {
+	nat.tcpIPv4RWM.Lock()
+	defer nat.tcpIPv4RWM.Unlock()
+	for ri, li := range nat.tcpIPv4 {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
@@ -190,19 +210,19 @@ func (nat *nat) cleanIPv4() {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
-		nat.DeleteIPv4Map(ri)
+		nat.DeleteTCPIPv4Map(ri)
 	}
 }
 
-func (nat *nat) cleanIPv6() {
+func (nat *nat) cleanUDPIPv4() {
 	var (
 		prevent uint32
 		current uint32
 	)
 	now := time.Now()
-	nat.ipv6RWM.Lock()
-	defer nat.ipv6RWM.Unlock()
-	for ri, li := range nat.ipv6 {
+	nat.udpIPv4RWM.Lock()
+	defer nat.udpIPv4RWM.Unlock()
+	for ri, li := range nat.udpIPv4 {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
@@ -212,7 +232,51 @@ func (nat *nat) cleanIPv6() {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
-		nat.DeleteIPv6Map(ri)
+		nat.DeleteUDPIPv4Map(ri)
+	}
+}
+
+func (nat *nat) cleanTCPIPv6() {
+	var (
+		prevent uint32
+		current uint32
+	)
+	now := time.Now()
+	nat.tcpIPv6RWM.Lock()
+	defer nat.tcpIPv6RWM.Unlock()
+	for ri, li := range nat.tcpIPv6 {
+		if now.Sub(li.createAt) < nat.mapTimeout {
+			continue
+		}
+		prevent = atomic.LoadUint32(li.preCtr)
+		current = atomic.LoadUint32(li.curCtr)
+		if prevent != current {
+			atomic.StoreUint32(li.preCtr, current)
+			continue
+		}
+		nat.DeleteTCPIPv6Map(ri)
+	}
+}
+
+func (nat *nat) cleanUDPIPv6() {
+	var (
+		prevent uint32
+		current uint32
+	)
+	now := time.Now()
+	nat.udpIPv6RWM.Lock()
+	defer nat.udpIPv6RWM.Unlock()
+	for ri, li := range nat.udpIPv6 {
+		if now.Sub(li.createAt) < nat.mapTimeout {
+			continue
+		}
+		prevent = atomic.LoadUint32(li.preCtr)
+		current = atomic.LoadUint32(li.curCtr)
+		if prevent != current {
+			atomic.StoreUint32(li.preCtr, current)
+			continue
+		}
+		nat.DeleteUDPIPv6Map(ri)
 	}
 }
 
