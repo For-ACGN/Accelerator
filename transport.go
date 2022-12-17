@@ -202,12 +202,19 @@ func (tc *transConn) decodeWithNAT(buf []byte) {
 		case layers.LayerTypeEthernet:
 			tc.isNewSourceMAC()
 		case layers.LayerTypeARP:
+
 		case layers.LayerTypeIPv4:
+			tc.isNewSourceIPv4()
 		case layers.LayerTypeIPv6:
+			tc.isNewSourceIPv6()
 		case layers.LayerTypeICMPv4:
+
 		case layers.LayerTypeICMPv6:
+
 		case layers.LayerTypeTCP:
+
 		case layers.LayerTypeUDP:
+
 		}
 	}
 
@@ -218,6 +225,9 @@ func (tc *transConn) decodeWithNAT(buf []byte) {
 }
 
 func (tc *transConn) isNewSourceMAC() {
+	if bytes.Equal(tc.eth.SrcMAC, broadcast[:]) {
+		return
+	}
 	var exist bool
 	for i := 0; i < len(tc.srcMAC); i++ {
 		if bytes.Equal(tc.srcMAC[i], tc.eth.SrcMAC) {
@@ -231,9 +241,48 @@ func (tc *transConn) isNewSourceMAC() {
 	// must copy, because DecodeLayers use reference
 	srcMAC := mac{}
 	copy(srcMAC[:], tc.eth.SrcMAC)
-	if srcMAC == broadcast {
-		return
-	}
 	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
 	tc.ctx.bindMAC(tc.token, srcMAC)
+}
+
+func (tc *transConn) isNewSourceIPv4() {
+	if !tc.ipv4.SrcIP.IsGlobalUnicast() {
+		return
+	}
+	var exist bool
+	for i := 0; i < len(tc.srcIPv4); i++ {
+		if tc.srcIPv4[i].Equal(tc.ipv4.SrcIP) {
+			exist = true
+			break
+		}
+	}
+	if exist {
+		return
+	}
+	// must copy, because DecodeLayers use reference
+	srcIP := ipv4{}
+	copy(srcIP[:], tc.ipv4.SrcIP)
+	tc.srcIPv4 = append(tc.srcIPv4, srcIP[:])
+	tc.ctx.bindIPv4(tc.token, srcIP)
+}
+
+func (tc *transConn) isNewSourceIPv6() {
+	if !tc.ipv6.SrcIP.IsGlobalUnicast() {
+		return
+	}
+	var exist bool
+	for i := 0; i < len(tc.srcIPv6); i++ {
+		if tc.srcIPv6[i].Equal(tc.ipv6.SrcIP) {
+			exist = true
+			break
+		}
+	}
+	if exist {
+		return
+	}
+	// must copy, because DecodeLayers use reference
+	srcIP := ipv6{}
+	copy(srcIP[:], tc.ipv6.SrcIP)
+	tc.srcIPv6 = append(tc.srcIPv6, srcIP[:])
+	tc.ctx.bindIPv6(tc.token, srcIP)
 }
