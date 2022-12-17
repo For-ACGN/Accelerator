@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const minMapTimeout = 30 * time.Second
+const minNATMapTimeout = 30 * time.Second
 
 type ipv4RI struct {
 	remoteIP   ipv4
@@ -104,9 +104,10 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 		return nil, errors.New("empty NAT gateway IP address")
 	}
 	mapTimeout := time.Duration(nc.MapTimeout)
-	if mapTimeout < minMapTimeout {
-		mapTimeout = minMapTimeout
+	if mapTimeout < minNATMapTimeout {
+		mapTimeout = minNATMapTimeout
 	}
+	rd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
 	n := nat{
 		logger:      lg,
 		gatewayMAC:  gatewayMAC,
@@ -117,7 +118,7 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 		ipv4UDP:     make(map[ipv4RI]*ipv4LI, 512),
 		ipv6TCP:     make(map[ipv6RI]*ipv6LI, 512),
 		ipv6UDP:     make(map[ipv6RI]*ipv6LI, 512),
-		rand:        rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec
+		rand:        rd,
 	}
 	n.ctx, n.cancel = context.WithCancel(context.Background())
 	return &n, nil
@@ -128,7 +129,7 @@ func (nat *nat) Run() {
 	go nat.cleaner()
 }
 
-func (nat *nat) AddIPv4TCPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16) {
+func (nat *nat) AddIPv4TCPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16) uint16 {
 	ri := ipv4RI{}
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
@@ -144,28 +145,30 @@ func (nat *nat) AddIPv4TCPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16
 	// try to get random port
 	var ok bool
 	for i := 0; i < 256; i++ {
-		p := nat.selectRandomIPv4TCPPort()
+		p := nat.generateRandomPortIPv4TCPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv4TCP[ri]
 		if ok {
 			continue
 		}
 		nat.ipv4TCP[ri] = li
-		return
+		return p
 	}
 	// check all ports
-	for p := 1025; p < 65536; p++ {
-		binary.BigEndian.PutUint16(ri.natPort[:], uint16(p))
+	for i := 1025; i < 65536; i++ {
+		p := uint16(i)
+		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv4TCP[ri]
 		if ok {
 			continue
 		}
 		nat.ipv4TCP[ri] = li
-		return
+		return p
 	}
+	return 0
 }
 
-func (nat *nat) AddIPv4UDPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16) {
+func (nat *nat) AddIPv4UDPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16) uint16 {
 	ri := ipv4RI{}
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
@@ -181,28 +184,30 @@ func (nat *nat) AddIPv4UDPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16
 	// try to get random port
 	var ok bool
 	for i := 0; i < 256; i++ {
-		p := nat.selectRandomIPv4UDPPort()
+		p := nat.generateRandomPortIPv4UDPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv4UDP[ri]
 		if ok {
 			continue
 		}
 		nat.ipv4UDP[ri] = li
-		return
+		return p
 	}
 	// check all ports
-	for p := 1025; p < 65536; p++ {
-		binary.BigEndian.PutUint16(ri.natPort[:], uint16(p))
+	for i := 1025; i < 65536; i++ {
+		p := uint16(i)
+		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv4UDP[ri]
 		if ok {
 			continue
 		}
 		nat.ipv4UDP[ri] = li
-		return
+		return p
 	}
+	return 0
 }
 
-func (nat *nat) AddIPv6TCPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16) {
+func (nat *nat) AddIPv6TCPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16) uint16 {
 	ri := ipv6RI{}
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
@@ -218,28 +223,30 @@ func (nat *nat) AddIPv6TCPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16
 	// try to get random port
 	var ok bool
 	for i := 0; i < 256; i++ {
-		p := nat.selectRandomIPv6TCPPort()
+		p := nat.generateRandomPortIPv6TCPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv6TCP[ri]
 		if ok {
 			continue
 		}
 		nat.ipv6TCP[ri] = li
-		return
+		return p
 	}
 	// check all ports
-	for p := 1025; p < 65536; p++ {
-		binary.BigEndian.PutUint16(ri.natPort[:], uint16(p))
+	for i := 1025; i < 65536; i++ {
+		p := uint16(i)
+		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv6TCP[ri]
 		if ok {
 			continue
 		}
 		nat.ipv6TCP[ri] = li
-		return
+		return p
 	}
+	return 0
 }
 
-func (nat *nat) AddIPv6UDPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16) {
+func (nat *nat) AddIPv6UDPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16) uint16 {
 	ri := ipv6RI{}
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
@@ -255,25 +262,27 @@ func (nat *nat) AddIPv6UDPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16
 	// try to get random port
 	var ok bool
 	for i := 0; i < 256; i++ {
-		p := nat.selectRandomIPv6UDPPort()
+		p := nat.generateRandomPortIPv6UDPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv6UDP[ri]
 		if ok {
 			continue
 		}
 		nat.ipv6UDP[ri] = li
-		return
+		return p
 	}
 	// check all ports
-	for p := 1025; p < 65536; p++ {
-		binary.BigEndian.PutUint16(ri.natPort[:], uint16(p))
+	for i := 1025; i < 65536; i++ {
+		p := uint16(i)
+		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv6UDP[ri]
 		if ok {
 			continue
 		}
 		nat.ipv6UDP[ri] = li
-		return
+		return p
 	}
+	return 0
 }
 
 func (nat *nat) DeleteIPv4TCPMap(ri ipv4RI) {
@@ -300,23 +309,23 @@ func (nat *nat) DeleteIPv6UDPMap(ri ipv6RI) {
 	delete(nat.ipv6UDP, ri)
 }
 
-func (nat *nat) selectRandomIPv4TCPPort() uint16 {
-	return nat.selectRandomPort()
+func (nat *nat) generateRandomPortIPv4TCPPort() uint16 {
+	return nat.generateRandomPortPort()
 }
 
-func (nat *nat) selectRandomIPv4UDPPort() uint16 {
-	return nat.selectRandomPort()
+func (nat *nat) generateRandomPortIPv4UDPPort() uint16 {
+	return nat.generateRandomPortPort()
 }
 
-func (nat *nat) selectRandomIPv6TCPPort() uint16 {
-	return nat.selectRandomPort()
+func (nat *nat) generateRandomPortIPv6TCPPort() uint16 {
+	return nat.generateRandomPortPort()
 }
 
-func (nat *nat) selectRandomIPv6UDPPort() uint16 {
-	return nat.selectRandomPort()
+func (nat *nat) generateRandomPortIPv6UDPPort() uint16 {
+	return nat.generateRandomPortPort()
 }
 
-func (nat *nat) selectRandomPort() uint16 {
+func (nat *nat) generateRandomPortPort() uint16 {
 	nat.randMu.Lock()
 	defer nat.randMu.Unlock()
 	return 1025 + uint16(nat.rand.Intn(65536-1025))
