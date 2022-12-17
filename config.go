@@ -44,7 +44,7 @@ type ServerConfig struct {
 		GatewayIPv4 string   `toml:"gateway_ipv4"`
 		GatewayIPv6 string   `toml:"gateway_ipv6"`
 		GatewayMAC  string   `toml:"gateway_mac"`
-		UDPTimeout  duration `toml:"udp_timeout"`
+		MapTimeout  duration `toml:"map_timeout"`
 	} `toml:"nat"`
 }
 

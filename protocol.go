@@ -13,6 +13,7 @@ import (
 type mac = [6]byte
 type ipv4 = [net.IPv4len]byte
 type ipv6 = [net.IPv6len]byte
+type port = [2]byte
 
 var broadcast = mac{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
