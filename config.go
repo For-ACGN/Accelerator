@@ -41,9 +41,9 @@ type ServerConfig struct {
 
 	NAT struct {
 		Enabled     bool     `toml:"enabled"`
+		GatewayMAC  string   `toml:"gateway_mac"`
 		GatewayIPv4 string   `toml:"gateway_ipv4"`
 		GatewayIPv6 string   `toml:"gateway_ipv6"`
-		GatewayMAC  string   `toml:"gateway_mac"`
 		MapTimeout  duration `toml:"map_timeout"`
 	} `toml:"nat"`
 }
