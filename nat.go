@@ -115,6 +115,30 @@ func (nat *nat) Run() {
 	go nat.cleaner()
 }
 
+func (nat *nat) AddIPv4Map(ri ipv4RI) {
+	nat.ipv4RWM.Lock()
+	defer nat.ipv4RWM.Unlock()
+
+}
+
+func (nat *nat) AddIPv6Map(ri ipv4RI) {
+	nat.ipv6RWM.Lock()
+	defer nat.ipv6RWM.Unlock()
+
+}
+
+func (nat *nat) DeleteIPv4Map(ri ipv4RI) {
+	nat.ipv4RWM.Lock()
+	defer nat.ipv4RWM.Unlock()
+	delete(nat.ipv4, ri)
+}
+
+func (nat *nat) DeleteIPv6Map(ri ipv6RI) {
+	nat.ipv6RWM.Lock()
+	defer nat.ipv6RWM.Unlock()
+	delete(nat.ipv6, ri)
+}
+
 func (nat *nat) cleaner() {
 	defer nat.wg.Done()
 	defer func() {
@@ -156,23 +180,40 @@ func (nat *nat) cleanIPv4() {
 	now := time.Now()
 	nat.ipv4RWM.Lock()
 	defer nat.ipv4RWM.Unlock()
-	for _, item := range nat.ipv4 {
-		if now.Sub(item.createAt) < nat.mapTimeout {
+	for ri, li := range nat.ipv4 {
+		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
-		prevent = atomic.LoadUint32(item.preCtr)
-		current = atomic.LoadUint32(item.curCtr)
-		if prevent == current {
-
+		prevent = atomic.LoadUint32(li.preCtr)
+		current = atomic.LoadUint32(li.curCtr)
+		if prevent != current {
+			atomic.StoreUint32(li.preCtr, current)
+			continue
 		}
-
+		nat.DeleteIPv4Map(ri)
 	}
-
 }
 
 func (nat *nat) cleanIPv6() {
+	var (
+		prevent uint32
+		current uint32
+	)
+	now := time.Now()
 	nat.ipv6RWM.Lock()
 	defer nat.ipv6RWM.Unlock()
+	for ri, li := range nat.ipv6 {
+		if now.Sub(li.createAt) < nat.mapTimeout {
+			continue
+		}
+		prevent = atomic.LoadUint32(li.preCtr)
+		current = atomic.LoadUint32(li.curCtr)
+		if prevent != current {
+			atomic.StoreUint32(li.preCtr, current)
+			continue
+		}
+		nat.DeleteIPv6Map(ri)
+	}
 }
 
 func (nat *nat) Close() {
