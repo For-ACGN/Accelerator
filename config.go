@@ -40,11 +40,21 @@ type ServerConfig struct {
 	} `toml:"tls"`
 
 	NAT struct {
-		Enabled     bool     `toml:"enabled"`
-		GatewayMAC  string   `toml:"gateway_mac"`
-		GatewayIPv4 string   `toml:"gateway_ipv4"`
-		GatewayIPv6 string   `toml:"gateway_ipv6"`
-		MapTimeout  duration `toml:"map_timeout"`
+		Enabled    bool     `toml:"enabled"`
+		GatewayMAC string   `toml:"gateway_mac"`
+		MapTimeout duration `toml:"map_timeout"`
+
+		IPv4 struct {
+			Enabled   bool   `toml:"enabled"`
+			LocalIP   string `toml:"local_ip"`
+			GatewayIP string `toml:"gateway_ip"`
+		} `toml:"ipv4"`
+
+		IPv6 struct {
+			Enabled   bool   `toml:"enabled"`
+			LocalIP   string `toml:"local_ip"`
+			GatewayIP string `toml:"gateway_ip"`
+		} `toml:"ipv6"`
 	} `toml:"nat"`
 }
 
