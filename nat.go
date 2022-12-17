@@ -14,14 +14,40 @@ import (
 
 const minNATMapTimeout = 30 * time.Second
 
+// PM is used to find NAT local port for send data
+// LI and RI is used to find internal client local
+// IP address and port for receive data.
+
+type ipv4PM struct {
+	localIP    ipv4
+	localPort  port
+	remoteIP   ipv4
+	remotePort port
+}
+
+type ipv4LI struct {
+	localIP   ipv4
+	localPort port
+	preCtr    *uint32
+	curCtr    *uint32
+	createAt  time.Time
+}
+
 type ipv4RI struct {
 	remoteIP   ipv4
 	remotePort port
 	natPort    port
 }
 
-type ipv4LI struct {
-	localIP   ipv4
+type ipv6PM struct {
+	localIP    ipv6
+	localPort  port
+	remoteIP   ipv6
+	remotePort port
+}
+
+type ipv6LI struct {
+	localIP   ipv6
 	localPort port
 	preCtr    *uint32
 	curCtr    *uint32
@@ -34,14 +60,6 @@ type ipv6RI struct {
 	natPort    port
 }
 
-type ipv6LI struct {
-	localIP   ipv6
-	localPort port
-	preCtr    *uint32
-	curCtr    *uint32
-	createAt  time.Time
-}
-
 type nat struct {
 	logger *logger
 
@@ -50,14 +68,20 @@ type nat struct {
 	gatewayIPv6 net.IP
 	mapTimeout  time.Duration
 
-	ipv4TCP    map[ipv4RI]*ipv4LI
+	ipv4TCPPM  map[ipv4PM]uint16
+	ipv4TCPRL  map[ipv4RI]*ipv4LI
 	ipv4TCPRWM sync.RWMutex
-	ipv4UDP    map[ipv4RI]*ipv4LI
+
+	ipv4UDPPM  map[ipv4PM]uint16
+	ipv4UDPRL  map[ipv4RI]*ipv4LI
 	ipv4UDPRWM sync.RWMutex
 
-	ipv6TCP    map[ipv6RI]*ipv6LI
+	ipv6TCPPM  map[ipv6PM]uint16
+	ipv6TCPRL  map[ipv6RI]*ipv6LI
 	ipv6TCPRWM sync.RWMutex
-	ipv6UDP    map[ipv6RI]*ipv6LI
+
+	ipv6UDPPM  map[ipv6PM]uint16
+	ipv6UDPRL  map[ipv6RI]*ipv6LI
 	ipv6UDPRWM sync.RWMutex
 
 	rand   *rand.Rand
@@ -114,10 +138,14 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 		gatewayIPv4: gatewayIPv4,
 		gatewayIPv6: gatewayIPv6,
 		mapTimeout:  mapTimeout,
-		ipv4TCP:     make(map[ipv4RI]*ipv4LI, 512),
-		ipv4UDP:     make(map[ipv4RI]*ipv4LI, 512),
-		ipv6TCP:     make(map[ipv6RI]*ipv6LI, 512),
-		ipv6UDP:     make(map[ipv6RI]*ipv6LI, 512),
+		ipv4TCPPM:   make(map[ipv4PM]uint16, 512),
+		ipv4TCPRL:   make(map[ipv4RI]*ipv4LI, 512),
+		ipv4UDPPM:   make(map[ipv4PM]uint16, 512),
+		ipv4UDPRL:   make(map[ipv4RI]*ipv4LI, 512),
+		ipv6TCPPM:   make(map[ipv6PM]uint16, 512),
+		ipv6TCPRL:   make(map[ipv6RI]*ipv6LI, 512),
+		ipv6UDPPM:   make(map[ipv6PM]uint16, 512),
+		ipv6UDPRL:   make(map[ipv6RI]*ipv6LI, 512),
 		rand:        rd,
 	}
 	n.ctx, n.cancel = context.WithCancel(context.Background())
@@ -147,22 +175,22 @@ func (nat *nat) AddIPv4TCPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16
 	for i := 0; i < 256; i++ {
 		p := nat.generateRandomPortIPv4TCPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
-		_, ok = nat.ipv4TCP[ri]
+		_, ok = nat.ipv4TCPRL[ri]
 		if ok {
 			continue
 		}
-		nat.ipv4TCP[ri] = li
+		nat.ipv4TCPRL[ri] = li
 		return p
 	}
 	// check all ports
 	for i := 1025; i < 65536; i++ {
 		p := uint16(i)
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
-		_, ok = nat.ipv4TCP[ri]
+		_, ok = nat.ipv4TCPRL[ri]
 		if ok {
 			continue
 		}
-		nat.ipv4TCP[ri] = li
+		nat.ipv4TCPRL[ri] = li
 		return p
 	}
 	return 0
@@ -186,22 +214,22 @@ func (nat *nat) AddIPv4UDPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16
 	for i := 0; i < 256; i++ {
 		p := nat.generateRandomPortIPv4UDPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
-		_, ok = nat.ipv4UDP[ri]
+		_, ok = nat.ipv4UDPRL[ri]
 		if ok {
 			continue
 		}
-		nat.ipv4UDP[ri] = li
+		nat.ipv4UDPRL[ri] = li
 		return p
 	}
 	// check all ports
 	for i := 1025; i < 65536; i++ {
 		p := uint16(i)
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
-		_, ok = nat.ipv4UDP[ri]
+		_, ok = nat.ipv4UDPRL[ri]
 		if ok {
 			continue
 		}
-		nat.ipv4UDP[ri] = li
+		nat.ipv4UDPRL[ri] = li
 		return p
 	}
 	return 0
@@ -225,22 +253,22 @@ func (nat *nat) AddIPv6TCPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16
 	for i := 0; i < 256; i++ {
 		p := nat.generateRandomPortIPv6TCPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
-		_, ok = nat.ipv6TCP[ri]
+		_, ok = nat.ipv6TCPRL[ri]
 		if ok {
 			continue
 		}
-		nat.ipv6TCP[ri] = li
+		nat.ipv6TCPRL[ri] = li
 		return p
 	}
 	// check all ports
 	for i := 1025; i < 65536; i++ {
 		p := uint16(i)
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
-		_, ok = nat.ipv6TCP[ri]
+		_, ok = nat.ipv6TCPRL[ri]
 		if ok {
 			continue
 		}
-		nat.ipv6TCP[ri] = li
+		nat.ipv6TCPRL[ri] = li
 		return p
 	}
 	return 0
@@ -264,22 +292,22 @@ func (nat *nat) AddIPv6UDPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16
 	for i := 0; i < 256; i++ {
 		p := nat.generateRandomPortIPv6UDPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
-		_, ok = nat.ipv6UDP[ri]
+		_, ok = nat.ipv6UDPRL[ri]
 		if ok {
 			continue
 		}
-		nat.ipv6UDP[ri] = li
+		nat.ipv6UDPRL[ri] = li
 		return p
 	}
 	// check all ports
 	for i := 1025; i < 65536; i++ {
 		p := uint16(i)
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
-		_, ok = nat.ipv6UDP[ri]
+		_, ok = nat.ipv6UDPRL[ri]
 		if ok {
 			continue
 		}
-		nat.ipv6UDP[ri] = li
+		nat.ipv6UDPRL[ri] = li
 		return p
 	}
 	return 0
@@ -288,25 +316,25 @@ func (nat *nat) AddIPv6UDPMap(rIP net.IP, rPort uint16, lIP net.IP, lPort uint16
 func (nat *nat) DeleteIPv4TCPMap(ri ipv4RI) {
 	nat.ipv4TCPRWM.Lock()
 	defer nat.ipv4TCPRWM.Unlock()
-	delete(nat.ipv4TCP, ri)
+	delete(nat.ipv4TCPRL, ri)
 }
 
 func (nat *nat) DeleteIPv4UDPMap(ri ipv4RI) {
 	nat.ipv4UDPRWM.Lock()
 	defer nat.ipv4UDPRWM.Unlock()
-	delete(nat.ipv4UDP, ri)
+	delete(nat.ipv4UDPRL, ri)
 }
 
 func (nat *nat) DeleteIPv6TCPMap(ri ipv6RI) {
 	nat.ipv6TCPRWM.Lock()
 	defer nat.ipv6TCPRWM.Unlock()
-	delete(nat.ipv6TCP, ri)
+	delete(nat.ipv6TCPRL, ri)
 }
 
 func (nat *nat) DeleteIPv6UDPMap(ri ipv6RI) {
 	nat.ipv6UDPRWM.Lock()
 	defer nat.ipv6UDPRWM.Unlock()
-	delete(nat.ipv6UDP, ri)
+	delete(nat.ipv6UDPRL, ri)
 }
 
 func (nat *nat) generateRandomPortIPv4TCPPort() uint16 {
@@ -374,7 +402,7 @@ func (nat *nat) cleanIPv4TCP() {
 	now := time.Now()
 	nat.ipv4TCPRWM.Lock()
 	defer nat.ipv4TCPRWM.Unlock()
-	for ri, li := range nat.ipv4TCP {
+	for ri, li := range nat.ipv4TCPRL {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
@@ -396,7 +424,7 @@ func (nat *nat) cleanIPv4UDP() {
 	now := time.Now()
 	nat.ipv4UDPRWM.Lock()
 	defer nat.ipv4UDPRWM.Unlock()
-	for ri, li := range nat.ipv4UDP {
+	for ri, li := range nat.ipv4UDPRL {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
@@ -418,7 +446,7 @@ func (nat *nat) cleanIPv6TCP() {
 	now := time.Now()
 	nat.ipv6TCPRWM.Lock()
 	defer nat.ipv6TCPRWM.Unlock()
-	for ri, li := range nat.ipv6TCP {
+	for ri, li := range nat.ipv6TCPRL {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
@@ -440,7 +468,7 @@ func (nat *nat) cleanIPv6UDP() {
 	now := time.Now()
 	nat.ipv6UDPRWM.Lock()
 	defer nat.ipv6UDPRWM.Unlock()
-	for ri, li := range nat.ipv6UDP {
+	for ri, li := range nat.ipv6UDPRL {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
