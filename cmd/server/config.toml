@@ -24,8 +24,20 @@
   client_ca   = "certs/client_ca.pem"
 
 [nat]
-  enabled      = false
-  gateway_ipv4 = "192.168.1.1"
-  gateway_ipv6 = "240c::1"
-  gateway_mac  = "AB:FF:FF:FF:FF:FF"
-  udp_timeout  = "1m"
+  enabled     = false
+  map_timeout = "1m"
+
+  [mac]
+    local   = "AB:FF:FF:FF:FF:FF"
+    gateway = "AC:FF:FF:FF:FF:FF"
+
+  [ipv4]
+    enabled = true
+    local   = "192.168.1.2"
+    gateway = "192.168.1.1"
+
+  [ipv6]
+    enabled = false
+    local   = "240c::2"
+    gateway = "240c::1"
+
