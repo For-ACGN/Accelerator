@@ -22,6 +22,7 @@ type transConn struct {
 	enableNAT bool
 
 	handle *pcap.Handle
+	nat    *nat
 	conn   net.Conn
 	token  sessionToken
 
@@ -84,6 +85,7 @@ func (srv *Server) newTransportConn(conn net.Conn, token sessionToken) *transCon
 	tc := transConn{
 		ctx:       srv,
 		enableNAT: enableNAT,
+		nat:       srv.nat,
 		handle:    srv.handle,
 		conn:      conn,
 		token:     token,
@@ -168,6 +170,7 @@ func (tc *transConn) decodeWithoutNAT(buf []byte) {
 		}
 		_ = tc.handle.WritePacketData(buf)
 
+		// TODO improve performance
 		b := make([]byte, 2+len(buf))
 		binary.BigEndian.PutUint16(b, uint16(len(buf)))
 		copy(b[2:], buf)
@@ -179,6 +182,7 @@ func (tc *transConn) decodeWithoutNAT(buf []byte) {
 	pool := tc.ctx.getConnPoolByMAC(dstMAC)
 	if pool != nil {
 
+		// TODO improve performance
 		b := make([]byte, 2+len(buf))
 		binary.BigEndian.PutUint16(b, uint16(len(buf)))
 		copy(b[2:], buf)
@@ -197,31 +201,101 @@ func (tc *transConn) decodeWithNAT(buf []byte) {
 		return
 	}
 	decoded := *tc.decoded
+
+	var (
+		isIPv4 bool
+		isIPv6 bool
+	)
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
 		case layers.LayerTypeEthernet:
 			tc.isNewSourceMAC()
+			// TODO client to client
 		case layers.LayerTypeARP:
-
+			tc.decodeARP()
+			return
 		case layers.LayerTypeIPv4:
 			tc.isNewSourceIPv4()
+			isIPv4 = true
 		case layers.LayerTypeIPv6:
 			tc.isNewSourceIPv6()
+			isIPv6 = true
 		case layers.LayerTypeICMPv4:
 
 		case layers.LayerTypeICMPv6:
 
 		case layers.LayerTypeTCP:
-
+			switch {
+			case isIPv4:
+				tc.decodeIPv4TCP()
+			case isIPv6:
+				tc.decodeIPv6TCP()
+			}
+			return
 		case layers.LayerTypeUDP:
-
+			switch {
+			case isIPv4:
+				tc.decodeIPv4UDP()
+			case isIPv6:
+				tc.decodeIPv6UDP()
+			}
+			return
 		}
 	}
+}
 
-	// err = tc.handle.WritePacketData()
-	// if err != nil {
-	// 	return
-	// }
+func (tc *transConn) decodeARP() {
+	op := tc.arp.Operation
+	switch op {
+	case layers.ARPRequest:
+		if bytes.Equal(tc.arp.DstProtAddress, tc.nat.gatewayIPv4) {
+			tc.eth.SrcMAC, tc.eth.DstMAC = tc.nat.gatewayMAC, tc.eth.SrcMAC
+			tc.arp.Operation = layers.ARPReply
+			tc.arp.SourceHwAddress = tc.nat.gatewayMAC
+			tc.arp.SourceProtAddress = tc.nat.gatewayIPv4
+			tc.arp.DstHwAddress = tc.arp.SourceHwAddress
+			tc.arp.DstProtAddress = tc.arp.SourceProtAddress
+			err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
+			if err != nil {
+				const format = "(%s) failed to serialize layers: %s"
+				tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
+				return
+			}
+
+			sb := tc.slBuf.Bytes()
+
+			// TODO improve performance
+			b := make([]byte, 2+len(sb))
+			binary.BigEndian.PutUint16(b, uint16(len(sb)))
+			copy(b[2:], sb)
+
+			_, _ = tc.conn.Write(b)
+		} else {
+			// TODO client side
+			return
+		}
+	case layers.ARPReply:
+
+	default:
+		const format = "(%s) invalid arp operation: 0x%X"
+		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), op)
+	}
+}
+
+func (tc *transConn) decodeIPv4TCP() {
+
+}
+
+func (tc *transConn) decodeIPv4UDP() {
+
+}
+
+func (tc *transConn) decodeIPv6TCP() {
+
+}
+
+func (tc *transConn) decodeIPv6UDP() {
+
 }
 
 func (tc *transConn) isNewSourceMAC() {
