@@ -257,7 +257,7 @@ func (tc *transConn) decodeARP() {
 			tc.arp.DstProtAddress = tc.arp.SourceProtAddress
 			err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
 			if err != nil {
-				const format = "(%s) failed to serialize layers: %s"
+				const format = "(%s) failed to serialize arp layers: %s"
 				tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
 				return
 			}
@@ -283,11 +283,53 @@ func (tc *transConn) decodeARP() {
 }
 
 func (tc *transConn) decodeIPv4TCP() {
+	// TODO check is local client
+	lIP := tc.ipv4.SrcIP
+	lPort := uint16(tc.tcp.SrcPort)
+	rIP := tc.ipv4.DstIP
+	rPort := uint16(tc.tcp.DstPort)
+	natPort := tc.nat.AddIPv4TCPPortMap(lIP, lPort, rIP, rPort)
 
+	tc.ipv4.SrcIP = tc.nat.gatewayIPv4
+	tc.tcp.SrcPort = layers.TCPPort(natPort)
+
+	_ = tc.tcp.SetNetworkLayerForChecksum(tc.ipv4)
+
+	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
+	if err != nil {
+		const format = "(%s) failed to serialize ipv4 tcp layers: %s"
+		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
+		return
+	}
+
+	sb := tc.slBuf.Bytes()
+
+	_ = tc.handle.WritePacketData(sb)
 }
 
 func (tc *transConn) decodeIPv4UDP() {
+	// TODO check is local client
+	lIP := tc.ipv4.SrcIP
+	lPort := uint16(tc.udp.SrcPort)
+	rIP := tc.ipv4.DstIP
+	rPort := uint16(tc.udp.DstPort)
+	natPort := tc.nat.AddIPv4UDPPortMap(lIP, lPort, rIP, rPort)
 
+	tc.ipv4.SrcIP = tc.nat.gatewayIPv4
+	tc.udp.SrcPort = layers.UDPPort(natPort)
+
+	_ = tc.udp.SetNetworkLayerForChecksum(tc.ipv4)
+
+	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
+	if err != nil {
+		const format = "(%s) failed to serialize ipv4 udp layers: %s"
+		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
+		return
+	}
+
+	sb := tc.slBuf.Bytes()
+
+	_ = tc.handle.WritePacketData(sb)
 }
 
 func (tc *transConn) decodeIPv6TCP() {
