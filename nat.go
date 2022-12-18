@@ -14,9 +14,9 @@ import (
 
 const minNATMapTimeout = 30 * time.Second
 
-// PM is used to find NAT local port for send data
-// LI and RI is used to find internal client local
-// IP address and port for receive data.
+// PM and PI are used to find NAT local port for send data.
+// LI and RI are used to find internal client local IP address
+// and port for receive data.
 
 type ipv4PM struct {
 	localIP    ipv4
@@ -73,13 +73,13 @@ type ipv6RI struct {
 type nat struct {
 	logger *logger
 
+	mapTimeout  time.Duration
 	localMAC    net.HardwareAddr
 	gatewayMAC  net.HardwareAddr
 	localIPv4   net.IP
 	gatewayIPv4 net.IP
 	localIPv6   net.IP
 	gatewayIPv6 net.IP
-	mapTimeout  time.Duration
 
 	ipv4TCPPM  map[ipv4PM]*ipv4PI
 	ipv4TCPRL  map[ipv4RI]*ipv4LI
@@ -110,50 +110,73 @@ type nat struct {
 
 func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 	var (
-		gatewayMAC  net.HardwareAddr
-		gatewayIPv4 net.IP
-		gatewayIPv6 net.IP
-		hasGateway  bool
-		err         error
+		localMAC     net.HardwareAddr
+		gatewayMAC   net.HardwareAddr
+		localIPv4    net.IP
+		gatewayIPv4  net.IP
+		localIPv6    net.IP
+		gatewayIPv6  net.IP
+		hasGatewayIP bool
+		err          error
 	)
 	nc := cfg.NAT
-	gatewayMAC, err = net.ParseMAC(nc.GatewayMAC)
+	mapTimeout := time.Duration(nc.MapTimeout)
+	if mapTimeout < minNATMapTimeout {
+		mapTimeout = minNATMapTimeout
+	}
+	localMAC, err = net.ParseMAC(nc.MAC.Local)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse NAT local MAC address")
+	}
+	if len(localMAC) != 6 {
+		return nil, errors.New("invalid NAT local MAC address")
+	}
+	gatewayMAC, err = net.ParseMAC(nc.MAC.Gateway)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to parse NAT gateway MAC address")
 	}
 	if len(gatewayMAC) != 6 {
 		return nil, errors.New("invalid NAT gateway MAC address")
 	}
-	mapTimeout := time.Duration(nc.MapTimeout)
-	if mapTimeout < minNATMapTimeout {
-		mapTimeout = minNATMapTimeout
-	}
 	if nc.IPv4.Enabled {
-		ip := net.ParseIP(nc.IPv4.GatewayIP)
+		ip := net.ParseIP(nc.IPv4.Local)
+		if ip.To4() == nil {
+			return nil, errors.Wrap(err, "invalid NAT local IPv4 address")
+		}
+		localIPv4 = ip
+		ip = net.ParseIP(nc.IPv4.Gateway)
 		if ip.To4() == nil {
 			return nil, errors.Wrap(err, "invalid NAT gateway IPv4 address")
 		}
 		gatewayIPv4 = ip
-		hasGateway = true
+		hasGatewayIP = true
 	}
 	if nc.IPv6.Enabled {
-		ip := net.ParseIP(nc.IPv6.GatewayIP)
-		if ip.To4() == nil && ip.To16() == nil {
+		ip := net.ParseIP(nc.IPv6.Local)
+		if !(ip.To4() == nil && ip.To16() != nil) {
+			return nil, errors.Wrap(err, "invalid NAT local IPv6 address")
+		}
+		localIPv6 = ip
+		ip = net.ParseIP(nc.IPv6.Gateway)
+		if !(ip.To4() == nil && ip.To16() != nil) {
 			return nil, errors.Wrap(err, "invalid NAT gateway IPv6 address")
 		}
 		gatewayIPv6 = ip
-		hasGateway = true
+		hasGatewayIP = true
 	}
-	if !hasGateway {
+	if !hasGatewayIP {
 		return nil, errors.New("empty NAT gateway IP address")
 	}
 	rd := rand.New(rand.NewSource(time.Now().UnixNano())) // #nosec
 	n := nat{
 		logger:      lg,
-		gatewayMAC:  gatewayMAC,
-		gatewayIPv4: gatewayIPv4,
-		gatewayIPv6: gatewayIPv6,
 		mapTimeout:  mapTimeout,
+		localMAC:    localMAC,
+		gatewayMAC:  gatewayMAC,
+		localIPv4:   localIPv4,
+		gatewayIPv4: gatewayIPv4,
+		localIPv6:   localIPv6,
+		gatewayIPv6: gatewayIPv6,
 		ipv4TCPPM:   make(map[ipv4PM]*ipv4PI, 512),
 		ipv4TCPRL:   make(map[ipv4RI]*ipv4LI, 512),
 		ipv4UDPPM:   make(map[ipv4PM]*ipv4PI, 512),
@@ -164,10 +187,10 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 		ipv6UDPRL:   make(map[ipv6RI]*ipv6LI, 512),
 		rand:        rd,
 	}
-	n.ipv4PMCache.New = func() any {
+	n.ipv4PMCache.New = func() interface{} {
 		return new(ipv4PM)
 	}
-	n.ipv6PMCache.New = func() any {
+	n.ipv6PMCache.New = func() interface{} {
 		return new(ipv6PM)
 	}
 	n.ctx, n.cancel = context.WithCancel(context.Background())
@@ -232,7 +255,7 @@ func (nat *nat) AddIPv4TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	return 0
 }
 
-func (nat *nat) AddIPv4UDPMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
+func (nat *nat) AddIPv4UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
 	ri := ipv4RI{}
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
@@ -271,7 +294,7 @@ func (nat *nat) AddIPv4UDPMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16
 	return 0
 }
 
-func (nat *nat) AddIPv6TCPMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
+func (nat *nat) AddIPv6TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
 	ri := ipv6RI{}
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
@@ -310,7 +333,7 @@ func (nat *nat) AddIPv6TCPMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16
 	return 0
 }
 
-func (nat *nat) AddIPv6UDPMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
+func (nat *nat) AddIPv6UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
 	ri := ipv6RI{}
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
@@ -350,6 +373,7 @@ func (nat *nat) AddIPv6UDPMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16
 }
 
 // TODO remove PMI
+
 func (nat *nat) DeleteIPv4TCPMap(ri ipv4RI) {
 	nat.ipv4TCPRWM.Lock()
 	defer nat.ipv4TCPRWM.Unlock()
