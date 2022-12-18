@@ -218,9 +218,6 @@ func (nat *nat) AddIPv4TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 		return pi.natPort
 	}
 	// create new port map
-	ri := ipv4RI{}
-	copy(ri.remoteIP[:], rIP)
-	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
 	li := &ipv4LI{
 		preCtr:   new(uint32),
 		curCtr:   new(uint32),
@@ -228,7 +225,9 @@ func (nat *nat) AddIPv4TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	}
 	copy(li.localIP[:], lIP)
 	binary.BigEndian.PutUint16(li.localPort[:], lPort)
-
+	ri := ipv4RI{}
+	copy(ri.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
 	// try to get random port
 	var p uint16
 	for i := 0; i < 256; i++ {
@@ -237,6 +236,10 @@ func (nat *nat) AddIPv4TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 		_, ok = nat.ipv4TCPRL[ri]
 		if ok {
 			continue
+		}
+		nat.ipv4TCPPM[*pm] = &ipv4PI{
+			natPort: p,
+			curCtr:  li.curCtr,
 		}
 		nat.ipv4TCPRL[ri] = li
 		return p
@@ -249,6 +252,10 @@ func (nat *nat) AddIPv4TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 		if ok {
 			continue
 		}
+		nat.ipv4TCPPM[*pm] = &ipv4PI{
+			natPort: p,
+			curCtr:  li.curCtr,
+		}
 		nat.ipv4TCPRL[ri] = li
 		return p
 	}
@@ -256,9 +263,21 @@ func (nat *nat) AddIPv4TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 }
 
 func (nat *nat) AddIPv4UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
-	ri := ipv4RI{}
-	copy(ri.remoteIP[:], rIP)
-	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
+	nat.ipv4UDPRWM.Lock()
+	defer nat.ipv4UDPRWM.Unlock()
+	// check is create port map
+	pm := nat.ipv4PMCache.Get().(*ipv4PM)
+	defer nat.ipv4PMCache.Put(pm)
+	copy(pm.localIP[:], lIP)
+	binary.BigEndian.PutUint16(pm.localPort[:], lPort)
+	copy(pm.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(pm.remotePort[:], rPort)
+	pi, ok := nat.ipv4UDPPM[*pm]
+	if ok {
+		atomic.AddUint32(pi.curCtr, 1)
+		return pi.natPort
+	}
+	// create new port map
 	li := &ipv4LI{
 		preCtr:   new(uint32),
 		curCtr:   new(uint32),
@@ -266,27 +285,36 @@ func (nat *nat) AddIPv4UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	}
 	copy(li.localIP[:], lIP)
 	binary.BigEndian.PutUint16(li.localPort[:], lPort)
-	nat.ipv4UDPRWM.Lock()
-	defer nat.ipv4UDPRWM.Unlock()
+	ri := ipv4RI{}
+	copy(ri.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
 	// try to get random port
-	var ok bool
+	var p uint16
 	for i := 0; i < 256; i++ {
-		p := nat.generateRandomIPv4UDPPort()
+		p = nat.generateRandomIPv4UDPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv4UDPRL[ri]
 		if ok {
 			continue
+		}
+		nat.ipv4UDPPM[*pm] = &ipv4PI{
+			natPort: p,
+			curCtr:  li.curCtr,
 		}
 		nat.ipv4UDPRL[ri] = li
 		return p
 	}
 	// check all ports
 	for i := 1025; i < 65536; i++ {
-		p := uint16(i)
+		p = uint16(i)
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv4UDPRL[ri]
 		if ok {
 			continue
+		}
+		nat.ipv4UDPPM[*pm] = &ipv4PI{
+			natPort: p,
+			curCtr:  li.curCtr,
 		}
 		nat.ipv4UDPRL[ri] = li
 		return p
@@ -295,9 +323,21 @@ func (nat *nat) AddIPv4UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 }
 
 func (nat *nat) AddIPv6TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
-	ri := ipv6RI{}
-	copy(ri.remoteIP[:], rIP)
-	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
+	nat.ipv6TCPRWM.Lock()
+	defer nat.ipv6TCPRWM.Unlock()
+	// check is create port map
+	pm := nat.ipv6PMCache.Get().(*ipv6PM)
+	defer nat.ipv6PMCache.Put(pm)
+	copy(pm.localIP[:], lIP)
+	binary.BigEndian.PutUint16(pm.localPort[:], lPort)
+	copy(pm.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(pm.remotePort[:], rPort)
+	pi, ok := nat.ipv6TCPPM[*pm]
+	if ok {
+		atomic.AddUint32(pi.curCtr, 1)
+		return pi.natPort
+	}
+	// create new port map
 	li := &ipv6LI{
 		preCtr:   new(uint32),
 		curCtr:   new(uint32),
@@ -305,27 +345,36 @@ func (nat *nat) AddIPv6TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	}
 	copy(li.localIP[:], lIP)
 	binary.BigEndian.PutUint16(li.localPort[:], lPort)
-	nat.ipv6TCPRWM.Lock()
-	defer nat.ipv6TCPRWM.Unlock()
+	ri := ipv6RI{}
+	copy(ri.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
 	// try to get random port
-	var ok bool
+	var p uint16
 	for i := 0; i < 256; i++ {
-		p := nat.generateRandomIPv6TCPPort()
+		p = nat.generateRandomIPv6TCPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv6TCPRL[ri]
 		if ok {
 			continue
+		}
+		nat.ipv6TCPPM[*pm] = &ipv6PI{
+			natPort: p,
+			curCtr:  li.curCtr,
 		}
 		nat.ipv6TCPRL[ri] = li
 		return p
 	}
 	// check all ports
 	for i := 1025; i < 65536; i++ {
-		p := uint16(i)
+		p = uint16(i)
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv6TCPRL[ri]
 		if ok {
 			continue
+		}
+		nat.ipv6TCPPM[*pm] = &ipv6PI{
+			natPort: p,
+			curCtr:  li.curCtr,
 		}
 		nat.ipv6TCPRL[ri] = li
 		return p
@@ -334,9 +383,21 @@ func (nat *nat) AddIPv6TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 }
 
 func (nat *nat) AddIPv6UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
-	ri := ipv6RI{}
-	copy(ri.remoteIP[:], rIP)
-	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
+	nat.ipv6UDPRWM.Lock()
+	defer nat.ipv6UDPRWM.Unlock()
+	// check is create port map
+	pm := nat.ipv6PMCache.Get().(*ipv6PM)
+	defer nat.ipv6PMCache.Put(pm)
+	copy(pm.localIP[:], lIP)
+	binary.BigEndian.PutUint16(pm.localPort[:], lPort)
+	copy(pm.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(pm.remotePort[:], rPort)
+	pi, ok := nat.ipv6UDPPM[*pm]
+	if ok {
+		atomic.AddUint32(pi.curCtr, 1)
+		return pi.natPort
+	}
+	// create new port map
 	li := &ipv6LI{
 		preCtr:   new(uint32),
 		curCtr:   new(uint32),
@@ -344,27 +405,36 @@ func (nat *nat) AddIPv6UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	}
 	copy(li.localIP[:], lIP)
 	binary.BigEndian.PutUint16(li.localPort[:], lPort)
-	nat.ipv6UDPRWM.Lock()
-	defer nat.ipv6UDPRWM.Unlock()
+	ri := ipv6RI{}
+	copy(ri.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
 	// try to get random port
-	var ok bool
+	var p uint16
 	for i := 0; i < 256; i++ {
-		p := nat.generateRandomIPv6UDPPort()
+		p = nat.generateRandomIPv6UDPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv6UDPRL[ri]
 		if ok {
 			continue
+		}
+		nat.ipv6UDPPM[*pm] = &ipv6PI{
+			natPort: p,
+			curCtr:  li.curCtr,
 		}
 		nat.ipv6UDPRL[ri] = li
 		return p
 	}
 	// check all ports
 	for i := 1025; i < 65536; i++ {
-		p := uint16(i)
+		p = uint16(i)
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv6UDPRL[ri]
 		if ok {
 			continue
+		}
+		nat.ipv6UDPPM[*pm] = &ipv6PI{
+			natPort: p,
+			curCtr:  li.curCtr,
 		}
 		nat.ipv6UDPRL[ri] = li
 		return p
