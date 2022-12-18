@@ -639,6 +639,7 @@ func (srv *Server) bindIPv4(token sessionToken, ip ipv4) {
 	srv.ipv4sRWM.Lock()
 	defer srv.ipv4sRWM.Unlock()
 	srv.ipv4s[ip] = token
+	// TODO check conn pool is empty
 }
 
 func (srv *Server) unbindIPv4(token sessionToken) {

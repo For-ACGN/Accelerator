@@ -250,11 +250,50 @@ func (s *packetSender) sendIPv4TCP() {
 		return
 	}
 	_, _ = pool.Write(buf)
-
 }
 
 func (s *packetSender) sendIPv4UDP() {
+	rIP := s.ipv4.SrcIP
+	rPort := uint16(s.udp.SrcPort)
+	lIP := s.ipv4.DstIP
+	lPort := uint16(s.udp.DstPort)
+	if !lIP.Equal(s.nat.gatewayIPv4) {
+		return
+	}
+	li := s.nat.QueryIPv4UDPPortMap(rIP, rPort, lPort)
+	if li == nil {
+		return
+	}
 
+	copy(s.ipv4.DstIP, li.localIP[:])
+	s.udp.DstPort = layers.UDPPort(binary.BigEndian.Uint16(li.localPort[:]))
+
+	_ = s.udp.SetNetworkLayerForChecksum(s.ipv4)
+
+	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.udp)
+	if err != nil {
+		const format = "failed to serialize ipv4 udp layers: %s"
+		s.ctx.logger.Warningf(format, err)
+		return
+	}
+
+	sb := s.slBuf.Bytes()
+
+	dstIPv4Ptr := s.ipv4Cache.Get().(*ipv4)
+	defer s.ipv4Cache.Put(dstIPv4Ptr)
+	dstIPv4 := *dstIPv4Ptr
+	copy(dstIPv4[:], s.ipv4.DstIP)
+	// encode packet size
+	buf := make([]byte, frameHeaderSize+len(sb))
+	binary.BigEndian.PutUint16(buf, uint16(len(sb)))
+	copy(buf[frameHeaderSize:], sb)
+
+	// check it is sent to one client
+	pool := s.ctx.getConnPoolByIPv4(dstIPv4)
+	if pool == nil {
+		return
+	}
+	_, _ = pool.Write(buf)
 }
 
 func (s *packetSender) sendIPv6TCP() {
