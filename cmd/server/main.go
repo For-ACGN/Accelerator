@@ -54,7 +54,7 @@ func main() {
 	server.Run()
 
 	go func() {
-		http.ListenAndServe("0.0.0.0:2080", nil)
+		_ = http.ListenAndServe("0.0.0.0:2080", nil)
 	}()
 
 	// stop signal

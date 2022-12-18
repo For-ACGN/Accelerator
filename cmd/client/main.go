@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/http/pprof"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"sync"
@@ -47,7 +47,7 @@ func main() {
 	checkError(err)
 
 	go func() {
-		http.ListenAndServe("0.0.0.0:2080", pprof.Handler("/"))
+		_ = http.ListenAndServe("0.0.0.0:2080", nil)
 	}()
 
 	wg := sync.WaitGroup{}

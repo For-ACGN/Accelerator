@@ -3,6 +3,7 @@ package accelerator
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -247,13 +248,20 @@ func (tc *transConn) decodeARP() {
 	op := tc.arp.Operation
 	switch op {
 	case layers.ARPRequest:
-		if bytes.Equal(tc.arp.DstProtAddress, tc.nat.gatewayIPv4) {
+
+		fmt.Println(tc.arp.DstProtAddress)
+		fmt.Println(tc.nat.gatewayIPv4)
+
+		if tc.nat.gatewayIPv4.Equal(tc.arp.DstProtAddress) {
 			tc.eth.SrcMAC, tc.eth.DstMAC = tc.nat.gatewayMAC, tc.eth.SrcMAC
 			tc.arp.Operation = layers.ARPReply
-			tc.arp.SourceHwAddress = tc.nat.gatewayMAC
-			tc.arp.SourceProtAddress = tc.nat.gatewayIPv4
 			tc.arp.DstHwAddress = tc.arp.SourceHwAddress
 			tc.arp.DstProtAddress = tc.arp.SourceProtAddress
+			tc.arp.SourceHwAddress = tc.nat.gatewayMAC
+			tc.arp.SourceProtAddress = tc.nat.gatewayIPv4
+
+			fmt.Println("send arp reply 1")
+
 			err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
 			if err != nil {
 				const format = "(%s) failed to serialize arp layers: %s"
@@ -261,14 +269,19 @@ func (tc *transConn) decodeARP() {
 				return
 			}
 
+			fmt.Println("send arp reply 2")
+
 			sb := tc.slBuf.Bytes()
+			fmt.Println(sb)
 
 			// TODO improve performance
-			b := make([]byte, 2+len(sb))
+			b := make([]byte, frameHeaderSize+len(sb))
 			binary.BigEndian.PutUint16(b, uint16(len(sb)))
-			copy(b[2:], sb)
+			copy(b[frameHeaderSize:], sb)
 
 			_, _ = tc.conn.Write(b)
+
+			fmt.Println("send arp reply 3")
 		} else {
 			// TODO client side
 			return
@@ -327,7 +340,6 @@ func (tc *transConn) decodeIPv4UDP() {
 		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
 		return
 	}
-
 	sb := tc.slBuf.Bytes()
 
 	_ = tc.handle.WritePacketData(sb)

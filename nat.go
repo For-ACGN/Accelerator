@@ -145,12 +145,12 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 		if ip.To4() == nil {
 			return nil, errors.Wrap(err, "invalid NAT local IPv4 address")
 		}
-		localIPv4 = ip
+		localIPv4 = ip.To4()
 		ip = net.ParseIP(nc.IPv4.Gateway)
 		if ip.To4() == nil {
 			return nil, errors.Wrap(err, "invalid NAT gateway IPv4 address")
 		}
-		gatewayIPv4 = ip
+		gatewayIPv4 = ip.To4()
 		hasGatewayIP = true
 	}
 	if nc.IPv6.Enabled {
@@ -158,12 +158,12 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 		if !(ip.To4() == nil && ip.To16() != nil) {
 			return nil, errors.Wrap(err, "invalid NAT local IPv6 address")
 		}
-		localIPv6 = ip
+		localIPv6 = ip.To16()
 		ip = net.ParseIP(nc.IPv6.Gateway)
 		if !(ip.To4() == nil && ip.To16() != nil) {
 			return nil, errors.Wrap(err, "invalid NAT gateway IPv6 address")
 		}
-		gatewayIPv6 = ip
+		gatewayIPv6 = ip.To16()
 		hasGatewayIP = true
 	}
 	if !hasGatewayIP {
@@ -521,8 +521,8 @@ func (nat *nat) deleteIPv4TCPPortMap(li *ipv4LI, ri ipv4RI) {
 		remoteIP:   ri.remoteIP,
 		remotePort: ri.remotePort,
 	}
-	nat.ipv4TCPRWM.Lock()
-	defer nat.ipv4TCPRWM.Unlock()
+	// nat.ipv4TCPRWM.Lock()
+	// defer nat.ipv4TCPRWM.Unlock()
 	delete(nat.ipv4TCPPM, pm)
 	delete(nat.ipv4TCPRL, ri)
 }
@@ -534,10 +534,10 @@ func (nat *nat) deleteIPv4UDPPortMap(li *ipv4LI, ri ipv4RI) {
 		remoteIP:   ri.remoteIP,
 		remotePort: ri.remotePort,
 	}
-	nat.ipv4UDPRWM.Lock()
-	defer nat.ipv4UDPRWM.Unlock()
-	delete(nat.ipv4TCPPM, pm)
-	delete(nat.ipv4TCPRL, ri)
+	// nat.ipv4UDPRWM.Lock()
+	// defer nat.ipv4UDPRWM.Unlock()
+	delete(nat.ipv4UDPPM, pm)
+	delete(nat.ipv4UDPRL, ri)
 }
 
 func (nat *nat) deleteIPv6TCPPortMap(li *ipv6LI, ri ipv6RI) {
@@ -547,8 +547,8 @@ func (nat *nat) deleteIPv6TCPPortMap(li *ipv6LI, ri ipv6RI) {
 		remoteIP:   ri.remoteIP,
 		remotePort: ri.remotePort,
 	}
-	nat.ipv6TCPRWM.Lock()
-	defer nat.ipv6TCPRWM.Unlock()
+	// nat.ipv6TCPRWM.Lock()
+	// defer nat.ipv6TCPRWM.Unlock()
 	delete(nat.ipv6TCPPM, pm)
 	delete(nat.ipv6TCPRL, ri)
 }
@@ -560,9 +560,9 @@ func (nat *nat) deleteIPv6UDPPortMap(li *ipv6LI, ri ipv6RI) {
 		remoteIP:   ri.remoteIP,
 		remotePort: ri.remotePort,
 	}
-	nat.ipv6UDPRWM.Lock()
-	defer nat.ipv6UDPRWM.Unlock()
-	delete(nat.ipv6TCPPM, pm)
+	// nat.ipv6UDPRWM.Lock()
+	// defer nat.ipv6UDPRWM.Unlock()
+	delete(nat.ipv6UDPPM, pm)
 	delete(nat.ipv6UDPRL, ri)
 }
 

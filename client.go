@@ -395,7 +395,7 @@ func (client *Client) login() error {
 	defer func() {
 		err = conn.Close()
 		if err != nil {
-			client.logger.Error("failed to close connection for log in", err)
+			client.logger.Error("failed to close connection for log in:", err)
 		}
 	}()
 	_ = conn.SetDeadline(time.Now().Add(client.timeout))
@@ -440,7 +440,7 @@ func (client *Client) logoff() error {
 	defer func() {
 		err = conn.Close()
 		if err != nil {
-			client.logger.Error("failed to close connection for log off", err)
+			client.logger.Error("failed to close connection for log off:", err)
 		}
 	}()
 	_ = conn.SetDeadline(time.Now().Add(client.timeout))
@@ -625,7 +625,7 @@ func (client *Client) packetWriter() {
 		case pkt = <-client.packetCh:
 			_, err = client.connPool.Write(pkt.buf[:pkt.size])
 			if err != nil {
-				client.logger.Error("failed to send packet", err)
+				client.logger.Error("failed to send packet:", err)
 			}
 			client.packetCache.Put(pkt)
 		case <-client.ctx.Done():
