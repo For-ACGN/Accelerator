@@ -289,7 +289,8 @@ func (tc *transConn) decodeIPv4TCP() {
 	rPort := uint16(tc.tcp.DstPort)
 	natPort := tc.nat.AddIPv4TCPPortMap(lIP, lPort, rIP, rPort)
 
-	tc.ipv4.SrcIP = tc.nat.gatewayIPv4
+	tc.eth.SrcMAC = tc.nat.localMAC
+	tc.ipv4.SrcIP = tc.nat.localIPv4
 	tc.tcp.SrcPort = layers.TCPPort(natPort)
 
 	_ = tc.tcp.SetNetworkLayerForChecksum(tc.ipv4)
@@ -314,7 +315,8 @@ func (tc *transConn) decodeIPv4UDP() {
 	rPort := uint16(tc.udp.DstPort)
 	natPort := tc.nat.AddIPv4UDPPortMap(lIP, lPort, rIP, rPort)
 
-	tc.ipv4.SrcIP = tc.nat.gatewayIPv4
+	tc.eth.SrcMAC = tc.nat.localMAC
+	tc.ipv4.SrcIP = tc.nat.localIPv4
 	tc.udp.SrcPort = layers.UDPPort(natPort)
 
 	_ = tc.udp.SetNetworkLayerForChecksum(tc.ipv4)
@@ -379,6 +381,11 @@ func (tc *transConn) isNewSourceIPv4() {
 	copy(srcIP[:], tc.ipv4.SrcIP)
 	tc.srcIPv4 = append(tc.srcIPv4, srcIP[:])
 	tc.ctx.bindIPv4(tc.token, srcIP)
+
+	srcMAC := mac{}
+	copy(srcMAC[:], tc.eth.SrcMAC)
+	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
+	tc.ctx.bindIPv4ToMAC(srcIP, srcMAC)
 }
 
 func (tc *transConn) isNewSourceIPv6() {
@@ -400,4 +407,9 @@ func (tc *transConn) isNewSourceIPv6() {
 	copy(srcIP[:], tc.ipv6.SrcIP)
 	tc.srcIPv6 = append(tc.srcIPv6, srcIP[:])
 	tc.ctx.bindIPv6(tc.token, srcIP)
+
+	srcMAC := mac{}
+	copy(srcMAC[:], tc.eth.SrcMAC)
+	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
+	tc.ctx.bindIPv6ToMAC(srcIP, srcMAC)
 }

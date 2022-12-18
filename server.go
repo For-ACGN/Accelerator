@@ -50,6 +50,11 @@ type Server struct {
 	ipv6s    map[ipv6]sessionToken
 	ipv6sRWM sync.RWMutex
 
+	ipv4ToMACs    map[ipv4]mac
+	ipv4ToMACsRWM sync.RWMutex
+	ipv6ToMACs    map[ipv6]mac
+	ipv6ToMACsRWM sync.RWMutex
+
 	connPools    map[sessionToken]*connPool
 	connPoolsRWM sync.RWMutex
 
@@ -137,6 +142,8 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		macs:         make(map[mac]sessionToken, 16),
 		ipv4s:        make(map[ipv4]sessionToken, 16),
 		ipv6s:        make(map[ipv6]sessionToken, 16),
+		ipv4ToMACs:   make(map[ipv4]mac, 16),
+		ipv6ToMACs:   make(map[ipv6]mac, 16),
 		connPools:    make(map[sessionToken]*connPool, 16),
 		packetCh:     make(chan *packet, 64*1024),
 		packetCache:  new(sync.Pool),
@@ -650,6 +657,7 @@ func (srv *Server) unbindIPv4(token sessionToken) {
 			continue
 		}
 		delete(srv.ipv4s, ip)
+		srv.unbindIPv4ToMAC(ip)
 	}
 }
 
@@ -667,7 +675,48 @@ func (srv *Server) unbindIPv6(token sessionToken) {
 			continue
 		}
 		delete(srv.ipv6s, ip)
+		srv.unbindIPv6ToMAC(ip)
 	}
+}
+
+func (srv *Server) bindIPv4ToMAC(ip ipv4, mac mac) {
+	srv.ipv4ToMACsRWM.Lock()
+	defer srv.ipv4ToMACsRWM.Unlock()
+	srv.ipv4ToMACs[ip] = mac
+	// TODO check conn pool is empty
+}
+
+func (srv *Server) unbindIPv4ToMAC(ip ipv4) {
+	srv.ipv4ToMACsRWM.Lock()
+	defer srv.ipv4ToMACsRWM.Unlock()
+	delete(srv.ipv4ToMACs, ip)
+	// TODO check conn pool is empty
+}
+
+func (srv *Server) bindIPv6ToMAC(ip ipv6, mac mac) {
+	srv.ipv6ToMACsRWM.Lock()
+	defer srv.ipv6ToMACsRWM.Unlock()
+	srv.ipv6ToMACs[ip] = mac
+	// TODO check conn pool is empty
+}
+
+func (srv *Server) unbindIPv6ToMAC(ip ipv6) {
+	srv.ipv6ToMACsRWM.Lock()
+	defer srv.ipv6ToMACsRWM.Unlock()
+	delete(srv.ipv6ToMACs, ip)
+	// TODO check conn pool is empty
+}
+
+func (srv *Server) ipv4ToMAC(ip ipv4) mac {
+	srv.ipv4ToMACsRWM.RLock()
+	defer srv.ipv4ToMACsRWM.RUnlock()
+	return srv.ipv4ToMACs[ip]
+}
+
+func (srv *Server) ipv6ToMAC(ip ipv6) mac {
+	srv.ipv6ToMACsRWM.RLock()
+	defer srv.ipv6ToMACsRWM.RUnlock()
+	return srv.ipv6ToMACs[ip]
 }
 
 func (srv *Server) prepareConnPool(token sessionToken) {

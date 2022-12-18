@@ -213,7 +213,7 @@ func (s *packetSender) sendIPv4TCP() {
 	rPort := uint16(s.tcp.SrcPort)
 	lIP := s.ipv4.DstIP
 	lPort := uint16(s.tcp.DstPort)
-	if !lIP.Equal(s.nat.gatewayIPv4) {
+	if !lIP.Equal(s.nat.localIPv4) {
 		return
 	}
 	li := s.nat.QueryIPv4TCPPortMap(rIP, rPort, lPort)
@@ -221,6 +221,8 @@ func (s *packetSender) sendIPv4TCP() {
 		return
 	}
 
+	dstMAC := s.ctx.ipv4ToMAC(li.localIP)
+	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv4.DstIP, li.localIP[:])
 	s.tcp.DstPort = layers.TCPPort(binary.BigEndian.Uint16(li.localPort[:]))
 
@@ -257,7 +259,7 @@ func (s *packetSender) sendIPv4UDP() {
 	rPort := uint16(s.udp.SrcPort)
 	lIP := s.ipv4.DstIP
 	lPort := uint16(s.udp.DstPort)
-	if !lIP.Equal(s.nat.gatewayIPv4) {
+	if !lIP.Equal(s.nat.localIPv4) {
 		return
 	}
 	li := s.nat.QueryIPv4UDPPortMap(rIP, rPort, lPort)
@@ -265,6 +267,8 @@ func (s *packetSender) sendIPv4UDP() {
 		return
 	}
 
+	dstMAC := s.ctx.ipv4ToMAC(li.localIP)
+	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv4.DstIP, li.localIP[:])
 	s.udp.DstPort = layers.UDPPort(binary.BigEndian.Uint16(li.localPort[:]))
 
