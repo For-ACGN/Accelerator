@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const minNATMapTimeout = 30 * time.Second
+const minNATMapTimeout = time.Minute
 
 // PM and PI are used to find NAT local port for send data.
 // LI and RI are used to find internal client local IP address
@@ -232,7 +232,7 @@ func (nat *nat) AddIPv4TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	// try to get random port
 	var p uint16
 	for i := 0; i < 256; i++ {
-		p = nat.generateRandomPortIPv4TCPPort()
+		p = nat.generateRandomIPv4TCPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv4TCPRL[ri]
 		if ok {
@@ -271,7 +271,7 @@ func (nat *nat) AddIPv4UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	// try to get random port
 	var ok bool
 	for i := 0; i < 256; i++ {
-		p := nat.generateRandomPortIPv4UDPPort()
+		p := nat.generateRandomIPv4UDPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv4UDPRL[ri]
 		if ok {
@@ -310,7 +310,7 @@ func (nat *nat) AddIPv6TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	// try to get random port
 	var ok bool
 	for i := 0; i < 256; i++ {
-		p := nat.generateRandomPortIPv6TCPPort()
+		p := nat.generateRandomIPv6TCPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv6TCPRL[ri]
 		if ok {
@@ -349,7 +349,7 @@ func (nat *nat) AddIPv6UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	// try to get random port
 	var ok bool
 	for i := 0; i < 256; i++ {
-		p := nat.generateRandomPortIPv6UDPPort()
+		p := nat.generateRandomIPv6UDPPort()
 		binary.BigEndian.PutUint16(ri.natPort[:], p)
 		_, ok = nat.ipv6UDPRL[ri]
 		if ok {
@@ -372,49 +372,75 @@ func (nat *nat) AddIPv6UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	return 0
 }
 
-// TODO remove PMI
-
-func (nat *nat) DeleteIPv4TCPMap(ri ipv4RI) {
+func (nat *nat) deleteIPv4TCPPortMap(li *ipv4LI, ri ipv4RI) {
+	pm := ipv4PM{
+		localIP:    li.localIP,
+		localPort:  li.localPort,
+		remoteIP:   ri.remoteIP,
+		remotePort: ri.remotePort,
+	}
 	nat.ipv4TCPRWM.Lock()
 	defer nat.ipv4TCPRWM.Unlock()
+	delete(nat.ipv4TCPPM, pm)
 	delete(nat.ipv4TCPRL, ri)
 }
 
-func (nat *nat) DeleteIPv4UDPMap(ri ipv4RI) {
+func (nat *nat) deleteIPv4UDPPortMap(li *ipv4LI, ri ipv4RI) {
+	pm := ipv4PM{
+		localIP:    li.localIP,
+		localPort:  li.localPort,
+		remoteIP:   ri.remoteIP,
+		remotePort: ri.remotePort,
+	}
 	nat.ipv4UDPRWM.Lock()
 	defer nat.ipv4UDPRWM.Unlock()
-	delete(nat.ipv4UDPRL, ri)
+	delete(nat.ipv4TCPPM, pm)
+	delete(nat.ipv4TCPRL, ri)
 }
 
-func (nat *nat) DeleteIPv6TCPMap(ri ipv6RI) {
+func (nat *nat) deleteIPv6TCPPortMap(li *ipv6LI, ri ipv6RI) {
+	pm := ipv6PM{
+		localIP:    li.localIP,
+		localPort:  li.localPort,
+		remoteIP:   ri.remoteIP,
+		remotePort: ri.remotePort,
+	}
 	nat.ipv6TCPRWM.Lock()
 	defer nat.ipv6TCPRWM.Unlock()
+	delete(nat.ipv6TCPPM, pm)
 	delete(nat.ipv6TCPRL, ri)
 }
 
-func (nat *nat) DeleteIPv6UDPMap(ri ipv6RI) {
+func (nat *nat) deleteIPv6UDPPortMap(li *ipv6LI, ri ipv6RI) {
+	pm := ipv6PM{
+		localIP:    li.localIP,
+		localPort:  li.localPort,
+		remoteIP:   ri.remoteIP,
+		remotePort: ri.remotePort,
+	}
 	nat.ipv6UDPRWM.Lock()
 	defer nat.ipv6UDPRWM.Unlock()
+	delete(nat.ipv6TCPPM, pm)
 	delete(nat.ipv6UDPRL, ri)
 }
 
-func (nat *nat) generateRandomPortIPv4TCPPort() uint16 {
-	return nat.generateRandomPortPort()
+func (nat *nat) generateRandomIPv4TCPPort() uint16 {
+	return nat.generateRandomPort()
 }
 
-func (nat *nat) generateRandomPortIPv4UDPPort() uint16 {
-	return nat.generateRandomPortPort()
+func (nat *nat) generateRandomIPv4UDPPort() uint16 {
+	return nat.generateRandomPort()
 }
 
-func (nat *nat) generateRandomPortIPv6TCPPort() uint16 {
-	return nat.generateRandomPortPort()
+func (nat *nat) generateRandomIPv6TCPPort() uint16 {
+	return nat.generateRandomPort()
 }
 
-func (nat *nat) generateRandomPortIPv6UDPPort() uint16 {
-	return nat.generateRandomPortPort()
+func (nat *nat) generateRandomIPv6UDPPort() uint16 {
+	return nat.generateRandomPort()
 }
 
-func (nat *nat) generateRandomPortPort() uint16 {
+func (nat *nat) generateRandomPort() uint16 {
 	nat.randMu.Lock()
 	defer nat.randMu.Unlock()
 	return 1025 + uint16(nat.rand.Intn(65536-1025))
@@ -446,16 +472,16 @@ func (nat *nat) cleaner() {
 
 func (nat *nat) clean() {
 	if nat.gatewayIPv4 != nil {
-		nat.cleanIPv4TCP()
-		nat.cleanIPv4UDP()
+		nat.cleanIPv4TCPPortMap()
+		nat.cleanIPv4UDPPortMap()
 	}
 	if nat.gatewayIPv6 != nil {
-		nat.cleanIPv6TCP()
-		nat.cleanIPv6UDP()
+		nat.cleanIPv6TCPPortMap()
+		nat.cleanIPv6UDPPortMap()
 	}
 }
 
-func (nat *nat) cleanIPv4TCP() {
+func (nat *nat) cleanIPv4TCPPortMap() {
 	var (
 		prevent uint32
 		current uint32
@@ -473,11 +499,11 @@ func (nat *nat) cleanIPv4TCP() {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
-		nat.DeleteIPv4TCPMap(ri)
+		nat.deleteIPv4TCPPortMap(li, ri)
 	}
 }
 
-func (nat *nat) cleanIPv4UDP() {
+func (nat *nat) cleanIPv4UDPPortMap() {
 	var (
 		prevent uint32
 		current uint32
@@ -495,11 +521,11 @@ func (nat *nat) cleanIPv4UDP() {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
-		nat.DeleteIPv4UDPMap(ri)
+		nat.deleteIPv4UDPPortMap(li, ri)
 	}
 }
 
-func (nat *nat) cleanIPv6TCP() {
+func (nat *nat) cleanIPv6TCPPortMap() {
 	var (
 		prevent uint32
 		current uint32
@@ -517,11 +543,11 @@ func (nat *nat) cleanIPv6TCP() {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
-		nat.DeleteIPv6TCPMap(ri)
+		nat.deleteIPv6TCPPortMap(li, ri)
 	}
 }
 
-func (nat *nat) cleanIPv6UDP() {
+func (nat *nat) cleanIPv6UDPPortMap() {
 	var (
 		prevent uint32
 		current uint32
@@ -539,7 +565,7 @@ func (nat *nat) cleanIPv6UDP() {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
-		nat.DeleteIPv6UDPMap(ri)
+		nat.deleteIPv6UDPPortMap(li, ri)
 	}
 }
 
