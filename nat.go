@@ -30,18 +30,18 @@ type ipv4PI struct {
 	curCtr  *uint32
 }
 
+type ipv4RI struct {
+	remoteIP   ipv4
+	remotePort port
+	natPort    port
+}
+
 type ipv4LI struct {
 	localIP   ipv4
 	localPort port
 	preCtr    *uint32
 	curCtr    *uint32
 	createAt  time.Time
-}
-
-type ipv4RI struct {
-	remoteIP   ipv4
-	remotePort port
-	natPort    port
 }
 
 type ipv6PM struct {
@@ -56,18 +56,18 @@ type ipv6PI struct {
 	curCtr  *uint32
 }
 
+type ipv6RI struct {
+	remoteIP   ipv6
+	remotePort port
+	natPort    port
+}
+
 type ipv6LI struct {
 	localIP   ipv6
 	localPort port
 	preCtr    *uint32
 	curCtr    *uint32
 	createAt  time.Time
-}
-
-type ipv6RI struct {
-	remoteIP   ipv6
-	remotePort port
-	natPort    port
 }
 
 type nat struct {
@@ -101,7 +101,9 @@ type nat struct {
 	randMu sync.Mutex
 
 	ipv4PMCache sync.Pool
+	ipv4RICache sync.Pool
 	ipv6PMCache sync.Pool
+	ipv6RICache sync.Pool
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -190,8 +192,14 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 	n.ipv4PMCache.New = func() interface{} {
 		return new(ipv4PM)
 	}
+	n.ipv4RICache.New = func() interface{} {
+		return new(ipv4RI)
+	}
 	n.ipv6PMCache.New = func() interface{} {
 		return new(ipv6PM)
+	}
+	n.ipv6RICache.New = func() interface{} {
+		return new(ipv6RI)
 	}
 	n.ctx, n.cancel = context.WithCancel(context.Background())
 	return &n, nil
@@ -440,6 +448,70 @@ func (nat *nat) AddIPv6UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 		return p
 	}
 	return 0
+}
+
+func (nat *nat) QueryIPv4TCPPortMap(rIP net.IP, rPort, natPort uint16) *ipv4LI {
+	nat.ipv4TCPRWM.RLock()
+	defer nat.ipv4TCPRWM.RUnlock()
+	ri := nat.ipv4RICache.Get().(*ipv4RI)
+	defer nat.ipv4RICache.Put(ri)
+	copy(ri.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
+	binary.BigEndian.PutUint16(ri.natPort[:], natPort)
+	li, ok := nat.ipv4TCPRL[*ri]
+	if !ok {
+		return nil
+	}
+	atomic.AddUint32(li.curCtr, 1)
+	return li
+}
+
+func (nat *nat) QueryIPv4UDPPortMap(rIP net.IP, rPort, natPort uint16) *ipv4LI {
+	nat.ipv4UDPRWM.RLock()
+	defer nat.ipv4UDPRWM.RUnlock()
+	ri := nat.ipv4RICache.Get().(*ipv4RI)
+	defer nat.ipv4RICache.Put(ri)
+	copy(ri.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
+	binary.BigEndian.PutUint16(ri.natPort[:], natPort)
+	li, ok := nat.ipv4UDPRL[*ri]
+	if !ok {
+		return nil
+	}
+	atomic.AddUint32(li.curCtr, 1)
+	return li
+}
+
+func (nat *nat) QueryIPv6TCPPortMap(rIP net.IP, rPort, natPort uint16) *ipv6LI {
+	nat.ipv6TCPRWM.RLock()
+	defer nat.ipv6TCPRWM.RUnlock()
+	ri := nat.ipv6RICache.Get().(*ipv6RI)
+	defer nat.ipv6RICache.Put(ri)
+	copy(ri.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
+	binary.BigEndian.PutUint16(ri.natPort[:], natPort)
+	li, ok := nat.ipv6TCPRL[*ri]
+	if !ok {
+		return nil
+	}
+	atomic.AddUint32(li.curCtr, 1)
+	return li
+}
+
+func (nat *nat) QueryIPv6UDPPortMap(rIP net.IP, rPort, natPort uint16) *ipv6LI {
+	nat.ipv6UDPRWM.RLock()
+	defer nat.ipv6UDPRWM.RUnlock()
+	ri := nat.ipv6RICache.Get().(*ipv6RI)
+	defer nat.ipv6RICache.Put(ri)
+	copy(ri.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
+	binary.BigEndian.PutUint16(ri.natPort[:], natPort)
+	li, ok := nat.ipv6UDPRL[*ri]
+	if !ok {
+		return nil
+	}
+	atomic.AddUint32(li.curCtr, 1)
+	return li
 }
 
 func (nat *nat) deleteIPv4TCPPortMap(li *ipv4LI, ri ipv4RI) {

@@ -38,6 +38,7 @@ type Server struct {
 	logger       *logger
 	tlsListener  net.Listener
 	quicListener net.Listener
+	nat          *nat
 
 	tokens    map[sessionToken]time.Time
 	tokensRWM sync.RWMutex
@@ -114,7 +115,13 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 			unbindListeners(listeners)
 		}
 	}()
-	// TODO initialize NAT
+	var nat *nat
+	if cfg.NAT.Enabled {
+		nat, err = newNAT(lg, cfg)
+		if err != nil {
+			return nil, err
+		}
+	}
 	server := Server{
 		passHash:     passHash,
 		numPktSender: numSender,
@@ -125,6 +132,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		logger:       lg,
 		tlsListener:  listeners[0],
 		quicListener: listeners[1],
+		nat:          nat,
 		tokens:       make(map[sessionToken]time.Time, 16),
 		macs:         make(map[mac]sessionToken, 16),
 		ipv4s:        make(map[ipv4]sessionToken, 16),
@@ -265,6 +273,9 @@ func (srv *Server) Run() {
 		go srv.serve(srv.quicListener)
 		addr := srv.quicListener.Addr()
 		srv.logger.Infof("start quic listener(%s %s)", addr.Network(), addr)
+	}
+	if srv.nat != nil {
+		srv.nat.Run()
 	}
 	for i := 0; i < srv.numPktSender; i++ {
 		sender := srv.newPacketSender()
@@ -802,6 +813,10 @@ func (srv *Server) Close() error {
 	}
 	srv.logger.Info("all connection pools is closed")
 	srv.wg.Wait()
+	if srv.nat != nil {
+		srv.nat.Close()
+		srv.logger.Info("nat is closed")
+	}
 	srv.logger.Info("accelerator server is stopped")
 	e := srv.logger.Close()
 	if e != nil && err == nil {
