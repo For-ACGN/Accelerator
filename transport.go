@@ -201,7 +201,6 @@ func (tc *transConn) decodeWithNAT(buf []byte) {
 		return
 	}
 	decoded := *tc.decoded
-
 	var (
 		isIPv4 bool
 		isIPv6 bool
@@ -295,7 +294,7 @@ func (tc *transConn) decodeIPv4TCP() {
 
 	_ = tc.tcp.SetNetworkLayerForChecksum(tc.ipv4)
 
-	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
+	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.tcp)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 tcp layers: %s"
 		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
@@ -320,7 +319,7 @@ func (tc *transConn) decodeIPv4UDP() {
 
 	_ = tc.udp.SetNetworkLayerForChecksum(tc.ipv4)
 
-	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
+	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.udp)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 udp layers: %s"
 		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
