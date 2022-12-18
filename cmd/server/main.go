@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 
@@ -50,6 +52,10 @@ func main() {
 	server, err := accelerator.NewServer(&config)
 	checkError(err)
 	server.Run()
+
+	go func() {
+		http.ListenAndServe("0.0.0.0:2080", nil)
+	}()
 
 	// stop signal
 	signalCh := make(chan os.Signal, 1)

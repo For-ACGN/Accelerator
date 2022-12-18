@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"sync"
@@ -43,6 +45,10 @@ func main() {
 
 	client, err := accelerator.NewClient(&config)
 	checkError(err)
+
+	go func() {
+		http.ListenAndServe("0.0.0.0:2080", pprof.Handler("/"))
+	}()
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)

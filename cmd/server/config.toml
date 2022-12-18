@@ -27,16 +27,16 @@
   enabled     = false
   map_timeout = "1m"
 
-  [mac]
+  [nat.mac]
     local   = "AB:FF:FF:FF:FF:FF"
     gateway = "AC:FF:FF:FF:FF:FF"
 
-  [ipv4]
+  [nat.ipv4]
     enabled = true
     local   = "192.168.1.2"
     gateway = "192.168.1.1"
 
-  [ipv6]
+  [nat.ipv6]
     enabled = false
     local   = "240c::2"
     gateway = "240c::1"
