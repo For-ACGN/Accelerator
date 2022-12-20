@@ -16,10 +16,10 @@ var (
 
 // connPool is used to send frame packet with lower RTT.
 type connPool struct {
-	size int
+	size atomic.Value
 
-	conns   map[*net.Conn]bool
-	connsMu sync.Mutex
+	conns    map[*net.Conn]bool
+	connsRWM sync.RWMutex
 
 	closed int32
 
@@ -29,11 +29,31 @@ type connPool struct {
 
 func newConnPool(size int) *connPool {
 	pool := connPool{
-		size:  size,
 		conns: make(map[*net.Conn]bool, size),
 	}
+	pool.SetSize(size)
 	pool.ctx, pool.cancel = context.WithCancel(context.Background())
 	return &pool
+}
+
+// SetSize is used to set connection pool size.
+func (pool *connPool) SetSize(size int) {
+	pool.size.Store(size)
+}
+
+// GetSize is used to get connection pool size.
+func (pool *connPool) GetSize() int {
+	return pool.size.Load().(int)
+}
+
+// IsEmpty is used to check connection pool is empty.
+func (pool *connPool) IsEmpty() bool {
+	if pool.isClosed() {
+		return true
+	}
+	pool.connsRWM.RLock()
+	defer pool.connsRWM.RUnlock()
+	return len(pool.conns) < 1
 }
 
 // IsFull is used to check connection pool is full.
@@ -41,19 +61,19 @@ func (pool *connPool) IsFull() bool {
 	if pool.isClosed() {
 		return true
 	}
-	pool.connsMu.Lock()
-	defer pool.connsMu.Unlock()
+	pool.connsRWM.RLock()
+	defer pool.connsRWM.RUnlock()
 	return pool.isFull()
 }
 
 func (pool *connPool) isFull() bool {
-	return len(pool.conns) >= pool.size
+	return len(pool.conns) >= pool.GetSize()
 }
 
 // AddConn is used to add new connection to the pool.
 func (pool *connPool) AddConn(conn *net.Conn) bool {
-	pool.connsMu.Lock()
-	defer pool.connsMu.Unlock()
+	pool.connsRWM.Lock()
+	defer pool.connsRWM.Unlock()
 	if pool.isFull() || pool.isClosed() {
 		return false
 	}
@@ -63,8 +83,8 @@ func (pool *connPool) AddConn(conn *net.Conn) bool {
 
 // DeleteConn is used to delete connection in the pool.
 func (pool *connPool) DeleteConn(conn *net.Conn) {
-	pool.connsMu.Lock()
-	defer pool.connsMu.Unlock()
+	pool.connsRWM.Lock()
+	defer pool.connsRWM.Unlock()
 	if pool.isClosed() {
 		return
 	}
@@ -101,8 +121,8 @@ func (pool *connPool) Write(b []byte) (int, error) {
 }
 
 func (pool *connPool) getConn() (net.Conn, error) {
-	pool.connsMu.Lock()
-	defer pool.connsMu.Unlock()
+	pool.connsRWM.Lock()
+	defer pool.connsRWM.Unlock()
 	if len(pool.conns) < 1 {
 		return nil, errEmptyConnPool
 	}
@@ -133,8 +153,8 @@ func (pool *connPool) Close() error {
 	atomic.StoreInt32(&pool.closed, 1)
 	pool.cancel()
 	var err error
-	pool.connsMu.Lock()
-	defer pool.connsMu.Unlock()
+	pool.connsRWM.Lock()
+	defer pool.connsRWM.Unlock()
 	for conn := range pool.conns {
 		e := (*conn).Close()
 		if e != nil && !errors.Is(e, net.ErrClosed) && err == nil {
