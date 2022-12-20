@@ -120,7 +120,7 @@ func (tc *transConn) transport() {
 		size uint16
 		err  error
 	)
-	buf := make([]byte, maxPacketSize)
+	buf := make([]byte, maxFrameSize)
 	for {
 		// read frame packet size
 		_, err = io.ReadFull(tc.conn, buf[:frameHeaderSize])
@@ -128,7 +128,7 @@ func (tc *transConn) transport() {
 			return
 		}
 		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
-		if size > maxPacketSize {
+		if size > maxFrameSize {
 			const format = "(%s) receive too large packet: 0x%X"
 			tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), buf[:frameHeaderSize])
 			return

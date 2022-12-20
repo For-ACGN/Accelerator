@@ -173,21 +173,13 @@ func (f *frame) WriteData(b []byte) {
 }
 
 func (f *frame) Data() []byte {
+	return f.buf.Bytes()[frameHeaderSize:]
+}
+
+func (f *frame) Bytes() []byte {
 	return f.buf.Bytes()
 }
 
 func (f *frame) Reset() {
 	f.buf.Reset()
-}
-
-type packet struct {
-	buf  []byte
-	size uint16
-}
-
-func newPacket() *packet {
-	return &packet{
-		buf:  make([]byte, maxFrameSize),
-		size: 0,
-	}
 }

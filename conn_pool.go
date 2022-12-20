@@ -31,8 +31,8 @@ func newConnPool(size int) *connPool {
 	pool := connPool{
 		conns: make(map[*net.Conn]bool, size),
 	}
-	pool.SetSize(size)
 	pool.ctx, pool.cancel = context.WithCancel(context.Background())
+	pool.SetSize(size)
 	return &pool
 }
 

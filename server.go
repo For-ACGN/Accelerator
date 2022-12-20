@@ -21,16 +21,16 @@ import (
 )
 
 const (
-	defaultServerConnPoolSize    = 64
-	defaultServerNumPacketSender = 32
-	defaultServerTimeout         = 10 * time.Second
+	defaultServerConnPoolSize   = 64
+	defaultServerNumFrameSender = 32
+	defaultServerTimeout        = 10 * time.Second
 )
 
 // Server is the accelerator server.
 type Server struct {
 	passHash     []byte
 	connPoolSize int
-	numPktSender int
+	numFrSender  int
 	timeout      time.Duration
 	enableNAT    bool
 
@@ -58,8 +58,8 @@ type Server struct {
 	connPools    map[sessionToken]*connPool
 	connPoolsRWM sync.RWMutex
 
-	packetCh    chan *packet
-	packetCache *sync.Pool
+	frameCh    chan *frame
+	frameCache *sync.Pool
 
 	closed int32
 
@@ -103,9 +103,9 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	if poolSize < 1 {
 		poolSize = defaultServerConnPoolSize
 	}
-	numSender := cfg.Server.NumPacketSender
-	if numSender < 8 {
-		numSender = defaultServerNumPacketSender
+	numSender := cfg.Server.NumFrameSender
+	if numSender < 1 {
+		numSender = defaultServerNumFrameSender
 	}
 	timeout := time.Duration(cfg.Server.Timeout)
 	if timeout < 1 {
@@ -129,7 +129,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	}
 	server := Server{
 		passHash:     passHash,
-		numPktSender: numSender,
+		numFrSender:  numSender,
 		connPoolSize: poolSize,
 		timeout:      timeout,
 		enableNAT:    cfg.NAT.Enabled,
@@ -145,11 +145,11 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		ipv4ToMACs:   make(map[ipv4]mac, 16),
 		ipv6ToMACs:   make(map[ipv6]mac, 16),
 		connPools:    make(map[sessionToken]*connPool, 16),
-		packetCh:     make(chan *packet, 64*1024),
-		packetCache:  new(sync.Pool),
+		frameCh:      make(chan *frame, 64*1024),
+		frameCache:   new(sync.Pool),
 	}
-	server.packetCache.New = func() interface{} {
-		return newPacket()
+	server.frameCache.New = func() interface{} {
+		return newFrame()
 	}
 	server.ctx, server.cancel = context.WithCancel(context.Background())
 	ok = true
@@ -284,8 +284,8 @@ func (srv *Server) Run() {
 	if srv.nat != nil {
 		srv.nat.Run()
 	}
-	for i := 0; i < srv.numPktSender; i++ {
-		sender := srv.newPacketSender()
+	for i := 0; i < srv.numFrSender; i++ {
+		sender := srv.newFrameSender()
 		srv.wg.Add(1)
 		go sender.sendLoop()
 	}
@@ -557,13 +557,13 @@ func (srv *Server) handleTransport(conn net.Conn) {
 		return
 	}
 	defer pool.DeleteConn(c)
-	// start transport packet
+	// start transport frame
 	tc := srv.newTransportConn(conn, token)
 	tc.transport()
 }
 
-// captureLoop is used to capture packet from destination network
-// interface and send it to the packet channel for packetSender.
+// captureLoop is used to capture frame from destination network
+// interface and send it to the frame channel for frameSender.
 func (srv *Server) captureLoop() {
 	defer srv.wg.Done()
 	defer func() {
@@ -574,8 +574,7 @@ func (srv *Server) captureLoop() {
 	defer srv.handle.Close()
 	var (
 		data []byte
-		pkt  *packet
-		size int
+		fr   *frame
 		err  error
 	)
 	for {
@@ -583,11 +582,11 @@ func (srv *Server) captureLoop() {
 		if err != nil {
 			return
 		}
-		pkt = srv.packetCache.Get().(*packet)
-		size = copy(pkt.buf[frameHeaderSize:], data)
-		pkt.size = uint16(size)
+		fr = srv.frameCache.Get().(*frame)
+		fr.WriteHeader(len(data))
+		fr.WriteData(data)
 		select {
-		case srv.packetCh <- pkt:
+		case srv.frameCh <- fr:
 		case <-srv.ctx.Done():
 			return
 		}

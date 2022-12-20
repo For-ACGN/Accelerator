@@ -16,9 +16,9 @@ type ServerConfig struct {
 	} `toml:"common"`
 
 	Server struct {
-		ConnPoolSize    int      `toml:"conn_pool_size"`
-		NumPacketSender int      `toml:"num_pkt_sender"`
-		Timeout         duration `toml:"timeout"`
+		ConnPoolSize   int      `toml:"conn_pool_size"`
+		NumFrameSender int      `toml:"num_frame_sender"`
+		Timeout        duration `toml:"timeout"`
 	} `toml:"server"`
 
 	TCP struct {

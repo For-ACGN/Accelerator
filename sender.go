@@ -9,17 +9,17 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
-// packetSender is used to parse packet from destination network
+// frameSender is used to parse frame from destination network
 // interface, if the source MAC address or IP address is matched
 // in clients map, it will be sent to the connection about client.
-type packetSender struct {
+type frameSender struct {
 	ctx *Server
 
 	enableNAT bool
 
-	nat         *nat
-	packetCh    chan *packet
-	packetCache *sync.Pool
+	nat        *nat
+	frameCh    chan *frame
+	frameCache *sync.Pool
 
 	eth   *layers.Ethernet
 	arp   *layers.ARP
@@ -40,7 +40,7 @@ type packetSender struct {
 	ipv6Cache sync.Pool
 }
 
-func (srv *Server) newPacketSender() *packetSender {
+func (srv *Server) newFrameSender() *frameSender {
 	enableNAT := srv.enableNAT
 	eth := new(layers.Ethernet)
 	arp := new(layers.ARP)
@@ -72,24 +72,24 @@ func (srv *Server) newPacketSender() *packetSender {
 		ComputeChecksums: true,
 	}
 	slBuf := gopacket.NewSerializeBuffer()
-	sender := packetSender{
-		ctx:         srv,
-		enableNAT:   enableNAT,
-		nat:         srv.nat,
-		packetCh:    srv.packetCh,
-		packetCache: srv.packetCache,
-		eth:         eth,
-		arp:         arp,
-		ipv4:        ip4,
-		ipv6:        ip6,
-		icmp4:       icmp4,
-		icmp6:       icmp6,
-		tcp:         tcp,
-		udp:         udp,
-		parser:      parser,
-		decoded:     decoded,
-		slOpt:       slOpt,
-		slBuf:       slBuf,
+	sender := frameSender{
+		ctx:        srv,
+		enableNAT:  enableNAT,
+		nat:        srv.nat,
+		frameCh:    srv.frameCh,
+		frameCache: srv.frameCache,
+		eth:        eth,
+		arp:        arp,
+		ipv4:       ip4,
+		ipv6:       ip6,
+		icmp4:      icmp4,
+		icmp6:      icmp6,
+		tcp:        tcp,
+		udp:        udp,
+		parser:     parser,
+		decoded:    decoded,
+		slOpt:      slOpt,
+		slBuf:      slBuf,
 	}
 	sender.macCache.New = func() interface{} {
 		return new(mac)
@@ -103,25 +103,25 @@ func (srv *Server) newPacketSender() *packetSender {
 	return &sender
 }
 
-func (s *packetSender) sendLoop() {
+func (s *frameSender) sendLoop() {
 	defer s.ctx.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			s.ctx.logger.Fatal("packetSender.sendLoop", r)
+			s.ctx.logger.Fatal("frameSender.sendLoop", r)
 			// restart sender
 			time.Sleep(time.Second)
 			s.ctx.wg.Add(1)
 			go s.sendLoop()
 		}
 	}()
-	var pkt *packet
+	var fr *frame
 	for {
 		select {
-		case pkt = <-s.packetCh:
+		case fr = <-s.frameCh:
 			if s.enableNAT {
-				s.sendWithNAT(pkt)
+				s.sendWithNAT(fr)
 			} else {
-				s.sendWithoutNAT(pkt)
+				s.sendWithoutNAT(fr)
 			}
 		case <-s.ctx.ctx.Done():
 			return
@@ -129,10 +129,13 @@ func (s *packetSender) sendLoop() {
 	}
 }
 
-func (s *packetSender) sendWithoutNAT(pkt *packet) {
-	defer s.packetCache.Put(pkt)
-	data := pkt.buf[frameHeaderSize : frameHeaderSize+pkt.size]
-	err := s.parser.DecodeLayers(data, s.decoded)
+func (s *frameSender) sendWithoutNAT(frame *frame) {
+	defer func() {
+		frame.Reset()
+		s.frameCache.Put(frame)
+	}()
+
+	err := s.parser.DecodeLayers(frame.Data(), s.decoded)
 	if err != nil {
 		return
 	}
@@ -143,15 +146,15 @@ func (s *packetSender) sendWithoutNAT(pkt *packet) {
 	if decoded[0] != layers.LayerTypeEthernet {
 		return
 	}
+
 	dstMACPtr := s.macCache.Get().(*mac)
 	defer s.macCache.Put(dstMACPtr)
 	dstMAC := *dstMACPtr
 	copy(dstMAC[:], s.eth.DstMAC)
-	// encode packet size
-	buf := pkt.buf[:frameHeaderSize+pkt.size]
-	binary.BigEndian.PutUint16(buf, pkt.size)
+
+	b := frame.Bytes()
 	if dstMAC == broadcast {
-		s.ctx.broadcast(buf)
+		s.ctx.broadcast(b)
 		return
 	}
 	// check it is sent to one client
@@ -159,13 +162,16 @@ func (s *packetSender) sendWithoutNAT(pkt *packet) {
 	if pool == nil {
 		return
 	}
-	_, _ = pool.Write(buf)
+	_, _ = pool.Write(b)
 }
 
-func (s *packetSender) sendWithNAT(pkt *packet) {
-	defer s.packetCache.Put(pkt)
-	data := pkt.buf[frameHeaderSize : frameHeaderSize+pkt.size]
-	err := s.parser.DecodeLayers(data, s.decoded)
+func (s *frameSender) sendWithNAT(frame *frame) {
+	defer func() {
+		frame.Reset()
+		s.frameCache.Put(frame)
+	}()
+
+	err := s.parser.DecodeLayers(frame.Data(), s.decoded)
 	if err != nil {
 		return
 	}
@@ -208,7 +214,7 @@ func (s *packetSender) sendWithNAT(pkt *packet) {
 	}
 }
 
-func (s *packetSender) sendIPv4TCP() {
+func (s *frameSender) sendIPv4TCP() {
 	rIP := s.ipv4.SrcIP
 	rPort := uint16(s.tcp.SrcPort)
 	lIP := s.ipv4.DstIP
@@ -256,7 +262,7 @@ func (s *packetSender) sendIPv4TCP() {
 	_, _ = pool.Write(buf)
 }
 
-func (s *packetSender) sendIPv4UDP() {
+func (s *frameSender) sendIPv4UDP() {
 	rIP := s.ipv4.SrcIP
 	rPort := uint16(s.udp.SrcPort)
 	lIP := s.ipv4.DstIP
@@ -304,10 +310,10 @@ func (s *packetSender) sendIPv4UDP() {
 	_, _ = pool.Write(buf)
 }
 
-func (s *packetSender) sendIPv6TCP() {
+func (s *frameSender) sendIPv6TCP() {
 
 }
 
-func (s *packetSender) sendIPv6UDP() {
+func (s *frameSender) sendIPv6UDP() {
 
 }

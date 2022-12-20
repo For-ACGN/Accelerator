@@ -619,7 +619,7 @@ func (client *Client) frameWriter() {
 	for {
 		select {
 		case fr = <-client.frameCh:
-			_, err = client.connPool.Write(fr.Data())
+			_, err = client.connPool.Write(fr.Bytes())
 			if err != nil {
 				client.logger.Error("failed to send frame:", err)
 			}
