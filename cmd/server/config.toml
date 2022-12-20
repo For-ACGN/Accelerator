@@ -4,9 +4,9 @@
   log_path  = "acc-server.log"
 
 [server]
-  conn_pool_size = 64
-  num_pkt_sender = 64
-  timeout        = "15s"
+  conn_pool_size   = 64
+  num_frame_sender = 64
+  timeout          = "15s"
 
 [tcp]
   enabled = true
