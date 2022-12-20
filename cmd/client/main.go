@@ -5,11 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"sync"
+	"time"
 
 	"github.com/pelletier/go-toml/v2"
 
@@ -17,13 +19,15 @@ import (
 )
 
 var (
-	cfgPath  string
-	password string
+	cfgPath   string
+	password  string
+	pprofAddr string
 )
 
 func init() {
 	flag.StringVar(&cfgPath, "config", "config.toml", "configuration file path")
 	flag.StringVar(&password, "gen-hash", "", "generate password hash")
+	flag.StringVar(&pprofAddr, "pprof-addr", "", "start pprof web server")
 	flag.Parse()
 }
 
@@ -32,6 +36,9 @@ func main() {
 		hash := accelerator.GeneratePasswordHash([]byte(password))
 		fmt.Println("password hash:", hash)
 		return
+	}
+	if pprofAddr != "" {
+		runPPROF()
 	}
 
 	cfgData, err := os.ReadFile(cfgPath) // #nosec
@@ -45,10 +52,6 @@ func main() {
 
 	client, err := accelerator.NewClient(&config)
 	checkError(err)
-
-	go func() {
-		_ = http.ListenAndServe("0.0.0.0:2080", nil)
-	}()
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -68,6 +71,25 @@ func main() {
 	checkError(err)
 
 	wg.Wait()
+}
+
+func runPPROF() {
+	listener, err := net.Listen("tcp", pprofAddr)
+	checkError(err)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	server := &http.Server{
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+	}
+	go func() { _ = server.Serve(listener) }()
 }
 
 func checkError(err error) {

@@ -5,10 +5,12 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/google/gopacket/pcap"
 	"github.com/pelletier/go-toml/v2"
@@ -17,15 +19,17 @@ import (
 )
 
 var (
-	cfgPath  string
-	password string
-	listDev  bool
+	cfgPath   string
+	password  string
+	listDev   bool
+	pprofAddr string
 )
 
 func init() {
 	flag.StringVar(&cfgPath, "config", "config.toml", "configuration file path")
 	flag.StringVar(&password, "gen-hash", "", "generate password hash")
 	flag.BoolVar(&listDev, "list-dev", false, "list network interface")
+	flag.StringVar(&pprofAddr, "pprof-addr", "", "start pprof web server")
 	flag.Parse()
 }
 
@@ -38,6 +42,9 @@ func main() {
 	if listDev {
 		listDevices()
 		return
+	}
+	if pprofAddr != "" {
+		runPPROF()
 	}
 
 	cfgData, err := os.ReadFile(cfgPath) // #nosec
@@ -52,10 +59,6 @@ func main() {
 	server, err := accelerator.NewServer(&config)
 	checkError(err)
 	server.Run()
-
-	go func() {
-		_ = http.ListenAndServe("0.0.0.0:2080", nil)
-	}()
 
 	// stop signal
 	signalCh := make(chan os.Signal, 1)
@@ -102,6 +105,25 @@ func listDevices() {
 	for i := 0; i < len(items); i++ {
 		fmt.Printf(format, items[i].name, items[i].ip)
 	}
+}
+
+func runPPROF() {
+	listener, err := net.Listen("tcp", pprofAddr)
+	checkError(err)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	server := &http.Server{
+		Handler:      mux,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+	}
+	go func() { _ = server.Serve(listener) }()
 }
 
 func checkError(err error) {
