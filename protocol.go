@@ -1,6 +1,7 @@
 package accelerator
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
@@ -135,7 +136,7 @@ var emptySessionToken = sessionToken{}
 
 // -------------------------------------------transport--------------------------------------------
 
-// frame packet structure
+// frame structure
 //
 // +--------------+-------------+
 // | size(uint16) |  frame data |
@@ -143,9 +144,41 @@ var emptySessionToken = sessionToken{}
 // |   2 bytes    |     var     |
 // +--------------+-------------+
 const (
-	maxPacketSize   = 32 * 1024 // 32 KiB (size+data)
+	maxFrameSize    = 32 * 1024 // 32 KiB
 	frameHeaderSize = 2         // uint16, use big endian
 )
+
+type frame struct {
+	header []byte
+	buf    *bytes.Buffer
+}
+
+func newFrame() *frame {
+	header := make([]byte, frameHeaderSize)
+	buf := bytes.NewBuffer(nil)
+	buf.Grow(frameHeaderSize + 1500) // MTU
+	return &frame{
+		header: header,
+		buf:    buf,
+	}
+}
+
+func (f *frame) WriteHeader(size int) {
+	binary.BigEndian.PutUint16(f.header, uint16(size))
+	f.buf.Write(f.header)
+}
+
+func (f *frame) WriteData(b []byte) {
+	f.buf.Write(b)
+}
+
+func (f *frame) Data() []byte {
+	return f.buf.Bytes()
+}
+
+func (f *frame) Reset() {
+	f.buf.Reset()
+}
 
 type packet struct {
 	buf  []byte
@@ -154,7 +187,7 @@ type packet struct {
 
 func newPacket() *packet {
 	return &packet{
-		buf:  make([]byte, maxPacketSize),
+		buf:  make([]byte, maxFrameSize),
 		size: 0,
 	}
 }
