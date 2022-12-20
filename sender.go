@@ -228,7 +228,9 @@ func (s *packetSender) sendIPv4TCP() {
 
 	_ = s.tcp.SetNetworkLayerForChecksum(s.ipv4)
 
-	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.tcp)
+	payload := gopacket.Payload(s.tcp.Payload)
+
+	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.tcp, payload)
 	if err != nil {
 		const format = "failed to serialize ipv4 tcp layers: %s"
 		s.ctx.logger.Warningf(format, err)
@@ -274,7 +276,9 @@ func (s *packetSender) sendIPv4UDP() {
 
 	_ = s.udp.SetNetworkLayerForChecksum(s.ipv4)
 
-	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.udp)
+	payload := gopacket.Payload(s.udp.Payload)
+
+	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.udp, payload)
 	if err != nil {
 		const format = "failed to serialize ipv4 udp layers: %s"
 		s.ctx.logger.Warningf(format, err)

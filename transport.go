@@ -3,7 +3,6 @@ package accelerator
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -248,10 +247,6 @@ func (tc *transConn) decodeARP() {
 	op := tc.arp.Operation
 	switch op {
 	case layers.ARPRequest:
-
-		fmt.Println(tc.arp.DstProtAddress)
-		fmt.Println(tc.nat.gatewayIPv4)
-
 		if tc.nat.gatewayIPv4.Equal(tc.arp.DstProtAddress) {
 			tc.eth.SrcMAC, tc.eth.DstMAC = tc.nat.gatewayMAC, tc.eth.SrcMAC
 			tc.arp.Operation = layers.ARPReply
@@ -260,8 +255,6 @@ func (tc *transConn) decodeARP() {
 			tc.arp.SourceHwAddress = tc.nat.gatewayMAC
 			tc.arp.SourceProtAddress = tc.nat.gatewayIPv4
 
-			fmt.Println("send arp reply 1")
-
 			err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
 			if err != nil {
 				const format = "(%s) failed to serialize arp layers: %s"
@@ -269,10 +262,7 @@ func (tc *transConn) decodeARP() {
 				return
 			}
 
-			fmt.Println("send arp reply 2")
-
 			sb := tc.slBuf.Bytes()
-			fmt.Println(sb)
 
 			// TODO improve performance
 			b := make([]byte, frameHeaderSize+len(sb))
@@ -281,7 +271,6 @@ func (tc *transConn) decodeARP() {
 
 			_, _ = tc.conn.Write(b)
 
-			fmt.Println("send arp reply 3")
 		} else {
 			// TODO client side
 			return
@@ -308,7 +297,9 @@ func (tc *transConn) decodeIPv4TCP() {
 
 	_ = tc.tcp.SetNetworkLayerForChecksum(tc.ipv4)
 
-	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.tcp)
+	payload := gopacket.Payload(tc.tcp.Payload)
+
+	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.tcp, payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 tcp layers: %s"
 		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
@@ -334,12 +325,18 @@ func (tc *transConn) decodeIPv4UDP() {
 
 	_ = tc.udp.SetNetworkLayerForChecksum(tc.ipv4)
 
-	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.udp)
+	// payload := make(gopacket.Payload, len(tc.udp.Payload))
+	// copy(payload, tc.udp.Payload)
+
+	payload := gopacket.Payload(tc.udp.Payload)
+
+	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.udp, payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 udp layers: %s"
 		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
 		return
 	}
+
 	sb := tc.slBuf.Bytes()
 
 	_ = tc.handle.WritePacketData(sb)
