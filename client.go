@@ -43,8 +43,8 @@ type Client struct {
 	connPool  *connPool
 	token     atomic.Value
 
-	packetCh    chan *packet
-	packetCache sync.Pool
+	frameCh    chan *frame
+	frameCache sync.Pool
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -124,10 +124,10 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		tlsConfig:    tlsConfig,
 		tapDev:       tapDev,
 		connPool:     newConnPool(poolSize),
-		packetCh:     make(chan *packet, 128*poolSize),
+		frameCh:      make(chan *frame, 128*poolSize),
 	}
-	client.packetCache.New = func() interface{} {
-		return newPacket()
+	client.frameCache.New = func() interface{} {
+		return newFrame()
 	}
 	client.ctx, client.cancel = context.WithCancel(context.Background())
 	client.setSessionToken(emptySessionToken)
@@ -352,13 +352,13 @@ func (client *Client) Run() error {
 	case <-client.ctx.Done():
 		return errors.WithStack(errClientClosed)
 	}
-	// start packet reader
+	// start frame reader
 	client.wg.Add(1)
-	go client.packetReader()
-	// start packet writer
+	go client.frameReader()
+	// start frame writer
 	for i := 0; i < client.connPoolSize; i++ {
 		client.wg.Add(1)
-		go client.packetWriter()
+		go client.frameWriter()
 	}
 	client.logger.Info("accelerator client is running")
 	return nil
@@ -498,7 +498,7 @@ func (client *Client) watcher() {
 }
 
 // transport will send transport command to server, then it
-// starts read packet from server and write to TAP device.
+// starts read frames from server and write to TAP device.
 func (client *Client) transport(conn net.Conn) {
 	defer client.wg.Done()
 	defer func() {
@@ -539,21 +539,21 @@ func (client *Client) transport(conn net.Conn) {
 	}
 	defer client.connPool.DeleteConn(&conn)
 	_ = conn.SetDeadline(time.Time{})
-	buf = make([]byte, maxPacketSize)
+	buf = make([]byte, maxFrameSize)
 	var size uint16
 	for {
-		// read frame packet size
+		// read frame size
 		_, err = io.ReadFull(conn, buf[:frameHeaderSize])
 		if err != nil {
 			return
 		}
 		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
-		if size > maxPacketSize {
-			const format = "receive too large packet: 0x%X"
+		if size > maxFrameSize {
+			const format = "receive too large frame: 0x%X"
 			client.logger.Warningf(format, buf[:frameHeaderSize])
 			return
 		}
-		// read frame packet
+		// read frame data
 		_, err = io.ReadFull(conn, buf[:size])
 		if err != nil {
 			return
@@ -561,73 +561,70 @@ func (client *Client) transport(conn net.Conn) {
 		// write to the tap device
 		// copy data in buffer for prevent potential
 		// data race in the under driver
-		p := make([]byte, len(buf[:size]))
-		copy(p, buf[:size])
-		_, err = client.tapDev.Write(p)
+		data := make([]byte, len(buf[:size]))
+		copy(data, buf[:size])
+		_, err = client.tapDev.Write(data)
 		if err != nil {
 			return
 		}
 	}
 }
 
-// packetReader is used to read packet from TAP device
-// and send it to the packet channel.
-func (client *Client) packetReader() {
+// frameReader is used to read frames from TAP device
+// and send them to the frame channel.
+func (client *Client) frameReader() {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			client.logger.Fatal("Client.packetReader", r)
+			client.logger.Fatal("Client.frameReader", r)
 		}
 	}()
 	var (
-		n    int
-		size uint16
-		pkt  *packet
-		err  error
+		n   int
+		fr  *frame
+		err error
 	)
-	buf := make([]byte, maxPacketSize)
+	buf := make([]byte, maxFrameSize)
 	for {
 		// read frame data
-		n, err = client.tapDev.Read(buf[frameHeaderSize:])
+		n, err = client.tapDev.Read(buf)
 		if err != nil {
 			return
 		}
-		// put frame data size
-		binary.BigEndian.PutUint16(buf, uint16(n))
-		size = uint16(frameHeaderSize + n)
-		// build packet
-		pkt = client.packetCache.Get().(*packet)
-		copy(pkt.buf, buf[:size])
-		pkt.size = size
+		// build frame
+		fr = client.frameCache.Get().(*frame)
+		fr.WriteHeader(n)
+		fr.WriteData(buf[:n])
 		select {
-		case client.packetCh <- pkt:
+		case client.frameCh <- fr:
 		case <-client.ctx.Done():
 			return
 		}
 	}
 }
 
-// packetWriter is used to read packet from packet channel
-// and write it to the server by the connection pool.
-func (client *Client) packetWriter() {
+// frameWriter is used to read frames from frame channel
+// and write them to the server by the connection pool.
+func (client *Client) frameWriter() {
 	defer client.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			client.logger.Fatal("Client.packetWriter", r)
+			client.logger.Fatal("Client.frameWriter", r)
 		}
 	}()
 	var (
-		pkt *packet
+		fr  *frame
 		err error
 	)
 	for {
 		select {
-		case pkt = <-client.packetCh:
-			_, err = client.connPool.Write(pkt.buf[:pkt.size])
+		case fr = <-client.frameCh:
+			_, err = client.connPool.Write(fr.Data())
 			if err != nil {
-				client.logger.Error("failed to send packet:", err)
+				client.logger.Error("failed to send frame:", err)
 			}
-			client.packetCache.Put(pkt)
+			fr.Reset()
+			client.frameCache.Put(fr)
 		case <-client.ctx.Done():
 			return
 		}
