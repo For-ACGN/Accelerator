@@ -530,7 +530,7 @@ func (client *Client) transport(conn net.Conn) {
 		return
 	}
 	resp := buf[0]
-	if resp != transOK {
+	if resp != transportOK {
 		client.logger.Errorf("invalid transport response: %d", resp)
 		return
 	}

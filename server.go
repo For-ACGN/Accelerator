@@ -26,6 +26,14 @@ const (
 	defaultServerTimeout        = 10 * time.Second
 )
 
+// for server map key and network
+type mac = [6]byte
+type ipv4 = [net.IPv4len]byte
+type ipv6 = [net.IPv6len]byte
+type port = [2]byte
+
+var broadcast = mac{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+
 // Server is the accelerator server.
 type Server struct {
 	passHash     []byte
@@ -537,7 +545,7 @@ func (srv *Server) handleTransport(conn net.Conn) {
 		return
 	}
 	buf := make([]byte, cmdSize)
-	buf[0] = transOK
+	buf[0] = transportOK
 	_, err = conn.Write(buf)
 	if err != nil {
 		const format = "(%s) failed to send transport response: %s"

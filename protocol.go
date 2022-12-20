@@ -5,40 +5,31 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
-	"net"
 
 	"github.com/pkg/errors"
 )
-
-// for server map key and network
-type mac = [6]byte
-type ipv4 = [net.IPv4len]byte
-type ipv6 = [net.IPv6len]byte
-type port = [2]byte
-
-var broadcast = mac{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
 
 // -----------------------------------------authentication-----------------------------------------
 
 // Client side send authentication request.
 //
-// +------------------+--------------------------+-------------+
-// | SHA256(password) | random data size(uint16) | random data |
-// +------------------+--------------------------+-------------+
-// |     32 bytes     |         2 bytes          |     var     |
-// +------------------+--------------------------+-------------+
+// +------------------+--------------------+-------------+
+// | SHA256(password) |  random data size  | random data |
+// +------------------+--------------------+-------------+
+// |     32 bytes     | 2 bytes(uint16 BE) |     var     |
+// +------------------+--------------------+-------------+
 //
 // If authenticate successfully, Server side will send response,
 // otherwise Server will read data until connection reach the
 // deadline or client side close the connection.
 //
-// +----------+--------------------------+-------------+
-// | response | random data size(uint16) | random data |
-// +----------+--------------------------+-------------+
-// |  1 byte  |         2 bytes          |     var     |
-// +----------+--------------------------+-------------+
+// +----------+--------------------+-------------+
+// | response |  random data size  | random data |
+// +----------+--------------------+-------------+
+// |  1 byte  | 2 bytes(uint16 BE) |     var     |
+// +----------+--------------------+-------------+
 //
-// response field is always be authOK.
+// Server response field is always be authOK.
 const authOK = 0x01
 
 func buildAuthRequest(hash []byte) ([]byte, error) {
@@ -91,17 +82,21 @@ func generateRandomData() ([]byte, error) {
 //
 // When the Client send cmdTransport, Server will add new connection
 // to the exists connection pool.
+// If server is restarted, server will send error about invalid token,
+// then the client will log in again automatically.
+// If the new connection reach the server side maximum connection pool
+// size, server will send error about full.
 //
 // =========[client request] <------> [server response]===========
 //
-// Login
+// Log in
 // +---------+-------------+          +----------+---------------+
 // | command | random data |          | response | session token |
 // +---------+-------------+          +----------+---------------+
 // |  byte   |  16 bytes   |          |   byte   |   32 bytes    |
 // +---------+-------------+          +----------+---------------+
 //
-// Logoff
+// Log off
 // +---------+---------------+        +----------+
 // | command | session token |        | response |
 // +---------+---------------+        +----------+
@@ -109,11 +104,11 @@ func generateRandomData() ([]byte, error) {
 // +---------+---------------+        +----------+
 //
 // Transport
-// +---------+---------------+        +----------+
-// | command | session token |        | response |
-// +---------+---------------+        +----------+
-// |  byte   |   32 bytes    |        |   byte   |
-// +---------+---------------+        +----------+
+// +---------+---------------+        +----------+----------------------+
+// | command | session token |        | response | [max conn pool size] |
+// +---------+---------------+        +----------+----------------------+
+// |  byte   |   32 bytes    |        |   byte   |  2 bytes(uint16 BE)  |
+// +---------+---------------+        +----------+----------------------+
 const (
 	cmdLogin = iota
 	cmdLogoff
@@ -127,7 +122,10 @@ const (
 
 	loginOK  = 0x01
 	logoffOK = 0x02
-	transOK  = 0x03
+
+	transportOK  = 0x10
+	invalidToken = 0x11
+	fullConnPool = 0x12
 )
 
 type sessionToken = [tokenSize]byte
@@ -138,14 +136,14 @@ var emptySessionToken = sessionToken{}
 
 // frame structure
 //
-// +--------------+-------------+
-// | size(uint16) |  frame data |
-// +--------------+-------------+
-// |   2 bytes    |     var     |
-// +--------------+-------------+
+// +--------------------+------------+
+// |  frame data size   | frame data |
+// +--------------------+------------+
+// | 2 bytes(uint16 BE) |     var    |
+// +--------------------+------------+
 const (
 	maxFrameSize    = 32 * 1024 // 32 KiB
-	frameHeaderSize = 2         // uint16, use big endian
+	frameHeaderSize = 2         // uint16
 )
 
 type frame struct {
