@@ -258,6 +258,41 @@ func newClientTLSConfig(cfg *ClientConfig) (*tls.Config, error) {
 	return &config, nil
 }
 
+// Run is used to run the accelerator client.
+func (client *Client) Run() error {
+	err := client.login()
+	if err != nil {
+		return errors.WithMessage(err, "failed to log in")
+	}
+	client.logger.Info("connect accelerator server successfully")
+	// start status watcher
+	client.logger.Info("initialize accelerator status watcher")
+	client.wg.Add(1)
+	go client.watcher()
+	for {
+		select {
+		case <-time.After(25 * time.Millisecond):
+		case <-client.ctx.Done():
+			return errors.WithStack(errClientClosed)
+		}
+		if !client.connPool.IsEmpty() {
+			break
+		}
+	}
+	// start frame reader
+	client.logger.Info("start accelerator frame reader")
+	client.wg.Add(1)
+	go client.frameReader()
+	// start frame writer
+	client.logger.Info("start accelerator frame writers")
+	for i := 0; i < client.connPoolSize; i++ {
+		client.wg.Add(1)
+		go client.frameWriter()
+	}
+	client.logger.Info("accelerator client is running")
+	return nil
+}
+
 func (client *Client) connect(ctx context.Context) (net.Conn, error) {
 	conn, err := client.dial(ctx)
 	if err != nil {
@@ -338,47 +373,6 @@ func (client *Client) authenticate(conn net.Conn) error {
 		return errors.Wrap(err, "failed to receive padding random data")
 	}
 	return nil
-}
-
-// Run is used to run the accelerator client.
-func (client *Client) Run() error {
-	err := client.login()
-	if err != nil {
-		return errors.WithMessage(err, "failed to log in")
-	}
-	client.logger.Info("connect accelerator server successfully")
-	// start status watcher
-	client.wg.Add(1)
-	go client.watcher()
-	client.logger.Info("initialize accelerator status watcher")
-	for {
-		select {
-		case <-time.After(100 * time.Millisecond):
-		case <-client.ctx.Done():
-			return errors.WithStack(errClientClosed)
-		}
-		if !client.connPool.IsEmpty() {
-			break
-		}
-	}
-	// start frame reader
-	client.wg.Add(1)
-	go client.frameReader()
-	// start frame writer
-	for i := 0; i < client.connPoolSize; i++ {
-		client.wg.Add(1)
-		go client.frameWriter()
-	}
-	client.logger.Info("accelerator client is running")
-	return nil
-}
-
-func (client *Client) getSessionToken() sessionToken {
-	return client.token.Load().(sessionToken)
-}
-
-func (client *Client) setSessionToken(token sessionToken) {
-	client.token.Store(token)
 }
 
 func (client *Client) login() error {
@@ -499,7 +493,7 @@ func (client *Client) watcher() {
 				break
 			}
 			switch err {
-			case errInvalidToken, errFullConnPool, errClientClosed:
+			case errInvalidToken, errFullConnPool:
 			default:
 				client.logger.Error(err)
 			}
@@ -543,6 +537,7 @@ func (client *Client) beginTransport() (net.Conn, error) {
 	switch resp {
 	case transportOK:
 		ok = true
+		return conn, nil
 	case invalidToken:
 		err = client.login()
 		if err != nil {
@@ -564,7 +559,6 @@ func (client *Client) beginTransport() (net.Conn, error) {
 	default:
 		return nil, errors.Errorf("invalid transport response: %d", resp)
 	}
-	return conn, nil
 }
 
 // transport starts read frames from server and write to TAP device.
@@ -681,6 +675,14 @@ func (client *Client) frameWriter() {
 	}
 }
 
+func (client *Client) getSessionToken() sessionToken {
+	return client.token.Load().(sessionToken)
+}
+
+func (client *Client) setSessionToken(token sessionToken) {
+	client.token.Store(token)
+}
+
 // Close is used to close accelerator client.
 func (client *Client) Close() error {
 	client.cancel()
@@ -688,7 +690,7 @@ func (client *Client) Close() error {
 	if err != nil {
 		client.logger.Error("failed to close tap device:", err)
 	}
-	client.logger.Info("tap device is closed")
+	client.logger.Info("accelerator tap device is closed")
 	e := client.connPool.Close()
 	if e != nil {
 		if err == nil {
@@ -696,7 +698,7 @@ func (client *Client) Close() error {
 		}
 		client.logger.Error("failed to close connection pool:", e)
 	}
-	client.logger.Info("connection pool is closed")
+	client.logger.Info("accelerator connection pool is closed")
 	client.wg.Wait()
 	e = client.logoff()
 	if e != nil {
