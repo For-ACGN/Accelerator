@@ -559,6 +559,8 @@ func (srv *Server) handleTransport(conn net.Conn) {
 	// start transport frame
 	err = srv.writeTransportResponse(conn, transportOK)
 	if err != nil {
+		const format = "(%s) failed to send transport response: %s"
+		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
 	tc := srv.newTransportConn(conn, token)
@@ -574,11 +576,7 @@ func (srv *Server) writeTransportResponse(conn net.Conn, resp byte) error {
 		buf.Write(size)
 	}
 	_, err := conn.Write(buf.Bytes())
-	if err != nil {
-		const format = "(%s) failed to send transport response: %s"
-		srv.logger.Errorf(format, conn.RemoteAddr(), err)
-	}
-	return nil
+	return err
 }
 
 // captureLoop is used to capture frame from destination network

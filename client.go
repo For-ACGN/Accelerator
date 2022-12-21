@@ -190,6 +190,10 @@ func getClientLocalAddress(cfg *ClientConfig) (string, error) {
 	if address != "" {
 		return address, nil
 	}
+	return getClientLocalAddressFromInterface(cfg)
+}
+
+func getClientLocalAddressFromInterface(cfg *ClientConfig) (string, error) {
 	name := cfg.Common.Interface
 	nic, err := net.InterfaceByName(name)
 	if err != nil {
@@ -199,6 +203,7 @@ func getClientLocalAddress(cfg *ClientConfig) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get network address")
 	}
+	// get remote address type
 	var remoteAddr string
 	switch cfg.Client.Mode {
 	case "tcp-tls":
@@ -211,7 +216,10 @@ func getClientLocalAddress(cfg *ClientConfig) (string, error) {
 		return "", errors.Wrap(err, "failed to split remote address")
 	}
 	isIPv4 := addrPort.Addr().Is4()
-	var localIP string
+	var (
+		address string
+		localIP string
+	)
 	for i := 0; i < len(addresses); i++ {
 		switch addr := addresses[i].(type) {
 		case *net.IPAddr:
@@ -222,6 +230,9 @@ func getClientLocalAddress(cfg *ClientConfig) (string, error) {
 		addr, err := netip.ParseAddr(address)
 		if err != nil {
 			return "", errors.Wrap(err, "failed to parse ip address")
+		}
+		if !addr.IsGlobalUnicast() {
+			continue
 		}
 		if addr.Is4() == isIPv4 {
 			localIP = address

@@ -7,7 +7,7 @@ import (
 	"net"
 	"sync"
 	"time"
-	
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -18,14 +18,14 @@ import (
 // interface or the other client connection.
 type transConn struct {
 	ctx *Server
-	
+
 	enableNAT bool
-	
+
 	handle *pcap.Handle
 	nat    *nat
 	conn   net.Conn
 	token  sessionToken
-	
+
 	eth   *layers.Ethernet
 	arp   *layers.ARP
 	ipv4  *layers.IPv4
@@ -34,17 +34,17 @@ type transConn struct {
 	icmp6 *layers.ICMPv6
 	tcp   *layers.TCP
 	udp   *layers.UDP
-	
+
 	parser  *gopacket.DecodingLayerParser
 	decoded *[]gopacket.LayerType
 	slOpt   gopacket.SerializeOptions
 	slBuf   gopacket.SerializeBuffer
-	
+
 	// check has new
 	srcMAC  []net.HardwareAddr
 	srcIPv4 []net.IP
 	srcIPv6 []net.IP
-	
+
 	macCache  sync.Pool
 	ipv4Cache sync.Pool
 	ipv6Cache sync.Pool
@@ -170,14 +170,14 @@ func (tc *transConn) decodeWithoutNAT(buf []byte) {
 			return
 		}
 		_ = tc.handle.WritePacketData(frameData)
-		
+
 		tc.ctx.broadcastExcept(buf, tc.token)
 		return
 	}
 	// check it is sent to one client
 	pool := tc.ctx.getConnPoolByMAC(dstMAC)
 	if pool != nil {
-		
+
 		_, _ = pool.Write(buf)
 		return
 	}
@@ -212,9 +212,9 @@ func (tc *transConn) decodeWithNAT(buf []byte) {
 			tc.isNewSourceIPv6()
 			isIPv6 = true
 		case layers.LayerTypeICMPv4:
-		
+
 		case layers.LayerTypeICMPv6:
-		
+
 		case layers.LayerTypeTCP:
 			switch {
 			case isIPv4:
@@ -246,29 +246,29 @@ func (tc *transConn) decodeARP() {
 			tc.arp.DstProtAddress = tc.arp.SourceProtAddress
 			tc.arp.SourceHwAddress = tc.nat.gatewayMAC
 			tc.arp.SourceProtAddress = tc.nat.gatewayIPv4
-			
+
 			err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
 			if err != nil {
 				const format = "(%s) failed to serialize arp layers: %s"
 				tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
 				return
 			}
-			
+
 			sb := tc.slBuf.Bytes()
-			
+
 			// TODO improve performance
 			b := make([]byte, frameHeaderSize+len(sb))
 			binary.BigEndian.PutUint16(b, uint16(len(sb)))
 			copy(b[frameHeaderSize:], sb)
-			
+
 			_, _ = tc.conn.Write(b)
-			
+
 		} else {
 			// TODO client side
 			return
 		}
 	case layers.ARPReply:
-	
+
 	default:
 		const format = "(%s) invalid arp operation: 0x%X"
 		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), op)
@@ -282,24 +282,24 @@ func (tc *transConn) decodeIPv4TCP() {
 	rIP := tc.ipv4.DstIP
 	rPort := uint16(tc.tcp.DstPort)
 	natPort := tc.nat.AddIPv4TCPPortMap(lIP, lPort, rIP, rPort)
-	
+
 	tc.eth.SrcMAC = tc.nat.localMAC
 	tc.ipv4.SrcIP = tc.nat.localIPv4
 	tc.tcp.SrcPort = layers.TCPPort(natPort)
-	
+
 	_ = tc.tcp.SetNetworkLayerForChecksum(tc.ipv4)
-	
+
 	payload := gopacket.Payload(tc.tcp.Payload)
-	
+
 	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.tcp, payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 tcp layers: %s"
 		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
 		return
 	}
-	
+
 	sb := tc.slBuf.Bytes()
-	
+
 	_ = tc.handle.WritePacketData(sb)
 }
 
@@ -310,27 +310,27 @@ func (tc *transConn) decodeIPv4UDP() {
 	rIP := tc.ipv4.DstIP
 	rPort := uint16(tc.udp.DstPort)
 	natPort := tc.nat.AddIPv4UDPPortMap(lIP, lPort, rIP, rPort)
-	
+
 	tc.eth.SrcMAC = tc.nat.localMAC
 	tc.ipv4.SrcIP = tc.nat.localIPv4
 	tc.udp.SrcPort = layers.UDPPort(natPort)
-	
+
 	_ = tc.udp.SetNetworkLayerForChecksum(tc.ipv4)
-	
+
 	// payload := make(gopacket.Payload, len(tc.udp.Payload))
 	// copy(payload, tc.udp.Payload)
-	
+
 	payload := gopacket.Payload(tc.udp.Payload)
-	
+
 	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.udp, payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 udp layers: %s"
 		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
 		return
 	}
-	
+
 	sb := tc.slBuf.Bytes()
-	
+
 	_ = tc.handle.WritePacketData(sb)
 }
 
@@ -382,7 +382,7 @@ func (tc *transConn) isNewSourceIPv4() {
 	copy(srcIP[:], tc.ipv4.SrcIP)
 	tc.srcIPv4 = append(tc.srcIPv4, srcIP[:])
 	tc.ctx.bindIPv4(tc.token, srcIP)
-	
+
 	srcMAC := mac{}
 	copy(srcMAC[:], tc.eth.SrcMAC)
 	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
@@ -408,7 +408,7 @@ func (tc *transConn) isNewSourceIPv6() {
 	copy(srcIP[:], tc.ipv6.SrcIP)
 	tc.srcIPv6 = append(tc.srcIPv6, srcIP[:])
 	tc.ctx.bindIPv6(tc.token, srcIP)
-	
+
 	srcMAC := mac{}
 	copy(srcMAC[:], tc.eth.SrcMAC)
 	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
