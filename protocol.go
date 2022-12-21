@@ -16,7 +16,7 @@ import (
 // +------------------+--------------------+-------------+
 // | SHA256(password) |  random data size  | random data |
 // +------------------+--------------------+-------------+
-// |     32 bytes     | 2 bytes(uint16 BE) |     var     |
+// |     32 bytes     | uint16(big endian) |     var     |
 // +------------------+--------------------+-------------+
 //
 // If authenticate successfully, Server side will send response,
@@ -26,7 +26,7 @@ import (
 // +----------+--------------------+-------------+
 // | response |  random data size  | random data |
 // +----------+--------------------+-------------+
-// |  1 byte  | 2 bytes(uint16 BE) |     var     |
+// |  1 byte  | uint16(big endian) |     var     |
 // +----------+--------------------+-------------+
 //
 // Server response field is always be authOK.
@@ -107,7 +107,7 @@ func generateRandomData() ([]byte, error) {
 // +---------+---------------+        +----------+----------------------+
 // | command | session token |        | response | [max conn pool size] |
 // +---------+---------------+        +----------+----------------------+
-// |  byte   |   32 bytes    |        |   byte   |  2 bytes(uint16 BE)  |
+// |  byte   |   32 bytes    |        |   byte   |  uint16(big endian)  |
 // +---------+---------------+        +----------+----------------------+
 const (
 	cmdLogin = iota
@@ -139,7 +139,7 @@ var emptySessionToken = sessionToken{}
 // +--------------------+------------+
 // |  frame data size   | frame data |
 // +--------------------+------------+
-// | 2 bytes(uint16 BE) |     var    |
+// | uint16(big endian) |     var    |
 // +--------------------+------------+
 const (
 	maxFrameSize    = 32 * 1024 // 32 KiB

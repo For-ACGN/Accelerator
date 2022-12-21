@@ -24,7 +24,11 @@ const (
 	defaultClientTimeout      = 15 * time.Second
 )
 
-var errClientClosed = fmt.Errorf("accelerator client is closed")
+var (
+	errInvalidToken = fmt.Errorf("invalid session token")
+	errFullConnPool = fmt.Errorf("full connection pool")
+	errClientClosed = fmt.Errorf("accelerator client is closed")
+)
 
 // Client is the accelerator client.
 type Client struct {
@@ -347,10 +351,15 @@ func (client *Client) Run() error {
 	client.wg.Add(1)
 	go client.watcher()
 	client.logger.Info("initialize accelerator status watcher")
-	select {
-	case <-time.After(2 * time.Second):
-	case <-client.ctx.Done():
-		return errors.WithStack(errClientClosed)
+	for {
+		select {
+		case <-time.After(100 * time.Millisecond):
+		case <-client.ctx.Done():
+			return errors.WithStack(errClientClosed)
+		}
+		if !client.connPool.IsEmpty() {
+			break
+		}
 	}
 	// start frame reader
 	client.wg.Add(1)
@@ -483,11 +492,15 @@ func (client *Client) watcher() {
 			if client.connPool.IsFull() {
 				break
 			}
-			conn, err := client.connect(client.ctx)
+			conn, err := client.beginTransport()
 			if err == nil {
 				client.wg.Add(1)
 				go client.transport(conn)
-			} else {
+				break
+			}
+			switch err {
+			case errInvalidToken, errFullConnPool, errClientClosed:
+			default:
 				client.logger.Error(err)
 			}
 		case <-client.ctx.Done():
@@ -497,8 +510,64 @@ func (client *Client) watcher() {
 	}
 }
 
-// transport will send transport command to server, then it
-// starts read frames from server and write to TAP device.
+// beginTransport will send transport command to server.
+func (client *Client) beginTransport() (net.Conn, error) {
+	conn, err := client.connect(client.ctx)
+	if err != nil {
+		return nil, err
+	}
+	var ok bool
+	defer func() {
+		if !ok {
+			_ = conn.Close()
+		}
+	}()
+	token := client.getSessionToken()
+	if token == emptySessionToken {
+		return nil, errors.WithStack(errClientClosed)
+	}
+	_ = conn.SetDeadline(time.Now().Add(client.timeout))
+	req := make([]byte, cmdSize+tokenSize)
+	req[0] = cmdTransport
+	copy(req[cmdSize:], token[:])
+	_, err = conn.Write(req)
+	if err != nil {
+		return nil, err
+	}
+	buf := make([]byte, cmdSize)
+	_, err = io.ReadFull(conn, buf)
+	if err != nil {
+		return nil, err
+	}
+	resp := buf[0]
+	switch resp {
+	case transportOK:
+		ok = true
+	case invalidToken:
+		err = client.login()
+		if err != nil {
+			return nil, err
+		}
+		client.logger.Info("reconnect accelerator server successfully")
+		return nil, errInvalidToken
+	case fullConnPool:
+		// read server side maximum connection pool size
+		buf = make([]byte, 2)
+		_, err = io.ReadFull(conn, buf)
+		if err != nil {
+			return nil, err
+		}
+		size := binary.BigEndian.Uint16(buf)
+		client.connPool.SetSize(int(size))
+		client.logger.Infof("set connection pool size: %d", size)
+		return nil, errFullConnPool
+	default:
+		return nil, errors.Errorf("invalid transport response: %d", resp)
+	}
+	return conn, nil
+}
+
+// transport starts read frames from server and write to TAP device.
 func (client *Client) transport(conn net.Conn) {
 	defer client.wg.Done()
 	defer func() {
@@ -512,35 +581,16 @@ func (client *Client) transport(conn net.Conn) {
 			client.logger.Error(err)
 		}
 	}()
-	token := client.getSessionToken()
-	if token == emptySessionToken {
-		return
-	}
-	_ = conn.SetDeadline(time.Now().Add(client.timeout))
-	req := make([]byte, cmdSize+tokenSize)
-	req[0] = cmdTransport
-	copy(req[cmdSize:], token[:])
-	_, err := conn.Write(req)
-	if err != nil {
-		return
-	}
-	buf := make([]byte, cmdSize)
-	_, err = io.ReadFull(conn, buf)
-	if err != nil {
-		return
-	}
-	resp := buf[0]
-	if resp != transportOK {
-		client.logger.Errorf("invalid transport response: %d", resp)
-		return
-	}
+	_ = conn.SetDeadline(time.Time{})
 	if !client.connPool.AddConn(&conn) {
 		return
 	}
 	defer client.connPool.DeleteConn(&conn)
-	_ = conn.SetDeadline(time.Time{})
-	buf = make([]byte, maxFrameSize)
-	var size uint16
+	buf := make([]byte, maxFrameSize)
+	var (
+		size uint16
+		err  error
+	)
 	for {
 		// read frame size
 		_, err = io.ReadFull(conn, buf[:frameHeaderSize])
