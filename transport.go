@@ -381,8 +381,9 @@ func (tc *transConn) isNewSourceIPv4() {
 	srcIP := ipv4{}
 	copy(srcIP[:], tc.ipv4.SrcIP)
 	tc.srcIPv4 = append(tc.srcIPv4, srcIP[:])
-	tc.ctx.bindIPv4(tc.token, srcIP)
-
+	if !tc.ctx.bindIPv4(tc.token, srcIP) {
+		return
+	}
 	srcMAC := mac{}
 	copy(srcMAC[:], tc.eth.SrcMAC)
 	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
@@ -407,8 +408,9 @@ func (tc *transConn) isNewSourceIPv6() {
 	srcIP := ipv6{}
 	copy(srcIP[:], tc.ipv6.SrcIP)
 	tc.srcIPv6 = append(tc.srcIPv6, srcIP[:])
-	tc.ctx.bindIPv6(tc.token, srcIP)
-
+	if !tc.ctx.bindIPv6(tc.token, srcIP) {
+		return
+	}
 	srcMAC := mac{}
 	copy(srcMAC[:], tc.eth.SrcMAC)
 	tc.srcMAC = append(tc.srcMAC, srcMAC[:])

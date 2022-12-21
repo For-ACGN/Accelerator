@@ -409,7 +409,6 @@ func (srv *Server) handleConn(conn net.Conn) {
 	default:
 		const format = "(%s) receive invalid command: %d"
 		srv.logger.Warningf(format, conn.RemoteAddr(), cmd)
-		return
 	}
 }
 
@@ -544,6 +543,9 @@ func (srv *Server) handleLogoff(conn net.Conn) {
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
+	if !srv.isSessionTokenExist(token) {
+		return
+	}
 	srv.removeConnPool(token)
 	srv.unbindMAC(token)
 	srv.unbindIPv4(token)
@@ -651,6 +653,13 @@ func (srv *Server) deleteSessionToken(token sessionToken) {
 	delete(srv.tokens, token)
 }
 
+func (srv *Server) isSessionTokenExist(token sessionToken) bool {
+	srv.tokensRWM.RLock()
+	defer srv.tokensRWM.RUnlock()
+	_, ok := srv.tokens[token]
+	return ok
+}
+
 func (srv *Server) isValidSessionToken(token sessionToken) bool {
 	now := time.Now()
 	srv.tokensRWM.RLock()
@@ -665,9 +674,16 @@ func (srv *Server) isValidSessionToken(token sessionToken) bool {
 func (srv *Server) bindMAC(token sessionToken, mac mac) {
 	srv.macsRWM.Lock()
 	defer srv.macsRWM.Unlock()
-
+	t := srv.macs[mac]
+	if t != emptySessionToken {
+		srv.connPoolsRWM.RLock()
+		defer srv.connPoolsRWM.RUnlock()
+		pool := srv.connPools[t]
+		if pool != nil && !pool.IsEmpty() {
+			return
+		}
+	}
 	srv.macs[mac] = token
-	// TODO check conn pool is empty
 }
 
 func (srv *Server) unbindMAC(token sessionToken) {
@@ -681,11 +697,20 @@ func (srv *Server) unbindMAC(token sessionToken) {
 	}
 }
 
-func (srv *Server) bindIPv4(token sessionToken, ip ipv4) {
+func (srv *Server) bindIPv4(token sessionToken, ip ipv4) bool {
 	srv.ipv4sRWM.Lock()
 	defer srv.ipv4sRWM.Unlock()
+	t := srv.ipv4s[ip]
+	if t != emptySessionToken {
+		srv.connPoolsRWM.RLock()
+		defer srv.connPoolsRWM.RUnlock()
+		pool := srv.connPools[t]
+		if pool != nil && !pool.IsEmpty() {
+			return false
+		}
+	}
 	srv.ipv4s[ip] = token
-	// TODO check conn pool is empty
+	return true
 }
 
 func (srv *Server) unbindIPv4(token sessionToken) {
@@ -700,10 +725,20 @@ func (srv *Server) unbindIPv4(token sessionToken) {
 	}
 }
 
-func (srv *Server) bindIPv6(token sessionToken, ip ipv6) {
+func (srv *Server) bindIPv6(token sessionToken, ip ipv6) bool {
 	srv.ipv6sRWM.Lock()
 	defer srv.ipv6sRWM.Unlock()
+	t := srv.ipv6s[ip]
+	if t != emptySessionToken {
+		srv.connPoolsRWM.RLock()
+		defer srv.connPoolsRWM.RUnlock()
+		pool := srv.connPools[t]
+		if pool != nil && !pool.IsEmpty() {
+			return false
+		}
+	}
 	srv.ipv6s[ip] = token
+	return true
 }
 
 func (srv *Server) unbindIPv6(token sessionToken) {
@@ -722,28 +757,24 @@ func (srv *Server) bindIPv4ToMAC(ip ipv4, mac mac) {
 	srv.ipv4ToMACsRWM.Lock()
 	defer srv.ipv4ToMACsRWM.Unlock()
 	srv.ipv4ToMACs[ip] = mac
-	// TODO check conn pool is empty
 }
 
 func (srv *Server) unbindIPv4ToMAC(ip ipv4) {
 	srv.ipv4ToMACsRWM.Lock()
 	defer srv.ipv4ToMACsRWM.Unlock()
 	delete(srv.ipv4ToMACs, ip)
-	// TODO check conn pool is empty
 }
 
 func (srv *Server) bindIPv6ToMAC(ip ipv6, mac mac) {
 	srv.ipv6ToMACsRWM.Lock()
 	defer srv.ipv6ToMACsRWM.Unlock()
 	srv.ipv6ToMACs[ip] = mac
-	// TODO check conn pool is empty
 }
 
 func (srv *Server) unbindIPv6ToMAC(ip ipv6) {
 	srv.ipv6ToMACsRWM.Lock()
 	defer srv.ipv6ToMACsRWM.Unlock()
 	delete(srv.ipv6ToMACs, ip)
-	// TODO check conn pool is empty
 }
 
 func (srv *Server) ipv4ToMAC(ip ipv4) mac {
