@@ -516,13 +516,10 @@ func (client *Client) beginTransport() (net.Conn, error) {
 			_ = conn.Close()
 		}
 	}()
-	token := client.getSessionToken()
-	if token == emptySessionToken {
-		return nil, errors.WithStack(errClientClosed)
-	}
 	_ = conn.SetDeadline(time.Now().Add(client.timeout))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdTransport
+	token := client.getSessionToken()
 	copy(req[cmdSize:], token[:])
 	_, err = conn.Write(req)
 	if err != nil {
@@ -554,7 +551,7 @@ func (client *Client) beginTransport() (net.Conn, error) {
 		}
 		size := binary.BigEndian.Uint16(buf)
 		client.connPool.SetSize(int(size))
-		client.logger.Infof("set connection pool size: %d", size)
+		client.logger.Infof("reset connection pool size: %d", size)
 		return nil, errFullConnPool
 	default:
 		return nil, errors.Errorf("invalid transport response: %d", resp)
@@ -580,11 +577,11 @@ func (client *Client) transport(conn net.Conn) {
 		return
 	}
 	defer client.connPool.DeleteConn(&conn)
-	buf := make([]byte, maxFrameSize)
 	var (
 		size uint16
 		err  error
 	)
+	buf := make([]byte, maxFrameSize)
 	for {
 		// read frame size
 		_, err = io.ReadFull(conn, buf[:frameHeaderSize])

@@ -1,6 +1,7 @@
 package accelerator
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -541,15 +542,8 @@ func (srv *Server) handleTransport(conn net.Conn) {
 	}
 	if !srv.isValidSessionToken(token) {
 		const format = "(%s) receive invalid session token"
-		srv.logger.Errorf(format, remoteAddr)
-		return
-	}
-	buf := make([]byte, cmdSize)
-	buf[0] = transportOK
-	_, err = conn.Write(buf)
-	if err != nil {
-		const format = "(%s) failed to send transport response: %s"
-		srv.logger.Errorf(format, remoteAddr, err)
+		srv.logger.Warningf(format, remoteAddr)
+		_ = srv.writeTransportResponse(conn, invalidToken)
 		return
 	}
 	// add connection to pool
@@ -557,17 +551,34 @@ func (srv *Server) handleTransport(conn net.Conn) {
 	if pool == nil {
 		return
 	}
-	if pool.IsFull() {
+	if !pool.AddConn(&conn) {
+		_ = srv.writeTransportResponse(conn, fullConnPool)
 		return
 	}
-	c := &conn
-	if !pool.AddConn(c) {
-		return
-	}
-	defer pool.DeleteConn(c)
+	defer pool.DeleteConn(&conn)
 	// start transport frame
+	err = srv.writeTransportResponse(conn, transportOK)
+	if err != nil {
+		return
+	}
 	tc := srv.newTransportConn(conn, token)
 	tc.transport()
+}
+
+func (srv *Server) writeTransportResponse(conn net.Conn, resp byte) error {
+	buf := bytes.NewBuffer(make([]byte, 0, 4))
+	buf.WriteByte(resp)
+	if resp == fullConnPool {
+		size := make([]byte, 2)
+		binary.BigEndian.PutUint16(size, uint16(srv.connPoolSize))
+		buf.Write(size)
+	}
+	_, err := conn.Write(buf.Bytes())
+	if err != nil {
+		const format = "(%s) failed to send transport response: %s"
+		srv.logger.Errorf(format, conn.RemoteAddr(), err)
+	}
+	return nil
 }
 
 // captureLoop is used to capture frame from destination network
