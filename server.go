@@ -82,7 +82,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	var ok bool
 	handle, err := openPcapDevice(cfg.Common.Interface)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to open pcap device")
 	}
 	defer func() {
 		if !ok {
@@ -168,7 +168,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 func openPcapDevice(device string) (*pcap.Handle, error) {
 	iHandle, err := pcap.NewInactiveHandle(device)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	var ok bool
 	defer func() {
@@ -178,27 +178,31 @@ func openPcapDevice(device string) (*pcap.Handle, error) {
 	}()
 	err = iHandle.SetSnapLen(64 * 1024)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	err = iHandle.SetPromisc(true)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	err = iHandle.SetTimeout(pcap.BlockForever)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	err = iHandle.SetImmediateMode(true)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	err = iHandle.SetBufferSize(64 * 1024 * 1024)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	handle, err := iHandle.Activate()
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
+	}
+	err = handle.SetDirection(pcap.DirectionIn)
+	if err != nil {
+		return nil, err
 	}
 	ok = true
 	return handle, nil
@@ -935,7 +939,7 @@ func (srv *Server) Close() error {
 	srv.wg.Wait()
 	if srv.nat != nil {
 		srv.nat.Close()
-		srv.logger.Info("nat is closed")
+		srv.logger.Info("nat module is closed")
 	}
 	srv.logger.Info("accelerator server is stopped")
 	e := srv.logger.Close()

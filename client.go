@@ -698,7 +698,7 @@ func (client *Client) Close() error {
 	if err != nil {
 		client.logger.Error("failed to close tap device:", err)
 	}
-	client.logger.Info("accelerator tap device is closed")
+	client.logger.Info("tap device is closed")
 	e := client.connPool.Close()
 	if e != nil {
 		if err == nil {
@@ -706,7 +706,7 @@ func (client *Client) Close() error {
 		}
 		client.logger.Error("failed to close connection pool:", e)
 	}
-	client.logger.Info("accelerator connection pool is closed")
+	client.logger.Info("connection pool is closed")
 	client.wg.Wait()
 	e = client.logoff()
 	if e != nil {
