@@ -112,9 +112,9 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	if poolSize < 1 {
 		poolSize = defaultServerConnPoolSize
 	}
-	numSender := cfg.Server.NumFrameSender
-	if numSender < 1 {
-		numSender = defaultServerNumFrameSender
+	numFrSender := cfg.Server.NumFrameSender
+	if numFrSender < 1 {
+		numFrSender = defaultServerNumFrameSender
 	}
 	timeout := time.Duration(cfg.Server.Timeout)
 	if timeout < 1 {
@@ -138,7 +138,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 	}
 	server := Server{
 		passHash:     passHash,
-		numFrSender:  numSender,
+		numFrSender:  numFrSender,
 		connPoolSize: poolSize,
 		timeout:      timeout,
 		enableNAT:    cfg.NAT.Enabled,
@@ -291,15 +291,36 @@ func (srv *Server) Run() {
 		srv.logger.Infof("start quic listener(%s %s)", addr.Network(), addr)
 	}
 	if srv.nat != nil {
+		srv.logger.Info("accelerator nat module is enabled")
+		srv.logger.Info("[localhost]")
+		srv.logger.Info("MAC address: ", srv.nat.localMAC)
+		if srv.nat.localIPv4 != nil {
+			srv.logger.Info("IPv4 address:", srv.nat.localIPv4)
+		}
+		if srv.nat.localIPv6 != nil {
+			srv.logger.Info("IPv6 address:", srv.nat.localIPv6)
+		}
+		srv.logger.Info("[gateway]")
+		srv.logger.Info("MAC address: ", srv.nat.gatewayMAC)
+		if srv.nat.gatewayIPv4 != nil {
+			srv.logger.Info("IPv4 address:", srv.nat.gatewayIPv4)
+		}
+		if srv.nat.gatewayIPv6 != nil {
+			srv.logger.Info("IPv6 address:", srv.nat.gatewayIPv6)
+		}
 		srv.nat.Run()
 	}
+	// start frame capturer
+	srv.logger.Info("start accelerator frame capturer")
+	srv.wg.Add(1)
+	go srv.frameCapturer()
+	// start frame senders
+	srv.logger.Info("start accelerator frame senders")
 	for i := 0; i < srv.numFrSender; i++ {
 		sender := srv.newFrameSender()
 		srv.wg.Add(1)
 		go sender.sendLoop()
 	}
-	srv.wg.Add(1)
-	go srv.captureLoop()
 	srv.logger.Info("accelerator server is running")
 }
 
@@ -579,13 +600,13 @@ func (srv *Server) writeTransportResponse(conn net.Conn, resp byte) error {
 	return err
 }
 
-// captureLoop is used to capture frame from destination network
+// frameCapturer is used to capture frame from destination network
 // interface and send it to the frame channel for frameSender.
-func (srv *Server) captureLoop() {
+func (srv *Server) frameCapturer() {
 	defer srv.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			srv.logger.Fatal("Server.captureLoop", r)
+			srv.logger.Fatal("Server.frameCapturer", r)
 		}
 	}()
 	defer srv.handle.Close()
@@ -644,7 +665,9 @@ func (srv *Server) isValidSessionToken(token sessionToken) bool {
 func (srv *Server) bindMAC(token sessionToken, mac mac) {
 	srv.macsRWM.Lock()
 	defer srv.macsRWM.Unlock()
+
 	srv.macs[mac] = token
+	// TODO check conn pool is empty
 }
 
 func (srv *Server) unbindMAC(token sessionToken) {
