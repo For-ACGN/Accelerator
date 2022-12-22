@@ -189,8 +189,10 @@ func (s *frameSender) sendWithNAT(frame *frame) {
 			}
 			s.isIPv6 = true
 		case layers.LayerTypeICMPv4:
+			// TODO ICMP
 			return
 		case layers.LayerTypeICMPv6:
+			// TODO ICMP
 			return
 		case layers.LayerTypeTCP:
 			s.sendTCP(frame)
@@ -237,20 +239,57 @@ func (s *frameSender) sendIPv4TCP(frame *frame) {
 	// encode data to buffer
 	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.tcp, s.payload)
 	if err != nil {
-		const format = "failed to serialize ipv4 tcp layers: %s"
+		const format = "failed to serialize ipv4 tcp frame: %s"
 		s.ctx.logger.Warningf(format, err)
 		return
 	}
-	f := s.slBuf.Bytes()
+	fr := s.slBuf.Bytes()
 	frame.Reset()
-	frame.WriteHeader(len(f))
-	frame.WriteData(f)
+	frame.WriteHeader(len(fr))
+	frame.WriteData(fr)
 	// send to the target client
 	dstIPv4Ptr := s.ipv4Cache.Get().(*ipv4)
 	defer s.ipv4Cache.Put(dstIPv4Ptr)
 	dstIPv4 := *dstIPv4Ptr
 	copy(dstIPv4[:], s.ipv4.DstIP)
 	pool := s.ctx.getConnPoolByIPv4(dstIPv4)
+	if pool == nil {
+		return
+	}
+	_, _ = pool.Write(frame.Bytes())
+}
+
+func (s *frameSender) sendIPv6TCP(frame *frame) {
+	rIP := s.ipv6.SrcIP
+	rPort := uint16(s.tcp.SrcPort)
+	lPort := uint16(s.tcp.DstPort)
+	li := s.nat.QueryIPv6TCPPortMap(rIP, rPort, lPort)
+	if li == nil {
+		return
+	}
+	// replace IP address and tcp port
+	dstMAC := s.ctx.ipv6ToMAC(li.localIP)
+	s.eth.DstMAC = dstMAC[:]
+	copy(s.ipv6.DstIP, li.localIP[:])
+	s.tcp.DstPort = layers.TCPPort(binary.BigEndian.Uint16(li.localPort[:]))
+	_ = s.tcp.SetNetworkLayerForChecksum(s.ipv6)
+	// encode data to buffer
+	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.tcp, s.payload)
+	if err != nil {
+		const format = "failed to serialize ipv6 tcp frame: %s"
+		s.ctx.logger.Warningf(format, err)
+		return
+	}
+	fr := s.slBuf.Bytes()
+	frame.Reset()
+	frame.WriteHeader(len(fr))
+	frame.WriteData(fr)
+	// send to the target client
+	dstIPv6Ptr := s.ipv6Cache.Get().(*ipv6)
+	defer s.ipv6Cache.Put(dstIPv6Ptr)
+	dstIPv6 := *dstIPv6Ptr
+	copy(dstIPv6[:], s.ipv6.DstIP)
+	pool := s.ctx.getConnPoolByIPv6(dstIPv6)
 	if pool == nil {
 		return
 	}
@@ -265,46 +304,68 @@ func (s *frameSender) sendIPv4UDP(frame *frame) {
 	if li == nil {
 		return
 	}
-
+	// replace IP address and udp port
 	dstMAC := s.ctx.ipv4ToMAC(li.localIP)
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv4.DstIP, li.localIP[:])
 	s.udp.DstPort = layers.UDPPort(binary.BigEndian.Uint16(li.localPort[:]))
-
 	_ = s.udp.SetNetworkLayerForChecksum(s.ipv4)
-
-	payload := gopacket.Payload(s.udp.Payload)
-
-	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.udp, payload)
+	// encode data to buffer
+	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.udp, s.payload)
 	if err != nil {
-		const format = "failed to serialize ipv4 udp layers: %s"
+		const format = "failed to serialize ipv4 udp frame: %s"
 		s.ctx.logger.Warningf(format, err)
 		return
 	}
-
-	sb := s.slBuf.Bytes()
-
+	fr := s.slBuf.Bytes()
+	frame.Reset()
+	frame.WriteHeader(len(fr))
+	frame.WriteData(fr)
+	// send to the target client
 	dstIPv4Ptr := s.ipv4Cache.Get().(*ipv4)
 	defer s.ipv4Cache.Put(dstIPv4Ptr)
 	dstIPv4 := *dstIPv4Ptr
 	copy(dstIPv4[:], s.ipv4.DstIP)
-	// encode packet size
-	buf := make([]byte, frameHeaderSize+len(sb))
-	binary.BigEndian.PutUint16(buf, uint16(len(sb)))
-	copy(buf[frameHeaderSize:], sb)
-
-	// send to the target client
 	pool := s.ctx.getConnPoolByIPv4(dstIPv4)
 	if pool == nil {
 		return
 	}
-	_, _ = pool.Write(buf)
-}
-
-func (s *frameSender) sendIPv6TCP(frame *frame) {
-
+	_, _ = pool.Write(frame.Bytes())
 }
 
 func (s *frameSender) sendIPv6UDP(frame *frame) {
-
+	rIP := s.ipv6.SrcIP
+	rPort := uint16(s.udp.SrcPort)
+	lPort := uint16(s.udp.DstPort)
+	li := s.nat.QueryIPv6UDPPortMap(rIP, rPort, lPort)
+	if li == nil {
+		return
+	}
+	// replace IP address and udp port
+	dstMAC := s.ctx.ipv6ToMAC(li.localIP)
+	s.eth.DstMAC = dstMAC[:]
+	copy(s.ipv6.DstIP, li.localIP[:])
+	s.udp.DstPort = layers.UDPPort(binary.BigEndian.Uint16(li.localPort[:]))
+	_ = s.udp.SetNetworkLayerForChecksum(s.ipv6)
+	// encode data to buffer
+	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.udp, s.payload)
+	if err != nil {
+		const format = "failed to serialize ipv6 udp frame: %s"
+		s.ctx.logger.Warningf(format, err)
+		return
+	}
+	fr := s.slBuf.Bytes()
+	frame.Reset()
+	frame.WriteHeader(len(fr))
+	frame.WriteData(fr)
+	// send to the target client
+	dstIPv6Ptr := s.ipv6Cache.Get().(*ipv6)
+	defer s.ipv6Cache.Put(dstIPv6Ptr)
+	dstIPv6 := *dstIPv6Ptr
+	copy(dstIPv6[:], s.ipv6.DstIP)
+	pool := s.ctx.getConnPoolByIPv6(dstIPv6)
+	if pool == nil {
+		return
+	}
+	_, _ = pool.Write(frame.Bytes())
 }

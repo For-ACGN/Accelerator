@@ -246,7 +246,7 @@ func (tc *transConn) decodeARP() {
 
 			err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
 			if err != nil {
-				const format = "(%s) failed to serialize arp layers: %s"
+				const format = "(%s) failed to serialize arp frame: %s"
 				tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
 				return
 			}
@@ -292,7 +292,7 @@ func (tc *transConn) decodeIPv4TCP() {
 
 	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.tcp, payload)
 	if err != nil {
-		const format = "(%s) failed to serialize ipv4 tcp layers: %s"
+		const format = "(%s) failed to serialize ipv4 tcp frame: %s"
 		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
 		return
 	}
@@ -323,7 +323,7 @@ func (tc *transConn) decodeIPv4UDP() {
 
 	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.udp, payload)
 	if err != nil {
-		const format = "(%s) failed to serialize ipv4 udp layers: %s"
+		const format = "(%s) failed to serialize ipv4 udp frame: %s"
 		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
 		return
 	}
