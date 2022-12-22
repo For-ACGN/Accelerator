@@ -265,6 +265,8 @@ func (tc *transConn) decodeARP() {
 
 		} else {
 			// TODO client side
+
+			// then server side
 			return
 		}
 	case layers.ARPReply:

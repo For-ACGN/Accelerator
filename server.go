@@ -70,6 +70,9 @@ type Server struct {
 	frameCh    chan *frame
 	frameCache *sync.Pool
 
+	numTr  int32
+	income chan struct{}
+
 	closed int32
 
 	ctx    context.Context
@@ -156,6 +159,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		connPools:    make(map[sessionToken]*connPool, 16),
 		frameCh:      make(chan *frame, 64*1024),
 		frameCache:   new(sync.Pool),
+		income:       make(chan struct{}, 1),
 	}
 	server.frameCache.New = func() interface{} {
 		return newFrame()
@@ -583,13 +587,22 @@ func (srv *Server) handleTransport(conn net.Conn) {
 		return
 	}
 	defer pool.DeleteConn(&conn)
-	// start transport frame
+	// send transport response
 	err = srv.writeTransportResponse(conn, transportOK)
 	if err != nil {
 		const format = "(%s) failed to send transport response: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
+	// send income client signal
+	select {
+	case srv.income <- struct{}{}:
+	default:
+	}
+	// update transport client counter
+	atomic.AddInt32(&srv.numTr, 1)
+	defer atomic.AddInt32(&srv.numTr, -1)
+	// start transport frame
 	tc := srv.newTransportConn(conn, token)
 	tc.transport()
 }
@@ -622,6 +635,13 @@ func (srv *Server) frameCapturer() {
 		err  error
 	)
 	for {
+		if srv.isIdle() {
+			select {
+			case <-srv.income:
+			case <-srv.ctx.Done():
+				return
+			}
+		}
 		data, _, err = srv.handle.ZeroCopyReadPacketData()
 		if err != nil {
 			return
@@ -635,6 +655,10 @@ func (srv *Server) frameCapturer() {
 			return
 		}
 	}
+}
+
+func (srv *Server) isIdle() bool {
+	return atomic.LoadInt32(&srv.numTr) < 1
 }
 
 func (srv *Server) addSessionToken(token sessionToken) {
@@ -901,8 +925,6 @@ func (srv *Server) isClosed() bool {
 func (srv *Server) Close() error {
 	atomic.StoreInt32(&srv.closed, 1)
 	srv.cancel()
-	srv.handle.Close()
-	srv.logger.Info("pcap handle is closed")
 	var err error
 	if srv.tlsListener != nil {
 		e := srv.tlsListener.Close()
@@ -922,7 +944,7 @@ func (srv *Server) Close() error {
 		}
 		srv.logger.Info("quic listener is closed")
 	}
-	srv.logger.Info("all listeners stop serve")
+	srv.logger.Info("all listeners are closed")
 	srv.connPoolsRWM.Lock()
 	defer srv.connPoolsRWM.Unlock()
 	for token, pool := range srv.connPools {
@@ -935,8 +957,10 @@ func (srv *Server) Close() error {
 		}
 		delete(srv.connPools, token)
 	}
-	srv.logger.Info("all connection pools is closed")
+	srv.logger.Info("all connection pools are closed")
 	srv.wg.Wait()
+	srv.handle.Close()
+	srv.logger.Info("pcap handle is closed")
 	if srv.nat != nil {
 		srv.nat.Close()
 		srv.logger.Info("nat module is closed")
