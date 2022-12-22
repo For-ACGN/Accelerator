@@ -40,6 +40,9 @@ type transConn struct {
 	slOpt   gopacket.SerializeOptions
 	slBuf   gopacket.SerializeBuffer
 
+	isIPv4 bool
+	isIPv6 bool
+
 	// check has new
 	srcMAC  []net.HardwareAddr
 	srcIPv4 []net.IP
@@ -121,6 +124,7 @@ func (tc *transConn) transport() {
 		err  error
 	)
 	buf := make([]byte, maxFrameSize)
+	fr := newFrame()
 	for {
 		// read frame size
 		_, err = io.ReadFull(tc.conn, buf[:frameHeaderSize])
@@ -134,21 +138,23 @@ func (tc *transConn) transport() {
 			return
 		}
 		// read frame data
-		_, err = io.ReadFull(tc.conn, buf[frameHeaderSize:frameHeaderSize+size])
+		_, err = io.ReadFull(tc.conn, buf[:size])
 		if err != nil {
 			return
 		}
+		fr.Reset()
+		fr.WriteHeader(int(size))
+		fr.WriteData(buf[:size])
 		if tc.enableNAT {
-			tc.decodeWithNAT(buf[:frameHeaderSize+size])
+			tc.decodeWithNAT(fr)
 		} else {
-			tc.decodeWithoutNAT(buf[:frameHeaderSize+size])
+			tc.decodeWithoutNAT(fr)
 		}
 	}
 }
 
-func (tc *transConn) decodeWithoutNAT(buf []byte) {
-	frameData := buf[frameHeaderSize:]
-	err := tc.parser.DecodeLayers(frameData, tc.decoded)
+func (tc *transConn) decodeWithoutNAT(frame *frame) {
+	err := tc.parser.DecodeLayers(frame.Data(), tc.decoded)
 	if err != nil {
 		return
 	}
@@ -162,69 +168,60 @@ func (tc *transConn) decodeWithoutNAT(buf []byte) {
 	dstMAC := *dstMACPtr
 	copy(dstMAC[:], tc.eth.DstMAC)
 	if dstMAC == broadcast {
-		// TODO check handle is closed
-		if tc.ctx.isClosed() {
-			return
-		}
-		_ = tc.handle.WritePacketData(frameData)
-
-		tc.ctx.broadcastExcept(buf, tc.token)
+		_ = tc.handle.WritePacketData(frame.Data())
+		tc.ctx.broadcastExcept(frame.Bytes(), tc.token)
 		return
 	}
 	// send to the target client
 	pool := tc.ctx.getConnPoolByMAC(dstMAC)
 	if pool != nil {
-
-		_, _ = pool.Write(buf)
+		_, _ = pool.Write(frame.Bytes())
 		return
 	}
 	// send to the under interface
-	// TODO add lock for close handle
-	_ = tc.handle.WritePacketData(frameData)
+	_ = tc.handle.WritePacketData(frame.Data())
 }
 
-func (tc *transConn) decodeWithNAT(buf []byte) {
-	frameData := buf[frameHeaderSize:]
-	err := tc.parser.DecodeLayers(frameData, tc.decoded)
+func (tc *transConn) decodeWithNAT(frame *frame) {
+	err := tc.parser.DecodeLayers(frame.Data(), tc.decoded)
 	if err != nil {
 		return
 	}
+	tc.isIPv4 = false
+	tc.isIPv6 = false
 	decoded := *tc.decoded
-	var (
-		isIPv4 bool
-		isIPv6 bool
-	)
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
 		case layers.LayerTypeEthernet:
 			tc.isNewSourceMAC()
+
 			// TODO client to client
 		case layers.LayerTypeARP:
 			tc.decodeARP()
 			return
 		case layers.LayerTypeIPv4:
 			tc.isNewSourceIPv4()
-			isIPv4 = true
+			tc.isIPv4 = true
 		case layers.LayerTypeIPv6:
 			tc.isNewSourceIPv6()
-			isIPv6 = true
+			tc.isIPv6 = true
 		case layers.LayerTypeICMPv4:
 
 		case layers.LayerTypeICMPv6:
 
 		case layers.LayerTypeTCP:
 			switch {
-			case isIPv4:
+			case tc.isIPv4:
 				tc.decodeIPv4TCP()
-			case isIPv6:
+			case tc.isIPv6:
 				tc.decodeIPv6TCP()
 			}
 			return
 		case layers.LayerTypeUDP:
 			switch {
-			case isIPv4:
+			case tc.isIPv4:
 				tc.decodeIPv4UDP()
-			case isIPv6:
+			case tc.isIPv6:
 				tc.decodeIPv6UDP()
 			}
 			return

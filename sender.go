@@ -175,6 +175,8 @@ func (s *frameSender) sendWithNAT(frame *frame) {
 	if err != nil {
 		return
 	}
+	s.isIPv4 = false
+	s.isIPv6 = false
 	decoded := *s.decoded
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
