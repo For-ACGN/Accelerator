@@ -26,14 +26,15 @@ type transporter struct {
 	conn   net.Conn
 	token  sessionToken
 
-	eth   *layers.Ethernet
-	arp   *layers.ARP
-	ipv4  *layers.IPv4
-	ipv6  *layers.IPv6
-	icmp4 *layers.ICMPv4
-	icmp6 *layers.ICMPv6
-	tcp   *layers.TCP
-	udp   *layers.UDP
+	eth     *layers.Ethernet
+	arp     *layers.ARP
+	ipv4    *layers.IPv4
+	ipv6    *layers.IPv6
+	icmp4   *layers.ICMPv4
+	icmp6   *layers.ICMPv6
+	tcp     *layers.TCP
+	udp     *layers.UDP
+	payload *gopacket.Payload
 
 	parser  *gopacket.DecodingLayerParser
 	decoded *[]gopacket.LayerType
@@ -63,6 +64,7 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 	icmp6 := new(layers.ICMPv6)
 	tcp := new(layers.TCP)
 	udp := new(layers.UDP)
+	payload := new(gopacket.Payload)
 	var parser *gopacket.DecodingLayerParser
 	if enableNAT {
 		parser = gopacket.NewDecodingLayerParser(
@@ -71,6 +73,7 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 			ip4, icmp4,
 			ip6, icmp6,
 			tcp, udp,
+			payload,
 		)
 	} else {
 		parser = gopacket.NewDecodingLayerParser(
@@ -100,6 +103,7 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 		icmp6:     icmp6,
 		tcp:       tcp,
 		udp:       udp,
+		payload:   payload,
 		parser:    parser,
 		decoded:   decoded,
 		slOpt:     slOpt,
@@ -193,12 +197,9 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
 		case layers.LayerTypeEthernet:
-			tr.isNewSourceMAC()
-
-			// TODO client to client
-		case layers.LayerTypeARP:
-			tr.decodeARP()
-			return
+			if !tr.decodeEthernet(frame) {
+				return
+			}
 		case layers.LayerTypeIPv4:
 			tr.isNewSourceIPv4()
 			tr.isIPv4 = true
@@ -206,72 +207,103 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 			tr.isNewSourceIPv6()
 			tr.isIPv6 = true
 		case layers.LayerTypeICMPv4:
-
+			// TODO ICMP
+			return
 		case layers.LayerTypeICMPv6:
-
+			// TODO ICMP
+			return
 		case layers.LayerTypeTCP:
-			switch {
-			case tr.isIPv4:
-				tr.decodeIPv4TCP()
-			case tr.isIPv6:
-				tr.decodeIPv6TCP()
-			}
+			tr.decodeTCP(frame)
 			return
 		case layers.LayerTypeUDP:
-			switch {
-			case tr.isIPv4:
-				tr.decodeIPv4UDP()
-			case tr.isIPv6:
-				tr.decodeIPv6UDP()
-			}
+			tr.decodeUDP(frame)
 			return
 		}
 	}
 }
 
-func (tr *transporter) decodeARP() {
+// TODO think ICMPv6 like arp.
+func (tr *transporter) decodeEthernet(frame *frame) bool {
+	tr.isNewSourceMAC()
+	if tr.eth.EthernetType == layers.EthernetTypeARP {
+		if tr.decodeARPRequest(frame) {
+			return false
+		}
+	}
+	dstMACPtr := tr.macCache.Get().(*mac)
+	defer tr.macCache.Put(dstMACPtr)
+	dstMAC := *dstMACPtr
+	copy(dstMAC[:], tr.eth.DstMAC)
+	if dstMAC == broadcast {
+		tr.ctx.broadcastExcept(frame.Bytes(), tr.token)
+		return false
+	}
+	// send to the target client
+	pool := tr.ctx.getConnPoolByMAC(dstMAC)
+	if pool != nil {
+		_, _ = pool.Write(frame.Bytes())
+		return false
+	}
+	// send to the gateway
+	return true
+}
+
+func (tr *transporter) decodeARPRequest(frame *frame) bool {
 	op := tr.arp.Operation
 	switch op {
 	case layers.ARPRequest:
-		if tr.nat.gatewayIPv4.Equal(tr.arp.DstProtAddress) {
-			tr.eth.SrcMAC, tr.eth.DstMAC = tr.nat.gatewayMAC, tr.eth.SrcMAC
-			tr.arp.Operation = layers.ARPReply
-			tr.arp.DstHwAddress = tr.arp.SourceHwAddress
-			tr.arp.DstProtAddress = tr.arp.SourceProtAddress
-			tr.arp.SourceHwAddress = tr.nat.gatewayMAC
-			tr.arp.SourceProtAddress = tr.nat.gatewayIPv4
-
-			err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.arp)
-			if err != nil {
-				const format = "(%s) failed to serialize arp frame: %s"
-				tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
-				return
-			}
-
-			sb := tr.slBuf.Bytes()
-
-			// TODO improve performance
-			b := make([]byte, frameHeaderSize+len(sb))
-			binary.BigEndian.PutUint16(b, uint16(len(sb)))
-			copy(b[frameHeaderSize:], sb)
-
-			_, _ = tr.conn.Write(b)
-
-		} else {
-			// TODO client side
-
-			// then server side
-			return
+		if !tr.nat.gatewayIPv4.Equal(tr.arp.DstProtAddress) {
+			return false
 		}
+		// replace MAC and IP addresses
+		tr.eth.SrcMAC, tr.eth.DstMAC = tr.nat.gatewayMAC, tr.eth.SrcMAC
+		tr.arp.Operation = layers.ARPReply
+		tr.arp.DstHwAddress = tr.arp.SourceHwAddress
+		tr.arp.DstProtAddress = tr.arp.SourceProtAddress
+		tr.arp.SourceHwAddress = tr.nat.gatewayMAC
+		tr.arp.SourceProtAddress = tr.nat.gatewayIPv4
+		// encode data to buffer
+		err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.arp)
+		if err != nil {
+			const format = "(%s) failed to serialize arp frame: %s"
+			tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
+			return true
+		}
+		fr := tr.slBuf.Bytes()
+		frame.Reset()
+		frame.WriteHeader(len(fr))
+		frame.WriteData(fr)
+		// send to self
+		_, _ = tr.conn.Write(frame.Bytes())
+		return true
 	case layers.ARPReply:
-
+		return false
 	default:
 		const format = "(%s) invalid arp operation: 0x%X"
 		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), op)
+		return true
 	}
 }
 
-func (tr *transporter) decodeIPv4TCP() {
+func (tr *transporter) decodeTCP(frame *frame) {
+	switch {
+	case tr.isIPv4:
+		tr.decodeIPv4TCP(frame)
+	case tr.isIPv6:
+		tr.decodeIPv6TCP(frame)
+	}
+}
+
+func (tr *transporter) decodeUDP(frame *frame) {
+	switch {
+	case tr.isIPv4:
+		tr.decodeIPv4UDP(frame)
+	case tr.isIPv6:
+		tr.decodeIPv6UDP(frame)
+	}
+}
+
+func (tr *transporter) decodeIPv4TCP(frame *frame) {
 	// TODO check is local client
 	lIP := tr.ipv4.SrcIP
 	lPort := uint16(tr.tcp.SrcPort)
@@ -299,7 +331,7 @@ func (tr *transporter) decodeIPv4TCP() {
 	_ = tr.handle.WritePacketData(sb)
 }
 
-func (tr *transporter) decodeIPv4UDP() {
+func (tr *transporter) decodeIPv4UDP(frame *frame) {
 	// TODO check is local client
 	lIP := tr.ipv4.SrcIP
 	lPort := uint16(tr.udp.SrcPort)
@@ -330,11 +362,11 @@ func (tr *transporter) decodeIPv4UDP() {
 	_ = tr.handle.WritePacketData(sb)
 }
 
-func (tr *transporter) decodeIPv6TCP() {
+func (tr *transporter) decodeIPv6TCP(frame *frame) {
 
 }
 
-func (tr *transporter) decodeIPv6UDP() {
+func (tr *transporter) decodeIPv6UDP(frame *frame) {
 
 }
 
