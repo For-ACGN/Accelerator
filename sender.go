@@ -237,8 +237,8 @@ func (s *frameSender) sendIPv4TCP(frame *frame) {
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv4.DstIP, li.localIP[:])
 	s.tcp.DstPort = layers.TCPPort(binary.BigEndian.Uint16(li.localPort[:]))
-	_ = s.tcp.SetNetworkLayerForChecksum(s.ipv4)
 	// encode data to buffer
+	_ = s.tcp.SetNetworkLayerForChecksum(s.ipv4)
 	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.tcp, s.payload)
 	if err != nil {
 		const format = "failed to serialize ipv4 tcp frame: %s"
@@ -274,8 +274,8 @@ func (s *frameSender) sendIPv6TCP(frame *frame) {
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv6.DstIP, li.localIP[:])
 	s.tcp.DstPort = layers.TCPPort(binary.BigEndian.Uint16(li.localPort[:]))
-	_ = s.tcp.SetNetworkLayerForChecksum(s.ipv6)
 	// encode data to buffer
+	_ = s.tcp.SetNetworkLayerForChecksum(s.ipv6)
 	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.tcp, s.payload)
 	if err != nil {
 		const format = "failed to serialize ipv6 tcp frame: %s"

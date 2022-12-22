@@ -213,10 +213,10 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 			// TODO ICMP
 			return
 		case layers.LayerTypeTCP:
-			tr.decodeTCP(frame)
+			tr.decodeTCP()
 			return
 		case layers.LayerTypeUDP:
-			tr.decodeUDP(frame)
+			tr.decodeUDP()
 			return
 		}
 	}
@@ -225,6 +225,10 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 // TODO think ICMPv6 like arp.
 func (tr *transporter) decodeEthernet(frame *frame) bool {
 	tr.isNewSourceMAC()
+	// send to the gateway
+	if bytes.Equal(tr.eth.DstMAC, tr.nat.gatewayMAC) {
+		return true
+	}
 	if tr.eth.EthernetType == layers.EthernetTypeARP {
 		if tr.decodeARPRequest(frame) {
 			return false
@@ -244,8 +248,7 @@ func (tr *transporter) decodeEthernet(frame *frame) bool {
 		_, _ = pool.Write(frame.Bytes())
 		return false
 	}
-	// send to the gateway
-	return true
+	return false
 }
 
 func (tr *transporter) decodeARPRequest(frame *frame) bool {
@@ -285,88 +288,75 @@ func (tr *transporter) decodeARPRequest(frame *frame) bool {
 	}
 }
 
-func (tr *transporter) decodeTCP(frame *frame) {
+func (tr *transporter) decodeTCP() {
 	switch {
 	case tr.isIPv4:
-		tr.decodeIPv4TCP(frame)
+		tr.decodeIPv4TCP()
 	case tr.isIPv6:
-		tr.decodeIPv6TCP(frame)
+		tr.decodeIPv6TCP()
 	}
 }
 
-func (tr *transporter) decodeUDP(frame *frame) {
+func (tr *transporter) decodeUDP() {
 	switch {
 	case tr.isIPv4:
-		tr.decodeIPv4UDP(frame)
+		tr.decodeIPv4UDP()
 	case tr.isIPv6:
-		tr.decodeIPv6UDP(frame)
+		tr.decodeIPv6UDP()
 	}
 }
 
-func (tr *transporter) decodeIPv4TCP(frame *frame) {
-	// TODO check is local client
+func (tr *transporter) decodeIPv4TCP() {
+	// add port map to nat
 	lIP := tr.ipv4.SrcIP
 	lPort := uint16(tr.tcp.SrcPort)
 	rIP := tr.ipv4.DstIP
 	rPort := uint16(tr.tcp.DstPort)
 	natPort := tr.nat.AddIPv4TCPPortMap(lIP, lPort, rIP, rPort)
-
+	// replace MAC, IP addresses and port
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv4.SrcIP = tr.nat.localIPv4
 	tr.tcp.SrcPort = layers.TCPPort(natPort)
-
+	// encode data to buffer
 	_ = tr.tcp.SetNetworkLayerForChecksum(tr.ipv4)
-
-	payload := gopacket.Payload(tr.tcp.Payload)
-
-	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.tcp, payload)
+	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.tcp, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 tcp frame: %s"
 		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
 		return
 	}
-
-	sb := tr.slBuf.Bytes()
-
-	_ = tr.handle.WritePacketData(sb)
+	data := tr.slBuf.Bytes()
+	_ = tr.handle.WritePacketData(data)
 }
 
-func (tr *transporter) decodeIPv4UDP(frame *frame) {
-	// TODO check is local client
+func (tr *transporter) decodeIPv4UDP() {
+	// add port map to nat
 	lIP := tr.ipv4.SrcIP
 	lPort := uint16(tr.udp.SrcPort)
 	rIP := tr.ipv4.DstIP
 	rPort := uint16(tr.udp.DstPort)
 	natPort := tr.nat.AddIPv4UDPPortMap(lIP, lPort, rIP, rPort)
-
+	// replace MAC, IP addresses and port
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv4.SrcIP = tr.nat.localIPv4
 	tr.udp.SrcPort = layers.UDPPort(natPort)
-
+	// encode data to buffer
 	_ = tr.udp.SetNetworkLayerForChecksum(tr.ipv4)
-
-	// payload := make(gopacket.Payload, len(tc.udp.Payload))
-	// copy(payload, tc.udp.Payload)
-
-	payload := gopacket.Payload(tr.udp.Payload)
-
-	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.udp, payload)
+	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.udp, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 udp frame: %s"
 		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
 		return
 	}
-
-	sb := tr.slBuf.Bytes()
-
-	_ = tr.handle.WritePacketData(sb)
+	data := tr.slBuf.Bytes()
+	_ = tr.handle.WritePacketData(data)
 }
 
-func (tr *transporter) decodeIPv6TCP(frame *frame) {
+func (tr *transporter) decodeIPv6TCP() {
 
 }
 
-func (tr *transporter) decodeIPv6UDP(frame *frame) {
+func (tr *transporter) decodeIPv6UDP() {
 
 }
 
