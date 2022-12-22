@@ -13,10 +13,10 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-// transConn is used to read packet from client side and
+// transporter is used to read frame from client side and
 // process it, then write it to the destination network
 // interface or the other client connection.
-type transConn struct {
+type transporter struct {
 	ctx *Server
 
 	enableNAT bool
@@ -43,17 +43,17 @@ type transConn struct {
 	isIPv4 bool
 	isIPv6 bool
 
+	macCache  sync.Pool
+	ipv4Cache sync.Pool
+	ipv6Cache sync.Pool
+
 	// check has new
 	srcMAC  []net.HardwareAddr
 	srcIPv4 []net.IP
 	srcIPv6 []net.IP
-
-	macCache  sync.Pool
-	ipv4Cache sync.Pool
-	ipv6Cache sync.Pool
 }
 
-func (srv *Server) newTransportConn(conn net.Conn, token sessionToken) *transConn {
+func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporter {
 	enableNAT := srv.enableNAT
 	eth := new(layers.Ethernet)
 	arp := new(layers.ARP)
@@ -85,7 +85,7 @@ func (srv *Server) newTransportConn(conn net.Conn, token sessionToken) *transCon
 		ComputeChecksums: true,
 	}
 	slBuf := gopacket.NewSerializeBuffer()
-	tc := transConn{
+	tc := transporter{
 		ctx:       srv,
 		enableNAT: enableNAT,
 		nat:       srv.nat,
@@ -117,8 +117,8 @@ func (srv *Server) newTransportConn(conn net.Conn, token sessionToken) *transCon
 	return &tc
 }
 
-func (tc *transConn) transport() {
-	_ = tc.conn.SetDeadline(time.Time{})
+func (tr *transporter) transport() {
+	_ = tr.conn.SetDeadline(time.Time{})
 	var (
 		size uint16
 		err  error
@@ -127,135 +127,135 @@ func (tc *transConn) transport() {
 	fr := newFrame()
 	for {
 		// read frame size
-		_, err = io.ReadFull(tc.conn, buf[:frameHeaderSize])
+		_, err = io.ReadFull(tr.conn, buf[:frameHeaderSize])
 		if err != nil {
 			return
 		}
 		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
 		if size > maxFrameSize {
 			const format = "(%s) receive too large frame: 0x%X"
-			tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), buf[:frameHeaderSize])
+			tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), buf[:frameHeaderSize])
 			return
 		}
 		// read frame data
-		_, err = io.ReadFull(tc.conn, buf[:size])
+		_, err = io.ReadFull(tr.conn, buf[:size])
 		if err != nil {
 			return
 		}
 		fr.Reset()
 		fr.WriteHeader(int(size))
 		fr.WriteData(buf[:size])
-		if tc.enableNAT {
-			tc.decodeWithNAT(fr)
+		if tr.enableNAT {
+			tr.decodeWithNAT(fr)
 		} else {
-			tc.decodeWithoutNAT(fr)
+			tr.decodeWithoutNAT(fr)
 		}
 	}
 }
 
-func (tc *transConn) decodeWithoutNAT(frame *frame) {
-	err := tc.parser.DecodeLayers(frame.Data(), tc.decoded)
+func (tr *transporter) decodeWithoutNAT(frame *frame) {
+	err := tr.parser.DecodeLayers(frame.Data(), tr.decoded)
 	if err != nil {
 		return
 	}
-	decoded := *tc.decoded
+	decoded := *tr.decoded
 	if len(decoded) < 1 || decoded[0] != layers.LayerTypeEthernet {
 		return
 	}
-	tc.isNewSourceMAC()
-	dstMACPtr := tc.macCache.Get().(*mac)
-	defer tc.macCache.Put(dstMACPtr)
+	tr.isNewSourceMAC()
+	dstMACPtr := tr.macCache.Get().(*mac)
+	defer tr.macCache.Put(dstMACPtr)
 	dstMAC := *dstMACPtr
-	copy(dstMAC[:], tc.eth.DstMAC)
+	copy(dstMAC[:], tr.eth.DstMAC)
 	if dstMAC == broadcast {
-		_ = tc.handle.WritePacketData(frame.Data())
-		tc.ctx.broadcastExcept(frame.Bytes(), tc.token)
+		_ = tr.handle.WritePacketData(frame.Data())
+		tr.ctx.broadcastExcept(frame.Bytes(), tr.token)
 		return
 	}
 	// send to the target client
-	pool := tc.ctx.getConnPoolByMAC(dstMAC)
+	pool := tr.ctx.getConnPoolByMAC(dstMAC)
 	if pool != nil {
 		_, _ = pool.Write(frame.Bytes())
 		return
 	}
 	// send to the under interface
-	_ = tc.handle.WritePacketData(frame.Data())
+	_ = tr.handle.WritePacketData(frame.Data())
 }
 
-func (tc *transConn) decodeWithNAT(frame *frame) {
-	err := tc.parser.DecodeLayers(frame.Data(), tc.decoded)
+func (tr *transporter) decodeWithNAT(frame *frame) {
+	err := tr.parser.DecodeLayers(frame.Data(), tr.decoded)
 	if err != nil {
 		return
 	}
-	tc.isIPv4 = false
-	tc.isIPv6 = false
-	decoded := *tc.decoded
+	tr.isIPv4 = false
+	tr.isIPv6 = false
+	decoded := *tr.decoded
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
 		case layers.LayerTypeEthernet:
-			tc.isNewSourceMAC()
+			tr.isNewSourceMAC()
 
 			// TODO client to client
 		case layers.LayerTypeARP:
-			tc.decodeARP()
+			tr.decodeARP()
 			return
 		case layers.LayerTypeIPv4:
-			tc.isNewSourceIPv4()
-			tc.isIPv4 = true
+			tr.isNewSourceIPv4()
+			tr.isIPv4 = true
 		case layers.LayerTypeIPv6:
-			tc.isNewSourceIPv6()
-			tc.isIPv6 = true
+			tr.isNewSourceIPv6()
+			tr.isIPv6 = true
 		case layers.LayerTypeICMPv4:
 
 		case layers.LayerTypeICMPv6:
 
 		case layers.LayerTypeTCP:
 			switch {
-			case tc.isIPv4:
-				tc.decodeIPv4TCP()
-			case tc.isIPv6:
-				tc.decodeIPv6TCP()
+			case tr.isIPv4:
+				tr.decodeIPv4TCP()
+			case tr.isIPv6:
+				tr.decodeIPv6TCP()
 			}
 			return
 		case layers.LayerTypeUDP:
 			switch {
-			case tc.isIPv4:
-				tc.decodeIPv4UDP()
-			case tc.isIPv6:
-				tc.decodeIPv6UDP()
+			case tr.isIPv4:
+				tr.decodeIPv4UDP()
+			case tr.isIPv6:
+				tr.decodeIPv6UDP()
 			}
 			return
 		}
 	}
 }
 
-func (tc *transConn) decodeARP() {
-	op := tc.arp.Operation
+func (tr *transporter) decodeARP() {
+	op := tr.arp.Operation
 	switch op {
 	case layers.ARPRequest:
-		if tc.nat.gatewayIPv4.Equal(tc.arp.DstProtAddress) {
-			tc.eth.SrcMAC, tc.eth.DstMAC = tc.nat.gatewayMAC, tc.eth.SrcMAC
-			tc.arp.Operation = layers.ARPReply
-			tc.arp.DstHwAddress = tc.arp.SourceHwAddress
-			tc.arp.DstProtAddress = tc.arp.SourceProtAddress
-			tc.arp.SourceHwAddress = tc.nat.gatewayMAC
-			tc.arp.SourceProtAddress = tc.nat.gatewayIPv4
+		if tr.nat.gatewayIPv4.Equal(tr.arp.DstProtAddress) {
+			tr.eth.SrcMAC, tr.eth.DstMAC = tr.nat.gatewayMAC, tr.eth.SrcMAC
+			tr.arp.Operation = layers.ARPReply
+			tr.arp.DstHwAddress = tr.arp.SourceHwAddress
+			tr.arp.DstProtAddress = tr.arp.SourceProtAddress
+			tr.arp.SourceHwAddress = tr.nat.gatewayMAC
+			tr.arp.SourceProtAddress = tr.nat.gatewayIPv4
 
-			err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.arp)
+			err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.arp)
 			if err != nil {
 				const format = "(%s) failed to serialize arp frame: %s"
-				tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
+				tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
 				return
 			}
 
-			sb := tc.slBuf.Bytes()
+			sb := tr.slBuf.Bytes()
 
 			// TODO improve performance
 			b := make([]byte, frameHeaderSize+len(sb))
 			binary.BigEndian.PutUint16(b, uint16(len(sb)))
 			copy(b[frameHeaderSize:], sb)
 
-			_, _ = tc.conn.Write(b)
+			_, _ = tr.conn.Write(b)
 
 		} else {
 			// TODO client side
@@ -267,84 +267,84 @@ func (tc *transConn) decodeARP() {
 
 	default:
 		const format = "(%s) invalid arp operation: 0x%X"
-		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), op)
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), op)
 	}
 }
 
-func (tc *transConn) decodeIPv4TCP() {
+func (tr *transporter) decodeIPv4TCP() {
 	// TODO check is local client
-	lIP := tc.ipv4.SrcIP
-	lPort := uint16(tc.tcp.SrcPort)
-	rIP := tc.ipv4.DstIP
-	rPort := uint16(tc.tcp.DstPort)
-	natPort := tc.nat.AddIPv4TCPPortMap(lIP, lPort, rIP, rPort)
+	lIP := tr.ipv4.SrcIP
+	lPort := uint16(tr.tcp.SrcPort)
+	rIP := tr.ipv4.DstIP
+	rPort := uint16(tr.tcp.DstPort)
+	natPort := tr.nat.AddIPv4TCPPortMap(lIP, lPort, rIP, rPort)
 
-	tc.eth.SrcMAC = tc.nat.localMAC
-	tc.ipv4.SrcIP = tc.nat.localIPv4
-	tc.tcp.SrcPort = layers.TCPPort(natPort)
+	tr.eth.SrcMAC = tr.nat.localMAC
+	tr.ipv4.SrcIP = tr.nat.localIPv4
+	tr.tcp.SrcPort = layers.TCPPort(natPort)
 
-	_ = tc.tcp.SetNetworkLayerForChecksum(tc.ipv4)
+	_ = tr.tcp.SetNetworkLayerForChecksum(tr.ipv4)
 
-	payload := gopacket.Payload(tc.tcp.Payload)
+	payload := gopacket.Payload(tr.tcp.Payload)
 
-	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.tcp, payload)
+	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.tcp, payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 tcp frame: %s"
-		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
 		return
 	}
 
-	sb := tc.slBuf.Bytes()
+	sb := tr.slBuf.Bytes()
 
-	_ = tc.handle.WritePacketData(sb)
+	_ = tr.handle.WritePacketData(sb)
 }
 
-func (tc *transConn) decodeIPv4UDP() {
+func (tr *transporter) decodeIPv4UDP() {
 	// TODO check is local client
-	lIP := tc.ipv4.SrcIP
-	lPort := uint16(tc.udp.SrcPort)
-	rIP := tc.ipv4.DstIP
-	rPort := uint16(tc.udp.DstPort)
-	natPort := tc.nat.AddIPv4UDPPortMap(lIP, lPort, rIP, rPort)
+	lIP := tr.ipv4.SrcIP
+	lPort := uint16(tr.udp.SrcPort)
+	rIP := tr.ipv4.DstIP
+	rPort := uint16(tr.udp.DstPort)
+	natPort := tr.nat.AddIPv4UDPPortMap(lIP, lPort, rIP, rPort)
 
-	tc.eth.SrcMAC = tc.nat.localMAC
-	tc.ipv4.SrcIP = tc.nat.localIPv4
-	tc.udp.SrcPort = layers.UDPPort(natPort)
+	tr.eth.SrcMAC = tr.nat.localMAC
+	tr.ipv4.SrcIP = tr.nat.localIPv4
+	tr.udp.SrcPort = layers.UDPPort(natPort)
 
-	_ = tc.udp.SetNetworkLayerForChecksum(tc.ipv4)
+	_ = tr.udp.SetNetworkLayerForChecksum(tr.ipv4)
 
 	// payload := make(gopacket.Payload, len(tc.udp.Payload))
 	// copy(payload, tc.udp.Payload)
 
-	payload := gopacket.Payload(tc.udp.Payload)
+	payload := gopacket.Payload(tr.udp.Payload)
 
-	err := gopacket.SerializeLayers(tc.slBuf, tc.slOpt, tc.eth, tc.ipv4, tc.udp, payload)
+	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.udp, payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 udp frame: %s"
-		tc.ctx.logger.Warningf(format, tc.conn.RemoteAddr(), err)
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
 		return
 	}
 
-	sb := tc.slBuf.Bytes()
+	sb := tr.slBuf.Bytes()
 
-	_ = tc.handle.WritePacketData(sb)
+	_ = tr.handle.WritePacketData(sb)
 }
 
-func (tc *transConn) decodeIPv6TCP() {
-
-}
-
-func (tc *transConn) decodeIPv6UDP() {
+func (tr *transporter) decodeIPv6TCP() {
 
 }
 
-func (tc *transConn) isNewSourceMAC() {
-	if bytes.Equal(tc.eth.SrcMAC, broadcast[:]) {
+func (tr *transporter) decodeIPv6UDP() {
+
+}
+
+func (tr *transporter) isNewSourceMAC() {
+	if bytes.Equal(tr.eth.SrcMAC, broadcast[:]) {
 		return
 	}
 	var exist bool
-	for i := 0; i < len(tc.srcMAC); i++ {
-		if bytes.Equal(tc.srcMAC[i], tc.eth.SrcMAC) {
+	for i := 0; i < len(tr.srcMAC); i++ {
+		if bytes.Equal(tr.srcMAC[i], tr.eth.SrcMAC) {
 			exist = true
 			break
 		}
@@ -354,18 +354,18 @@ func (tc *transConn) isNewSourceMAC() {
 	}
 	// must copy, because DecodeLayers use reference
 	srcMAC := mac{}
-	copy(srcMAC[:], tc.eth.SrcMAC)
-	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
-	tc.ctx.bindMAC(tc.token, srcMAC)
+	copy(srcMAC[:], tr.eth.SrcMAC)
+	tr.srcMAC = append(tr.srcMAC, srcMAC[:])
+	tr.ctx.bindMAC(tr.token, srcMAC)
 }
 
-func (tc *transConn) isNewSourceIPv4() {
-	if !tc.ipv4.SrcIP.IsGlobalUnicast() {
+func (tr *transporter) isNewSourceIPv4() {
+	if !tr.ipv4.SrcIP.IsGlobalUnicast() {
 		return
 	}
 	var exist bool
-	for i := 0; i < len(tc.srcIPv4); i++ {
-		if tc.srcIPv4[i].Equal(tc.ipv4.SrcIP) {
+	for i := 0; i < len(tr.srcIPv4); i++ {
+		if tr.srcIPv4[i].Equal(tr.ipv4.SrcIP) {
 			exist = true
 			break
 		}
@@ -375,24 +375,24 @@ func (tc *transConn) isNewSourceIPv4() {
 	}
 	// must copy, because DecodeLayers use reference
 	srcIP := ipv4{}
-	copy(srcIP[:], tc.ipv4.SrcIP)
-	tc.srcIPv4 = append(tc.srcIPv4, srcIP[:])
-	if !tc.ctx.bindIPv4(tc.token, srcIP) {
+	copy(srcIP[:], tr.ipv4.SrcIP)
+	tr.srcIPv4 = append(tr.srcIPv4, srcIP[:])
+	if !tr.ctx.bindIPv4(tr.token, srcIP) {
 		return
 	}
 	srcMAC := mac{}
-	copy(srcMAC[:], tc.eth.SrcMAC)
-	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
-	tc.ctx.bindIPv4ToMAC(srcIP, srcMAC)
+	copy(srcMAC[:], tr.eth.SrcMAC)
+	tr.srcMAC = append(tr.srcMAC, srcMAC[:])
+	tr.ctx.bindIPv4ToMAC(srcIP, srcMAC)
 }
 
-func (tc *transConn) isNewSourceIPv6() {
-	if !tc.ipv6.SrcIP.IsGlobalUnicast() {
+func (tr *transporter) isNewSourceIPv6() {
+	if !tr.ipv6.SrcIP.IsGlobalUnicast() {
 		return
 	}
 	var exist bool
-	for i := 0; i < len(tc.srcIPv6); i++ {
-		if tc.srcIPv6[i].Equal(tc.ipv6.SrcIP) {
+	for i := 0; i < len(tr.srcIPv6); i++ {
+		if tr.srcIPv6[i].Equal(tr.ipv6.SrcIP) {
 			exist = true
 			break
 		}
@@ -402,13 +402,13 @@ func (tc *transConn) isNewSourceIPv6() {
 	}
 	// must copy, because DecodeLayers use reference
 	srcIP := ipv6{}
-	copy(srcIP[:], tc.ipv6.SrcIP)
-	tc.srcIPv6 = append(tc.srcIPv6, srcIP[:])
-	if !tc.ctx.bindIPv6(tc.token, srcIP) {
+	copy(srcIP[:], tr.ipv6.SrcIP)
+	tr.srcIPv6 = append(tr.srcIPv6, srcIP[:])
+	if !tr.ctx.bindIPv6(tr.token, srcIP) {
 		return
 	}
 	srcMAC := mac{}
-	copy(srcMAC[:], tc.eth.SrcMAC)
-	tc.srcMAC = append(tc.srcMAC, srcMAC[:])
-	tc.ctx.bindIPv6ToMAC(srcIP, srcMAC)
+	copy(srcMAC[:], tr.eth.SrcMAC)
+	tr.srcMAC = append(tr.srcMAC, srcMAC[:])
+	tr.ctx.bindIPv6ToMAC(srcIP, srcMAC)
 }

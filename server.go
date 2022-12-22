@@ -603,8 +603,8 @@ func (srv *Server) handleTransport(conn net.Conn) {
 	atomic.AddInt32(&srv.numTr, 1)
 	defer atomic.AddInt32(&srv.numTr, -1)
 	// start transport frame
-	tc := srv.newTransportConn(conn, token)
-	tc.transport()
+	tr := srv.newTransporter(conn, token)
+	tr.transport()
 }
 
 func (srv *Server) writeTransportResponse(conn net.Conn, resp byte) error {
