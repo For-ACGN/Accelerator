@@ -329,6 +329,29 @@ func (tr *transporter) decodeIPv4TCP() {
 	_ = tr.handle.WritePacketData(data)
 }
 
+func (tr *transporter) decodeIPv6TCP() {
+	// add port map to nat
+	lIP := tr.ipv6.SrcIP
+	lPort := uint16(tr.tcp.SrcPort)
+	rIP := tr.ipv6.DstIP
+	rPort := uint16(tr.tcp.DstPort)
+	natPort := tr.nat.AddIPv6TCPPortMap(lIP, lPort, rIP, rPort)
+	// replace MAC, IP addresses and port
+	tr.eth.SrcMAC = tr.nat.localMAC
+	tr.ipv6.SrcIP = tr.nat.localIPv6
+	tr.tcp.SrcPort = layers.TCPPort(natPort)
+	// encode data to buffer
+	_ = tr.tcp.SetNetworkLayerForChecksum(tr.ipv6)
+	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv6, tr.tcp, tr.payload)
+	if err != nil {
+		const format = "(%s) failed to serialize ipv6 tcp frame: %s"
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
+		return
+	}
+	data := tr.slBuf.Bytes()
+	_ = tr.handle.WritePacketData(data)
+}
+
 func (tr *transporter) decodeIPv4UDP() {
 	// add port map to nat
 	lIP := tr.ipv4.SrcIP
@@ -352,12 +375,27 @@ func (tr *transporter) decodeIPv4UDP() {
 	_ = tr.handle.WritePacketData(data)
 }
 
-func (tr *transporter) decodeIPv6TCP() {
-
-}
-
 func (tr *transporter) decodeIPv6UDP() {
-
+	// add port map to nat
+	lIP := tr.ipv6.SrcIP
+	lPort := uint16(tr.udp.SrcPort)
+	rIP := tr.ipv6.DstIP
+	rPort := uint16(tr.udp.DstPort)
+	natPort := tr.nat.AddIPv6UDPPortMap(lIP, lPort, rIP, rPort)
+	// replace MAC, IP addresses and port
+	tr.eth.SrcMAC = tr.nat.localMAC
+	tr.ipv6.SrcIP = tr.nat.localIPv6
+	tr.udp.SrcPort = layers.UDPPort(natPort)
+	// encode data to buffer
+	_ = tr.udp.SetNetworkLayerForChecksum(tr.ipv6)
+	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv6, tr.udp, tr.payload)
+	if err != nil {
+		const format = "(%s) failed to serialize ipv6 udp frame: %s"
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
+		return
+	}
+	data := tr.slBuf.Bytes()
+	_ = tr.handle.WritePacketData(data)
 }
 
 func (tr *transporter) isNewSourceMAC() {

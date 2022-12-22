@@ -311,8 +311,8 @@ func (s *frameSender) sendIPv4UDP(frame *frame) {
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv4.DstIP, li.localIP[:])
 	s.udp.DstPort = layers.UDPPort(binary.BigEndian.Uint16(li.localPort[:]))
-	_ = s.udp.SetNetworkLayerForChecksum(s.ipv4)
 	// encode data to buffer
+	_ = s.udp.SetNetworkLayerForChecksum(s.ipv4)
 	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.udp, s.payload)
 	if err != nil {
 		const format = "failed to serialize ipv4 udp frame: %s"
@@ -348,8 +348,8 @@ func (s *frameSender) sendIPv6UDP(frame *frame) {
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv6.DstIP, li.localIP[:])
 	s.udp.DstPort = layers.UDPPort(binary.BigEndian.Uint16(li.localPort[:]))
-	_ = s.udp.SetNetworkLayerForChecksum(s.ipv6)
 	// encode data to buffer
+	_ = s.udp.SetNetworkLayerForChecksum(s.ipv6)
 	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.udp, s.payload)
 	if err != nil {
 		const format = "failed to serialize ipv6 udp frame: %s"
