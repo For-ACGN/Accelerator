@@ -153,10 +153,7 @@ func (tc *transConn) decodeWithoutNAT(buf []byte) {
 		return
 	}
 	decoded := *tc.decoded
-	if len(decoded) < 1 {
-		return
-	}
-	if decoded[0] != layers.LayerTypeEthernet {
+	if len(decoded) < 1 || decoded[0] != layers.LayerTypeEthernet {
 		return
 	}
 	tc.isNewSourceMAC()
@@ -174,7 +171,7 @@ func (tc *transConn) decodeWithoutNAT(buf []byte) {
 		tc.ctx.broadcastExcept(buf, tc.token)
 		return
 	}
-	// check it is sent to one client
+	// send to the target client
 	pool := tc.ctx.getConnPoolByMAC(dstMAC)
 	if pool != nil {
 
