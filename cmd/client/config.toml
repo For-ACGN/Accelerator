@@ -1,5 +1,5 @@
 [common]
-  interface = "Ethernet"
+  interface = "Ethernet" # select network interface like "WLAN", "Ethernet", "eth0"
   pwd_hash  = "bfc6885fabb921c9c9094cb0118864a4605bec2cdf81869ee844ec2c7f1b7f73" # test
   log_path  = "acc-client.log"
 

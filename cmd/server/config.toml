@@ -1,5 +1,5 @@
 [common]
-  interface = "eth0"
+  interface = "eth0" # run "acc-server.exe -list-dev" on Windows
   pwd_hash  = "bfc6885fabb921c9c9094cb0118864a4605bec2cdf81869ee844ec2c7f1b7f73" # test
   log_path  = "acc-server.log"
 
@@ -23,6 +23,9 @@
   server_key  = "certs/server_key.pem"
   client_ca   = "certs/client_ca.pem"
 
+# If NAT is disabled, accelerator will use bridge mode.
+# On cloud computing platform like aws, usually need to
+# enable it(virtual network interface maybe filter it).
 [nat]
   enabled     = false
   map_timeout = "1m"

@@ -23,6 +23,7 @@ var (
 	password  string
 	listDev   bool
 	pprofAddr string
+	pprofURL  string
 )
 
 func init() {
@@ -30,6 +31,7 @@ func init() {
 	flag.StringVar(&password, "gen-hash", "", "generate password hash")
 	flag.BoolVar(&listDev, "list-dev", false, "list network interface")
 	flag.StringVar(&pprofAddr, "pprof-addr", "", "start pprof web server")
+	flag.StringVar(&pprofURL, "pprof-url", "", "pprof web server url")
 	flag.Parse()
 }
 
@@ -112,11 +114,11 @@ func runPPROF() {
 	checkError(err)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/debug/pprof/", pprof.Index)
-	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	mux.HandleFunc("/"+pprofURL+"debug/pprof/", pprof.Index)
+	mux.HandleFunc("/"+pprofURL+"debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/"+pprofURL+"debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/"+pprofURL+"debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/"+pprofURL+"debug/pprof/trace", pprof.Trace)
 
 	server := &http.Server{
 		Handler:      mux,
