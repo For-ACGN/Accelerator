@@ -30,7 +30,7 @@ func newLogger(path string) (*logger, error) {
 	if err != nil {
 		return nil, err
 	}
-	lg := log.New(io.MultiWriter(os.Stdout, file), "", log.LstdFlags)
+	lg := log.New(io.MultiWriter(file, os.Stdout), "", log.LstdFlags)
 	return &logger{logger: lg, file: file}, nil
 }
 

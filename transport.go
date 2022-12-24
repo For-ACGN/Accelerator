@@ -26,20 +26,20 @@ type transporter struct {
 	conn   net.Conn
 	token  sessionToken
 
-	eth     *layers.Ethernet
-	arp     *layers.ARP
-	ipv4    *layers.IPv4
-	ipv6    *layers.IPv6
-	icmp4   *layers.ICMPv4
-	icmp6   *layers.ICMPv6
-	tcp     *layers.TCP
-	udp     *layers.UDP
-	payload *gopacket.Payload
+	eth   *layers.Ethernet
+	arp   *layers.ARP
+	ipv4  *layers.IPv4
+	ipv6  *layers.IPv6
+	icmp4 *layers.ICMPv4
+	icmp6 *layers.ICMPv6
+	tcp   *layers.TCP
+	udp   *layers.UDP
 
 	parser  *gopacket.DecodingLayerParser
 	decoded *[]gopacket.LayerType
 	slOpt   gopacket.SerializeOptions
 	slBuf   gopacket.SerializeBuffer
+	payload gopacket.Payload
 
 	isIPv4 bool
 	isIPv6 bool
@@ -64,7 +64,6 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 	icmp6 := new(layers.ICMPv6)
 	tcp := new(layers.TCP)
 	udp := new(layers.UDP)
-	payload := new(gopacket.Payload)
 	var parser *gopacket.DecodingLayerParser
 	if enableNAT {
 		parser = gopacket.NewDecodingLayerParser(
@@ -73,7 +72,6 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 			ip4, icmp4,
 			ip6, icmp6,
 			tcp, udp,
-			payload,
 		)
 	} else {
 		parser = gopacket.NewDecodingLayerParser(
@@ -103,7 +101,6 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 		icmp6:     icmp6,
 		tcp:       tcp,
 		udp:       udp,
-		payload:   payload,
 		parser:    parser,
 		decoded:   decoded,
 		slOpt:     slOpt,
@@ -319,6 +316,7 @@ func (tr *transporter) decodeIPv4TCP() {
 	tr.tcp.SrcPort = layers.TCPPort(natPort)
 	// encode data to buffer
 	_ = tr.tcp.SetNetworkLayerForChecksum(tr.ipv4)
+	tr.payload = tr.tcp.Payload
 	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.tcp, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 tcp frame: %s"
@@ -342,6 +340,7 @@ func (tr *transporter) decodeIPv6TCP() {
 	tr.tcp.SrcPort = layers.TCPPort(natPort)
 	// encode data to buffer
 	_ = tr.tcp.SetNetworkLayerForChecksum(tr.ipv6)
+	tr.payload = tr.tcp.Payload
 	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv6, tr.tcp, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv6 tcp frame: %s"
@@ -365,6 +364,7 @@ func (tr *transporter) decodeIPv4UDP() {
 	tr.udp.SrcPort = layers.UDPPort(natPort)
 	// encode data to buffer
 	_ = tr.udp.SetNetworkLayerForChecksum(tr.ipv4)
+	tr.payload = tr.udp.Payload
 	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.udp, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 udp frame: %s"
@@ -388,6 +388,7 @@ func (tr *transporter) decodeIPv6UDP() {
 	tr.udp.SrcPort = layers.UDPPort(natPort)
 	// encode data to buffer
 	_ = tr.udp.SetNetworkLayerForChecksum(tr.ipv6)
+	tr.payload = tr.udp.Payload
 	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv6, tr.udp, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv6 udp frame: %s"

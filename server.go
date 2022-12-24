@@ -204,10 +204,6 @@ func openPcapDevice(device string) (*pcap.Handle, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = handle.SetDirection(pcap.DirectionIn)
-	if err != nil {
-		return nil, err
-	}
 	ok = true
 	return handle, nil
 }
