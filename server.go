@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -381,17 +382,22 @@ func (srv *Server) handleConn(conn net.Conn) {
 			srv.logger.Fatal("Server.handleConn", r)
 		}
 	}()
+	remoteAddr := conn.RemoteAddr()
 	defer func() {
 		err := conn.Close()
 		if err != nil && !errors.Is(err, net.ErrClosed) {
-			srv.logger.Error(err)
+			if strings.Contains(err.Error(), "tls: failed to send closeNotify alert") {
+				return
+			}
+			const format = "(%s) failed to close transporter: %s"
+			srv.logger.Errorf(format, remoteAddr, err)
 		}
 	}()
 	_ = conn.SetDeadline(time.Now().Add(3 * srv.timeout))
 	err := srv.authenticate(conn)
 	if err != nil {
 		const format = "(%s) failed to authenticate: %s"
-		srv.logger.Warningf(format, conn.RemoteAddr(), err)
+		srv.logger.Warningf(format, remoteAddr, err)
 		return
 	}
 	// read command
@@ -399,7 +405,7 @@ func (srv *Server) handleConn(conn net.Conn) {
 	_, err = io.ReadFull(conn, buf)
 	if err != nil {
 		const format = "(%s) failed to receive command: %s"
-		srv.logger.Errorf(format, conn.RemoteAddr(), err)
+		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
 	cmd := buf[0]
@@ -412,7 +418,7 @@ func (srv *Server) handleConn(conn net.Conn) {
 		srv.handleTransport(conn)
 	default:
 		const format = "(%s) receive invalid command: %d"
-		srv.logger.Warningf(format, conn.RemoteAddr(), cmd)
+		srv.logger.Warningf(format, remoteAddr, cmd)
 	}
 }
 

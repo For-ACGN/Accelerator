@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -580,7 +581,10 @@ func (client *Client) transport(conn net.Conn) {
 	defer func() {
 		err := conn.Close()
 		if err != nil && !errors.Is(err, net.ErrClosed) {
-			client.logger.Error(err)
+			if strings.Contains(err.Error(), "tls: failed to send closeNotify alert") {
+				return
+			}
+			client.logger.Error("failed to close transporter:", err)
 		}
 	}()
 	_ = conn.SetDeadline(time.Time{})
