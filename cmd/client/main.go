@@ -10,6 +10,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
 
@@ -62,11 +63,13 @@ func main() {
 
 		// stop signal
 		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, os.Interrupt)
+		signal.Notify(signalCh, os.Interrupt, os.Kill)
 		<-signalCh
 
 		err := client.Close()
-		checkError(err)
+		if err != nil {
+			log.Println("appear error when close client:", err)
+		}
 	}()
 
 	err = client.Run()
@@ -79,12 +82,35 @@ func runPPROF() {
 	listener, err := net.Listen("tcp", pprofAddr)
 	checkError(err)
 
+	if pprofURL != "" {
+		if pprofURL[0] != '/' {
+			pprofURL = "/" + pprofURL
+		}
+		last := len(pprofURL) - 1
+		if pprofURL[last] == '/' {
+			pprofURL = pprofURL[:last]
+		}
+	} else {
+		pprofURL = fmt.Sprintf("/%d", time.Now().UnixNano())
+	}
+	log.Printf("[debug] pprof url: http://%s%s/debug/pprof/", listener.Addr(), pprofURL)
+
+	pprofIndex := func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, pprofURL+"/debug/pprof/") {
+			name := strings.TrimPrefix(r.URL.Path, pprofURL+"/debug/pprof/")
+			if name != "" {
+				pprof.Handler(name).ServeHTTP(w, r)
+				return
+			}
+		}
+		pprof.Index(w, r)
+	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/"+pprofURL+"debug/pprof/", pprof.Index)
-	mux.HandleFunc("/"+pprofURL+"debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("/"+pprofURL+"debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("/"+pprofURL+"debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("/"+pprofURL+"debug/pprof/trace", pprof.Trace)
+	mux.HandleFunc(pprofURL+"/debug/pprof/", pprofIndex)
+	mux.HandleFunc(pprofURL+"/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc(pprofURL+"/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc(pprofURL+"/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc(pprofURL+"/debug/pprof/trace", pprof.Trace)
 
 	server := &http.Server{
 		Handler:      mux,
