@@ -26,7 +26,7 @@ func newLogger(path string) (*logger, error) {
 			return nil, err
 		}
 	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND, 0600) // #nosec
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600) // #nosec
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +97,7 @@ func (l *logger) Close() error {
 	if l.file != nil {
 		err = l.file.Close()
 		if err != nil {
+			l.logger.SetOutput(os.Stderr)
 			l.Error("failed to close log file:", err)
 		}
 	}
