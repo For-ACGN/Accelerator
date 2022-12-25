@@ -487,6 +487,10 @@ func (client *Client) watcher() {
 	defer func() {
 		if r := recover(); r != nil {
 			client.logger.Fatal("Client.watcher", r)
+			// restart watcher
+			time.Sleep(time.Second)
+			client.wg.Add(1)
+			go client.watcher()
 		}
 	}()
 	const period = 100 * time.Millisecond
@@ -504,8 +508,8 @@ func (client *Client) watcher() {
 				go client.transport(conn)
 				break
 			}
-			switch err {
-			case errInvalidToken, errFullConnPool:
+			switch errors.Cause(err) {
+			case errInvalidToken, errFullConnPool, context.Canceled:
 			default:
 				client.logger.Error(err)
 			}
@@ -633,6 +637,10 @@ func (client *Client) frameReader() {
 	defer func() {
 		if r := recover(); r != nil {
 			client.logger.Fatal("Client.frameReader", r)
+			// restart frame reader
+			time.Sleep(time.Second)
+			client.wg.Add(1)
+			go client.frameReader()
 		}
 	}()
 	var (
@@ -666,6 +674,10 @@ func (client *Client) frameWriter() {
 	defer func() {
 		if r := recover(); r != nil {
 			client.logger.Fatal("Client.frameWriter", r)
+			// restart frame writer
+			time.Sleep(time.Second)
+			client.wg.Add(1)
+			go client.frameWriter()
 		}
 	}()
 	var (
