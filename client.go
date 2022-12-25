@@ -329,6 +329,7 @@ func (client *Client) dial(ctx context.Context) (net.Conn, error) {
 		}
 		dialer := tls.Dialer{
 			NetDialer: &net.Dialer{
+				Timeout:   client.timeout,
 				LocalAddr: lAddr,
 			},
 			Config: client.tlsConfig,
@@ -359,6 +360,7 @@ func (client *Client) dial(ctx context.Context) (net.Conn, error) {
 }
 
 func (client *Client) authenticate(conn net.Conn) error {
+	_ = conn.SetDeadline(time.Now().Add(client.timeout))
 	// send authentication request
 	req, err := buildAuthRequest(client.passHash)
 	if err != nil {
@@ -413,7 +415,6 @@ func (client *Client) login() error {
 			client.logger.Error("failed to close connection for log in:", err)
 		}
 	}()
-	_ = conn.SetDeadline(time.Now().Add(client.timeout))
 	err = client.authenticate(conn)
 	if err != nil {
 		return errors.WithMessage(err, "failed to authenticate")
@@ -458,7 +459,6 @@ func (client *Client) logoff() error {
 			client.logger.Error("failed to close connection for log off:", err)
 		}
 	}()
-	_ = conn.SetDeadline(time.Now().Add(client.timeout))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdLogoff
 	copy(req[cmdSize:], token[:])
@@ -532,7 +532,6 @@ func (client *Client) beginTransport() (net.Conn, error) {
 			_ = conn.Close()
 		}
 	}()
-	_ = conn.SetDeadline(time.Now().Add(client.timeout))
 	req := make([]byte, cmdSize+tokenSize)
 	req[0] = cmdTransport
 	token := client.getSessionToken()
