@@ -393,7 +393,7 @@ func (srv *Server) handleConn(conn net.Conn) {
 			srv.logger.Errorf(format, remoteAddr, err)
 		}
 	}()
-	_ = conn.SetDeadline(time.Now().Add(3 * srv.timeout))
+	_ = conn.SetDeadline(time.Now().Add(2 * srv.timeout))
 	err := srv.authenticate(conn)
 	if err != nil {
 		const format = "(%s) failed to authenticate: %s"
@@ -628,9 +628,12 @@ func (srv *Server) frameCapturer() {
 	defer func() {
 		if r := recover(); r != nil {
 			srv.logger.Fatal("Server.frameCapturer", r)
+			// restart frame capturer
+			time.Sleep(time.Second)
+			srv.wg.Add(1)
+			go srv.frameCapturer()
 		}
 	}()
-	defer srv.handle.Close()
 	var (
 		data []byte
 		fr   *frame
@@ -648,8 +651,14 @@ func (srv *Server) frameCapturer() {
 		if err != nil {
 			return
 		}
+		size := len(data)
+		if size > maxFrameSize {
+			const format = "capture too large frame, size: 0x%X"
+			srv.logger.Warningf(format, size)
+			continue
+		}
 		fr = srv.frameCache.Get().(*frame)
-		fr.WriteHeader(len(data))
+		fr.WriteHeader(size)
 		fr.WriteData(data)
 		select {
 		case srv.frameCh <- fr:

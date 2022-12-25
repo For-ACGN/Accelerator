@@ -109,7 +109,7 @@ func (s *frameSender) sendLoop() {
 	defer func() {
 		if r := recover(); r != nil {
 			s.ctx.logger.Fatal("frameSender.sendLoop", r)
-			// restart sender
+			// restart frame sender
 			time.Sleep(time.Second)
 			s.ctx.wg.Add(1)
 			go s.sendLoop()

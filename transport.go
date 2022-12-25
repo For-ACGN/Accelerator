@@ -134,7 +134,7 @@ func (tr *transporter) transport() {
 		}
 		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
 		if size > maxFrameSize {
-			const format = "(%s) receive too large frame: 0x%X"
+			const format = "(%s) receive too large frame, size: 0x%X"
 			tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), buf[:frameHeaderSize])
 			return
 		}

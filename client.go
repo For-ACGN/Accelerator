@@ -608,7 +608,7 @@ func (client *Client) transport(conn net.Conn) {
 		}
 		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
 		if size > maxFrameSize {
-			const format = "receive too large frame: 0x%X"
+			const format = "receive too large frame, size: 0x%X"
 			client.logger.Warningf(format, buf[:frameHeaderSize])
 			return
 		}
