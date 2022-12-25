@@ -63,7 +63,7 @@ func main() {
 
 		// stop signal
 		signalCh := make(chan os.Signal, 1)
-		signal.Notify(signalCh, os.Interrupt, os.Kill)
+		signal.Notify(signalCh, os.Interrupt)
 		<-signalCh
 
 		err := client.Close()
