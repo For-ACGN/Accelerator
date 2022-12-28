@@ -342,6 +342,9 @@ func (client *Client) dial(ctx context.Context) (net.Conn, error) {
 		tcpConn := conn.(*tls.Conn).NetConn().(*net.TCPConn)
 		_ = tcpConn.SetReadBuffer(2048)
 		_ = tcpConn.SetWriteBuffer(2048)
+		_ = tcpConn.SetNoDelay(true)
+		_ = tcpConn.SetKeepAlive(true)
+		_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
 	case "udp-quic":
 		lAddr, err := net.ResolveUDPAddr(client.localNet, client.localAddr)
 		if err != nil {

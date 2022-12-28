@@ -297,7 +297,7 @@ func (srv *Server) Run() {
 	}
 	if srv.nat != nil {
 		srv.logger.Info("accelerator nat module is enabled")
-		srv.logger.Info("[localhost]")
+		srv.logger.Info("[Localhost]")
 		srv.logger.Info("MAC address: ", srv.nat.localMAC)
 		if srv.nat.localIPv4 != nil {
 			srv.logger.Info("IPv4 address:", srv.nat.localIPv4)
@@ -305,7 +305,7 @@ func (srv *Server) Run() {
 		if srv.nat.localIPv6 != nil {
 			srv.logger.Info("IPv6 address:", srv.nat.localIPv6)
 		}
-		srv.logger.Info("[gateway]")
+		srv.logger.Info("[Gateway]")
 		srv.logger.Info("MAC address: ", srv.nat.gatewayMAC)
 		if srv.nat.gatewayIPv4 != nil {
 			srv.logger.Info("IPv4 address:", srv.nat.gatewayIPv4)
