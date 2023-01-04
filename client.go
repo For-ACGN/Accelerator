@@ -277,6 +277,12 @@ func (client *Client) Run() error {
 		return errors.WithMessage(err, "failed to log in")
 	}
 	client.logger.Info("connect accelerator server successfully")
+	// TODO display tap device(gateway ip)
+	// tap, err := net.InterfaceByName(client.tapDev.Name())
+	// if err != nil {
+	// 	return errors.Wrap(err, "failed to get interface info about tap")
+	// }
+	// tap.Addrs()
 	// start status watcher
 	client.logger.Info("initialize accelerator status watcher")
 	client.wg.Add(1)

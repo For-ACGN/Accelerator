@@ -393,6 +393,15 @@ func (srv *Server) handleConn(conn net.Conn) {
 			srv.logger.Errorf(format, remoteAddr, err)
 		}
 	}()
+
+	// TODO process remove it
+	tcpConn := conn.(*tls.Conn).NetConn().(*net.TCPConn)
+	_ = tcpConn.SetReadBuffer(2048)
+	_ = tcpConn.SetWriteBuffer(2048)
+	_ = tcpConn.SetNoDelay(true)
+	_ = tcpConn.SetKeepAlive(true)
+	_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
+
 	_ = conn.SetDeadline(time.Now().Add(2 * srv.timeout))
 	err := srv.authenticate(conn)
 	if err != nil {
