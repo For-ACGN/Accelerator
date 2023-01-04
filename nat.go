@@ -677,6 +677,21 @@ func (nat *nat) QueryIPv4UDPPortMap(rIP net.IP, rPort, natPort uint16) *ipv4LI {
 	return li
 }
 
+func (nat *nat) QueryICMPv4IDMap(rIP net.IP, natID uint16) *icmpv4LI {
+	nat.icmpv4RWM.RLock()
+	defer nat.icmpv4RWM.RUnlock()
+	ri := nat.ipv4RICache.Get().(*icmpv4RI)
+	defer nat.ipv4RICache.Put(ri)
+	copy(ri.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(ri.natID[:], natID)
+	li, ok := nat.icmpv4RL[*ri]
+	if !ok {
+		return nil
+	}
+	atomic.AddUint32(li.curCtr, 1)
+	return li
+}
+
 func (nat *nat) QueryIPv6TCPPortMap(rIP net.IP, rPort, natPort uint16) *ipv6LI {
 	nat.ipv6TCPRWM.RLock()
 	defer nat.ipv6TCPRWM.RUnlock()
@@ -709,6 +724,21 @@ func (nat *nat) QueryIPv6UDPPortMap(rIP net.IP, rPort, natPort uint16) *ipv6LI {
 	return li
 }
 
+func (nat *nat) QueryICMPv6IDMap(rIP net.IP, natID uint16) *icmpv6LI {
+	nat.icmpv6RWM.RLock()
+	defer nat.icmpv6RWM.RUnlock()
+	ri := nat.ipv6RICache.Get().(*icmpv6RI)
+	defer nat.ipv6RICache.Put(ri)
+	copy(ri.remoteIP[:], rIP)
+	binary.BigEndian.PutUint16(ri.natID[:], natID)
+	li, ok := nat.icmpv6RL[*ri]
+	if !ok {
+		return nil
+	}
+	atomic.AddUint32(li.curCtr, 1)
+	return li
+}
+
 func (nat *nat) deleteIPv4TCPPortMap(li *ipv4LI, ri ipv4RI) {
 	pm := ipv4PM{
 		localIP:    li.localIP,
@@ -731,6 +761,16 @@ func (nat *nat) deleteIPv4UDPPortMap(li *ipv4LI, ri ipv4RI) {
 	delete(nat.ipv4UDPRL, ri)
 }
 
+func (nat *nat) deleteICMPv4IDMap(li *icmpv4LI, ri icmpv4RI) {
+	pm := icmpv4PM{
+		localIP:  li.localIP,
+		localID:  li.localID,
+		remoteIP: ri.remoteIP,
+	}
+	delete(nat.icmpv4PM, pm)
+	delete(nat.icmpv4RL, ri)
+}
+
 func (nat *nat) deleteIPv6TCPPortMap(li *ipv6LI, ri ipv6RI) {
 	pm := ipv6PM{
 		localIP:    li.localIP,
@@ -751,6 +791,16 @@ func (nat *nat) deleteIPv6UDPPortMap(li *ipv6LI, ri ipv6RI) {
 	}
 	delete(nat.ipv6UDPPM, pm)
 	delete(nat.ipv6UDPRL, ri)
+}
+
+func (nat *nat) deleteICMPv6IDMap(li *icmpv6LI, ri icmpv6RI) {
+	pm := icmpv6PM{
+		localIP:  li.localIP,
+		localID:  li.localID,
+		remoteIP: ri.remoteIP,
+	}
+	delete(nat.icmpv6PM, pm)
+	delete(nat.icmpv6RL, ri)
 }
 
 // TODO prevent collide with static port map
@@ -818,10 +868,12 @@ func (nat *nat) clean() {
 	if nat.gatewayIPv4 != nil {
 		nat.cleanIPv4TCPPortMap()
 		nat.cleanIPv4UDPPortMap()
+		nat.cleanICMPv4IDMap()
 	}
 	if nat.gatewayIPv6 != nil {
 		nat.cleanIPv6TCPPortMap()
 		nat.cleanIPv6UDPPortMap()
+		nat.cleanICMPv6IDMap()
 	}
 }
 
@@ -869,6 +921,28 @@ func (nat *nat) cleanIPv4UDPPortMap() {
 	}
 }
 
+func (nat *nat) cleanICMPv4IDMap() {
+	var (
+		prevent uint32
+		current uint32
+	)
+	now := time.Now()
+	nat.icmpv4RWM.Lock()
+	defer nat.icmpv4RWM.Unlock()
+	for ri, li := range nat.icmpv4RL {
+		if now.Sub(li.createAt) < nat.mapTimeout {
+			continue
+		}
+		prevent = atomic.LoadUint32(li.preCtr)
+		current = atomic.LoadUint32(li.curCtr)
+		if prevent != current {
+			atomic.StoreUint32(li.preCtr, current)
+			continue
+		}
+		nat.deleteICMPv4IDMap(li, ri)
+	}
+}
+
 func (nat *nat) cleanIPv6TCPPortMap() {
 	var (
 		prevent uint32
@@ -910,6 +984,28 @@ func (nat *nat) cleanIPv6UDPPortMap() {
 			continue
 		}
 		nat.deleteIPv6UDPPortMap(li, ri)
+	}
+}
+
+func (nat *nat) cleanICMPv6IDMap() {
+	var (
+		prevent uint32
+		current uint32
+	)
+	now := time.Now()
+	nat.icmpv6RWM.Lock()
+	defer nat.icmpv6RWM.Unlock()
+	for ri, li := range nat.icmpv6RL {
+		if now.Sub(li.createAt) < nat.mapTimeout {
+			continue
+		}
+		prevent = atomic.LoadUint32(li.preCtr)
+		current = atomic.LoadUint32(li.curCtr)
+		if prevent != current {
+			atomic.StoreUint32(li.preCtr, current)
+			continue
+		}
+		nat.deleteICMPv6IDMap(li, ri)
 	}
 }
 
