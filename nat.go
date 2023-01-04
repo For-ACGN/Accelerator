@@ -54,7 +54,7 @@ type icmpv4PM struct {
 }
 
 type icmpv4PI struct {
-	natID  icmpID
+	natID  uint16
 	curCtr *uint32
 }
 
@@ -104,7 +104,7 @@ type icmpv6PM struct {
 }
 
 type icmpv6PI struct {
-	natID  icmpID
+	natID  uint16
 	curCtr *uint32
 }
 
@@ -409,6 +409,64 @@ func (nat *nat) AddIPv4UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	return 0
 }
 
+func (nat *nat) AddICMPv4IDMap(lIP net.IP, lID uint16, rIP net.IP) uint16 {
+	nat.icmpv4RWM.Lock()
+	defer nat.icmpv4RWM.Unlock()
+	// check is create id map
+	pm := nat.icmpv4PMCache.Get().(*icmpv4PM)
+	defer nat.icmpv4PMCache.Put(pm)
+	copy(pm.localIP[:], lIP)
+	binary.BigEndian.PutUint16(pm.localID[:], lID)
+	copy(pm.remoteIP[:], rIP)
+	pi, ok := nat.icmpv4PM[*pm]
+	if ok {
+		atomic.AddUint32(pi.curCtr, 1)
+		return pi.natID
+	}
+	// create new id map
+	li := &icmpv4LI{
+		preCtr:   new(uint32),
+		curCtr:   new(uint32),
+		createAt: time.Now(),
+	}
+	copy(li.localIP[:], lIP)
+	binary.BigEndian.PutUint16(li.localID[:], lID)
+	ri := icmpv4RI{}
+	copy(ri.remoteIP[:], rIP)
+	// try to get random id
+	var id uint16
+	for i := 0; i < 256; i++ {
+		id = nat.generateRandomICMPv4ID()
+		binary.BigEndian.PutUint16(ri.natID[:], id)
+		_, ok = nat.icmpv4RL[ri]
+		if ok {
+			continue
+		}
+		nat.icmpv4PM[*pm] = &icmpv4PI{
+			natID:  id,
+			curCtr: li.curCtr,
+		}
+		nat.icmpv4RL[ri] = li
+		return id
+	}
+	// check all id
+	for i := 0; i < 65536; i++ {
+		id = uint16(i)
+		binary.BigEndian.PutUint16(ri.natID[:], id)
+		_, ok = nat.icmpv4RL[ri]
+		if ok {
+			continue
+		}
+		nat.icmpv4PM[*pm] = &icmpv4PI{
+			natID:  id,
+			curCtr: li.curCtr,
+		}
+		nat.icmpv4RL[ri] = li
+		return id
+	}
+	return 0
+}
+
 func (nat *nat) AddIPv6TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
 	nat.ipv6TCPRWM.Lock()
 	defer nat.ipv6TCPRWM.Unlock()
@@ -525,6 +583,64 @@ func (nat *nat) AddIPv6UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 		}
 		nat.ipv6UDPRL[ri] = li
 		return p
+	}
+	return 0
+}
+
+func (nat *nat) AddICMPv6IDMap(lIP net.IP, lID uint16, rIP net.IP) uint16 {
+	nat.icmpv6RWM.Lock()
+	defer nat.icmpv6RWM.Unlock()
+	// check is create id map
+	pm := nat.icmpv6PMCache.Get().(*icmpv6PM)
+	defer nat.icmpv6PMCache.Put(pm)
+	copy(pm.localIP[:], lIP)
+	binary.BigEndian.PutUint16(pm.localID[:], lID)
+	copy(pm.remoteIP[:], rIP)
+	pi, ok := nat.icmpv6PM[*pm]
+	if ok {
+		atomic.AddUint32(pi.curCtr, 1)
+		return pi.natID
+	}
+	// create new id map
+	li := &icmpv6LI{
+		preCtr:   new(uint32),
+		curCtr:   new(uint32),
+		createAt: time.Now(),
+	}
+	copy(li.localIP[:], lIP)
+	binary.BigEndian.PutUint16(li.localID[:], lID)
+	ri := icmpv6RI{}
+	copy(ri.remoteIP[:], rIP)
+	// try to get random id
+	var id uint16
+	for i := 0; i < 256; i++ {
+		id = nat.generateRandomICMPv6ID()
+		binary.BigEndian.PutUint16(ri.natID[:], id)
+		_, ok = nat.icmpv6RL[ri]
+		if ok {
+			continue
+		}
+		nat.icmpv6PM[*pm] = &icmpv6PI{
+			natID:  id,
+			curCtr: li.curCtr,
+		}
+		nat.icmpv6RL[ri] = li
+		return id
+	}
+	// check all id
+	for i := 0; i < 65536; i++ {
+		id = uint16(i)
+		binary.BigEndian.PutUint16(ri.natID[:], id)
+		_, ok = nat.icmpv6RL[ri]
+		if ok {
+			continue
+		}
+		nat.icmpv6PM[*pm] = &icmpv6PI{
+			natID:  id,
+			curCtr: li.curCtr,
+		}
+		nat.icmpv6RL[ri] = li
+		return id
 	}
 	return 0
 }
@@ -646,6 +762,10 @@ func (nat *nat) generateRandomIPv4UDPPort() uint16 {
 	return nat.generateRandomPort()
 }
 
+func (nat *nat) generateRandomICMPv4ID() uint16 {
+	return nat.generateRandomID()
+}
+
 func (nat *nat) generateRandomIPv6TCPPort() uint16 {
 	return nat.generateRandomPort()
 }
@@ -654,10 +774,20 @@ func (nat *nat) generateRandomIPv6UDPPort() uint16 {
 	return nat.generateRandomPort()
 }
 
+func (nat *nat) generateRandomICMPv6ID() uint16 {
+	return nat.generateRandomID()
+}
+
 func (nat *nat) generateRandomPort() uint16 {
 	nat.randMu.Lock()
 	defer nat.randMu.Unlock()
-	return 1025 + uint16(nat.rand.Intn(65536-1025))
+	return 1024 + uint16(nat.rand.Intn(65536-1024)) // 1024-65535
+}
+
+func (nat *nat) generateRandomID() uint16 {
+	nat.randMu.Lock()
+	defer nat.randMu.Unlock()
+	return 1 + uint16(nat.rand.Intn(65535)) // 1-65535
 }
 
 func (nat *nat) cleaner() {
