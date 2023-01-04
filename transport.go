@@ -310,6 +310,10 @@ func (tr *transporter) decodeIPv4TCP() {
 	rIP := tr.ipv4.DstIP
 	rPort := uint16(tr.tcp.DstPort)
 	natPort := tr.nat.AddIPv4TCPPortMap(lIP, lPort, rIP, rPort)
+	if natPort == 0 {
+		tr.ctx.logger.Warning("ipv4 tcp port map is full")
+		return
+	}
 	// replace MAC, IP addresses and port
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv4.SrcIP = tr.nat.localIPv4
@@ -334,6 +338,10 @@ func (tr *transporter) decodeIPv6TCP() {
 	rIP := tr.ipv6.DstIP
 	rPort := uint16(tr.tcp.DstPort)
 	natPort := tr.nat.AddIPv6TCPPortMap(lIP, lPort, rIP, rPort)
+	if natPort == 0 {
+		tr.ctx.logger.Warning("ipv6 tcp port map is full")
+		return
+	}
 	// replace MAC, IP addresses and port
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv6.SrcIP = tr.nat.localIPv6
@@ -358,6 +366,10 @@ func (tr *transporter) decodeIPv4UDP() {
 	rIP := tr.ipv4.DstIP
 	rPort := uint16(tr.udp.DstPort)
 	natPort := tr.nat.AddIPv4UDPPortMap(lIP, lPort, rIP, rPort)
+	if natPort == 0 {
+		tr.ctx.logger.Warning("ipv4 udp port map is full")
+		return
+	}
 	// replace MAC, IP addresses and port
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv4.SrcIP = tr.nat.localIPv4
@@ -382,6 +394,10 @@ func (tr *transporter) decodeIPv6UDP() {
 	rIP := tr.ipv6.DstIP
 	rPort := uint16(tr.udp.DstPort)
 	natPort := tr.nat.AddIPv6UDPPortMap(lIP, lPort, rIP, rPort)
+	if natPort == 0 {
+		tr.ctx.logger.Warning("ipv6 udp port map is full")
+		return
+	}
 	// replace MAC, IP addresses and port
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv6.SrcIP = tr.nat.localIPv6
@@ -466,6 +482,7 @@ func (tr *transporter) isNewSourceIPv6() {
 	copy(srcIP[:], tr.ipv6.SrcIP)
 	tr.srcIPv6 = append(tr.srcIPv6, srcIP[:])
 	if !tr.ctx.bindIPv6(tr.token, srcIP) {
+		// TODO add warning
 		return
 	}
 	srcMAC := mac{}
