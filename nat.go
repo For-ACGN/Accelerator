@@ -14,6 +14,9 @@ import (
 
 const minNATMapTimeout = time.Minute
 
+type port = [2]byte
+type icmpID = [2]byte
+
 // PM and PI are used to find NAT local port for send data.
 // LI and RI are used to find internal client local IP address
 // and port for receive data.
@@ -44,6 +47,30 @@ type ipv4LI struct {
 	createAt  time.Time
 }
 
+type icmpv4PM struct {
+	localIP  ipv4
+	localID  icmpID
+	remoteIP ipv4
+}
+
+type icmpv4PI struct {
+	natID  icmpID
+	curCtr *uint32
+}
+
+type icmpv4RI struct {
+	remoteIP ipv4
+	natID    icmpID
+}
+
+type icmpv4LI struct {
+	localIP  ipv4
+	localID  icmpID
+	preCtr   *uint32
+	curCtr   *uint32
+	createAt time.Time
+}
+
 type ipv6PM struct {
 	localIP    ipv6
 	localPort  port
@@ -70,6 +97,30 @@ type ipv6LI struct {
 	createAt  time.Time
 }
 
+type icmpv6PM struct {
+	localIP  ipv6
+	localID  icmpID
+	remoteIP ipv6
+}
+
+type icmpv6PI struct {
+	natID  icmpID
+	curCtr *uint32
+}
+
+type icmpv6RI struct {
+	remoteIP ipv6
+	natID    icmpID
+}
+
+type icmpv6LI struct {
+	localIP  ipv6
+	localID  icmpID
+	preCtr   *uint32
+	curCtr   *uint32
+	createAt time.Time
+}
+
 type nat struct {
 	logger *logger
 
@@ -89,6 +140,10 @@ type nat struct {
 	ipv4UDPRL  map[ipv4RI]*ipv4LI
 	ipv4UDPRWM sync.RWMutex
 
+	icmpv4PM  map[icmpv4PM]*icmpv4PI
+	icmpv4RL  map[icmpv4RI]*icmpv4LI
+	icmpv4RWM sync.RWMutex
+
 	ipv6TCPPM  map[ipv6PM]*ipv6PI
 	ipv6TCPRL  map[ipv6RI]*ipv6LI
 	ipv6TCPRWM sync.RWMutex
@@ -97,13 +152,21 @@ type nat struct {
 	ipv6UDPRL  map[ipv6RI]*ipv6LI
 	ipv6UDPRWM sync.RWMutex
 
+	icmpv6PM  map[icmpv6PM]*icmpv6PI
+	icmpv6RL  map[icmpv6RI]*icmpv6LI
+	icmpv6RWM sync.RWMutex
+
 	rand   *rand.Rand
 	randMu sync.Mutex
 
-	ipv4PMCache sync.Pool
-	ipv4RICache sync.Pool
-	ipv6PMCache sync.Pool
-	ipv6RICache sync.Pool
+	ipv4PMCache   sync.Pool
+	ipv4RICache   sync.Pool
+	icmpv4PMCache sync.Pool
+	icmpv4RICache sync.Pool
+	ipv6PMCache   sync.Pool
+	ipv6RICache   sync.Pool
+	icmpv6PMCache sync.Pool
+	icmpv6RICache sync.Pool
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -183,10 +246,14 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 		ipv4TCPRL:   make(map[ipv4RI]*ipv4LI, 512),
 		ipv4UDPPM:   make(map[ipv4PM]*ipv4PI, 512),
 		ipv4UDPRL:   make(map[ipv4RI]*ipv4LI, 512),
+		icmpv4PM:    make(map[icmpv4PM]*icmpv4PI, 512),
+		icmpv4RL:    make(map[icmpv4RI]*icmpv4LI, 512),
 		ipv6TCPPM:   make(map[ipv6PM]*ipv6PI, 512),
 		ipv6TCPRL:   make(map[ipv6RI]*ipv6LI, 512),
 		ipv6UDPPM:   make(map[ipv6PM]*ipv6PI, 512),
 		ipv6UDPRL:   make(map[ipv6RI]*ipv6LI, 512),
+		icmpv6PM:    make(map[icmpv6PM]*icmpv6PI, 512),
+		icmpv6RL:    make(map[icmpv6RI]*icmpv6LI, 512),
 		rand:        rd,
 	}
 	n.ipv4PMCache.New = func() interface{} {
@@ -195,11 +262,23 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 	n.ipv4RICache.New = func() interface{} {
 		return new(ipv4RI)
 	}
+	n.icmpv4PMCache.New = func() interface{} {
+		return new(icmpv4PM)
+	}
+	n.icmpv4RICache.New = func() interface{} {
+		return new(icmpv4RI)
+	}
 	n.ipv6PMCache.New = func() interface{} {
 		return new(ipv6PM)
 	}
 	n.ipv6RICache.New = func() interface{} {
 		return new(ipv6RI)
+	}
+	n.icmpv6PMCache.New = func() interface{} {
+		return new(icmpv6PM)
+	}
+	n.icmpv6RICache.New = func() interface{} {
+		return new(icmpv6RI)
 	}
 	n.ctx, n.cancel = context.WithCancel(context.Background())
 	return &n, nil
@@ -521,8 +600,6 @@ func (nat *nat) deleteIPv4TCPPortMap(li *ipv4LI, ri ipv4RI) {
 		remoteIP:   ri.remoteIP,
 		remotePort: ri.remotePort,
 	}
-	// nat.ipv4TCPRWM.Lock()
-	// defer nat.ipv4TCPRWM.Unlock()
 	delete(nat.ipv4TCPPM, pm)
 	delete(nat.ipv4TCPRL, ri)
 }
@@ -534,8 +611,6 @@ func (nat *nat) deleteIPv4UDPPortMap(li *ipv4LI, ri ipv4RI) {
 		remoteIP:   ri.remoteIP,
 		remotePort: ri.remotePort,
 	}
-	// nat.ipv4UDPRWM.Lock()
-	// defer nat.ipv4UDPRWM.Unlock()
 	delete(nat.ipv4UDPPM, pm)
 	delete(nat.ipv4UDPRL, ri)
 }
@@ -547,8 +622,6 @@ func (nat *nat) deleteIPv6TCPPortMap(li *ipv6LI, ri ipv6RI) {
 		remoteIP:   ri.remoteIP,
 		remotePort: ri.remotePort,
 	}
-	// nat.ipv6TCPRWM.Lock()
-	// defer nat.ipv6TCPRWM.Unlock()
 	delete(nat.ipv6TCPPM, pm)
 	delete(nat.ipv6TCPRL, ri)
 }
@@ -560,12 +633,11 @@ func (nat *nat) deleteIPv6UDPPortMap(li *ipv6LI, ri ipv6RI) {
 		remoteIP:   ri.remoteIP,
 		remotePort: ri.remotePort,
 	}
-	// nat.ipv6UDPRWM.Lock()
-	// defer nat.ipv6UDPRWM.Unlock()
 	delete(nat.ipv6UDPPM, pm)
 	delete(nat.ipv6UDPRL, ri)
 }
 
+// TODO prevent collide with static port map
 func (nat *nat) generateRandomIPv4TCPPort() uint16 {
 	return nat.generateRandomPort()
 }

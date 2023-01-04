@@ -15,7 +15,7 @@ import (
 )
 
 func TestDrawGrid(t *testing.T) {
-	file, err := os.Open("testtool/output.txt")
+	file, err := os.Open("output.txt")
 	require.NoError(t, err)
 	defer func() { _ = file.Close() }()
 
@@ -79,7 +79,7 @@ func TestDrawGrid(t *testing.T) {
 			}
 		}
 	}
-	dst, err := os.Create("testtool/result.jpeg")
+	dst, err := os.Create("result.jpeg")
 	require.NoError(t, err)
 	defer func() { _ = dst.Close() }()
 	err = jpeg.Encode(dst, img, nil)
