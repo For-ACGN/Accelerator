@@ -128,7 +128,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		logger:       lg,
 		tlsConfig:    tlsConfig,
 		tapDev:       tapDev,
-		connPool:     newConnPool(poolSize),
+		connPool:     newConnPool(poolSize, timeout),
 		frameCh:      make(chan *frame, 128*poolSize),
 	}
 	client.frameCache.New = func() interface{} {
@@ -574,6 +574,10 @@ func (client *Client) beginTransport() (net.Conn, error) {
 			return nil, err
 		}
 		size := binary.BigEndian.Uint16(buf)
+		if size < 1 {
+			client.logger.Warning("receive zero pool size from server")
+			return nil, errFullConnPool
+		}
 		client.connPool.SetSize(int(size))
 		client.logger.Infof("reset connection pool size: %d", size)
 		return nil, errFullConnPool

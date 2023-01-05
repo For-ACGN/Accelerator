@@ -845,7 +845,7 @@ func (srv *Server) prepareConnPool(token sessionToken) {
 	if srv.connPools[token] != nil {
 		return
 	}
-	srv.connPools[token] = newConnPool(srv.connPoolSize)
+	srv.connPools[token] = newConnPool(srv.connPoolSize, srv.timeout)
 }
 
 func (srv *Server) removeConnPool(token sessionToken) {
@@ -918,6 +918,9 @@ func (srv *Server) broadcast(data []byte) {
 		if srv.isClosed() {
 			return
 		}
+		if pool.IsEmpty() {
+			continue
+		}
 		_, _ = pool.Write(data)
 	}
 }
@@ -930,6 +933,9 @@ func (srv *Server) broadcastExcept(data []byte, token sessionToken) {
 			return
 		}
 		if t == token {
+			continue
+		}
+		if pool.IsEmpty() {
 			continue
 		}
 		_, _ = pool.Write(data)

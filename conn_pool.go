@@ -16,7 +16,8 @@ var (
 
 // connPool is used to send frame packet with lower RTT.
 type connPool struct {
-	size atomic.Value
+	size    atomic.Value
+	timeout time.Duration
 
 	conns    map[*net.Conn]bool
 	connsRWM sync.RWMutex
@@ -27,9 +28,10 @@ type connPool struct {
 	cancel context.CancelFunc
 }
 
-func newConnPool(size int) *connPool {
+func newConnPool(size int, timeout time.Duration) *connPool {
 	pool := connPool{
-		conns: make(map[*net.Conn]bool, size),
+		timeout: timeout,
+		conns:   make(map[*net.Conn]bool, size),
 	}
 	pool.ctx, pool.cancel = context.WithCancel(context.Background())
 	pool.SetSize(size)
@@ -110,6 +112,10 @@ func (pool *connPool) Write(b []byte) (int, error) {
 			case <-pool.ctx.Done():
 				return 0, errConnPoolClosed
 			}
+			continue
+		}
+		err = conn.SetWriteDeadline(time.Now().Add(pool.timeout))
+		if err != nil {
 			continue
 		}
 		n, err = conn.Write(b)
