@@ -257,7 +257,8 @@ func (s *frameSender) sendICMPv4TimeExceeded(frame *frame) {
 	// get original frame information
 	ip4 := new(layers.IPv4)
 	icmpv4 := new(layers.ICMPv4)
-	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, icmpv4)
+	payload := new(gopacket.Payload)
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, icmpv4, payload)
 	var decoded []gopacket.LayerType
 	err := parser.DecodeLayers(s.icmpv4.Payload, &decoded)
 	if err != nil {
@@ -272,20 +273,20 @@ func (s *frameSender) sendICMPv4TimeExceeded(frame *frame) {
 	}
 	// replace IP address in icmp payload
 	copy(ip4.SrcIP, li.localIP[:])
-	s.payload = icmpv4.Payload
+	s.payload = *payload
 	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, ip4, icmpv4, s.payload)
 	if err != nil {
 		s.ctx.logger.Warning("failed to serialize icmpv4 ttl exceeded frame payload:", err)
 		return
 	}
 	b := s.slBuf.Bytes()
-	payload := make([]byte, len(b))
-	copy(payload, b)
+	p := make([]byte, len(b))
+	copy(p, b)
 	// replace MAC, IP address
 	dstMAC := s.ctx.ipv4ToMAC(li.localIP)
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv4.DstIP, li.localIP[:])
-	s.payload = payload
+	s.payload = p
 	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.icmpv4, s.payload)
 	if err != nil {
 		s.ctx.logger.Warning("failed to serialize icmpv4 ttl exceeded frame:", err)
@@ -314,7 +315,8 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 	// get original frame information
 	ip4 := new(layers.IPv4)
 	udp := new(layers.UDP)
-	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, udp)
+	payload := new(gopacket.Payload)
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, udp, payload)
 	var decoded []gopacket.LayerType
 	err := parser.DecodeLayers(s.icmpv4.Payload, &decoded)
 	if err != nil {
@@ -331,19 +333,20 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 	// replace IP address and udp port in icmp payload
 	copy(ip4.SrcIP, li.localIP[:])
 	udp.SrcPort = layers.UDPPort(binary.BigEndian.Uint16(li.localPort[:]))
+	s.payload = *payload
 	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, ip4, udp, s.payload)
 	if err != nil {
 		s.ctx.logger.Warning("failed to serialize icmpv4 port unreachable payload:", err)
 		return
 	}
 	b := s.slBuf.Bytes()
-	payload := make([]byte, len(b))
-	copy(payload, b)
+	p := make([]byte, len(b))
+	copy(p, b)
 	// replace MAC, IP address
 	dstMAC := s.ctx.ipv4ToMAC(li.localIP)
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv4.DstIP, li.localIP[:])
-	s.payload = payload
+	s.payload = p
 	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.icmpv4, s.payload)
 	if err != nil {
 		s.ctx.logger.Warning("failed to serialize icmpv4 ttl exceeded frame:", err)
