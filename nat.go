@@ -646,13 +646,13 @@ func (nat *nat) AddICMPv6IDMap(lIP net.IP, lID uint16, rIP net.IP) uint16 {
 }
 
 func (nat *nat) QueryIPv4TCPPortMap(rIP net.IP, rPort, natPort uint16) *ipv4LI {
-	nat.ipv4TCPRWM.RLock()
-	defer nat.ipv4TCPRWM.RUnlock()
 	ri := nat.ipv4RICache.Get().(*ipv4RI)
 	defer nat.ipv4RICache.Put(ri)
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
 	binary.BigEndian.PutUint16(ri.natPort[:], natPort)
+	nat.ipv4TCPRWM.RLock()
+	defer nat.ipv4TCPRWM.RUnlock()
 	li, ok := nat.ipv4TCPRL[*ri]
 	if !ok {
 		return nil
@@ -662,13 +662,13 @@ func (nat *nat) QueryIPv4TCPPortMap(rIP net.IP, rPort, natPort uint16) *ipv4LI {
 }
 
 func (nat *nat) QueryIPv4UDPPortMap(rIP net.IP, rPort, natPort uint16) *ipv4LI {
-	nat.ipv4UDPRWM.RLock()
-	defer nat.ipv4UDPRWM.RUnlock()
 	ri := nat.ipv4RICache.Get().(*ipv4RI)
 	defer nat.ipv4RICache.Put(ri)
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
 	binary.BigEndian.PutUint16(ri.natPort[:], natPort)
+	nat.ipv4UDPRWM.RLock()
+	defer nat.ipv4UDPRWM.RUnlock()
 	li, ok := nat.ipv4UDPRL[*ri]
 	if !ok {
 		return nil
@@ -678,12 +678,12 @@ func (nat *nat) QueryIPv4UDPPortMap(rIP net.IP, rPort, natPort uint16) *ipv4LI {
 }
 
 func (nat *nat) QueryICMPv4IDMap(rIP net.IP, natID uint16) *icmpv4LI {
-	nat.icmpv4RWM.RLock()
-	defer nat.icmpv4RWM.RUnlock()
-	ri := nat.ipv4RICache.Get().(*icmpv4RI)
-	defer nat.ipv4RICache.Put(ri)
+	ri := nat.icmpv4RICache.Get().(*icmpv4RI)
+	defer nat.icmpv4RICache.Put(ri)
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.natID[:], natID)
+	nat.icmpv4RWM.RLock()
+	defer nat.icmpv4RWM.RUnlock()
 	li, ok := nat.icmpv4RL[*ri]
 	if !ok {
 		return nil
@@ -693,13 +693,13 @@ func (nat *nat) QueryICMPv4IDMap(rIP net.IP, natID uint16) *icmpv4LI {
 }
 
 func (nat *nat) QueryIPv6TCPPortMap(rIP net.IP, rPort, natPort uint16) *ipv6LI {
-	nat.ipv6TCPRWM.RLock()
-	defer nat.ipv6TCPRWM.RUnlock()
 	ri := nat.ipv6RICache.Get().(*ipv6RI)
 	defer nat.ipv6RICache.Put(ri)
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
 	binary.BigEndian.PutUint16(ri.natPort[:], natPort)
+	nat.ipv6TCPRWM.RLock()
+	defer nat.ipv6TCPRWM.RUnlock()
 	li, ok := nat.ipv6TCPRL[*ri]
 	if !ok {
 		return nil
@@ -709,13 +709,13 @@ func (nat *nat) QueryIPv6TCPPortMap(rIP net.IP, rPort, natPort uint16) *ipv6LI {
 }
 
 func (nat *nat) QueryIPv6UDPPortMap(rIP net.IP, rPort, natPort uint16) *ipv6LI {
-	nat.ipv6UDPRWM.RLock()
-	defer nat.ipv6UDPRWM.RUnlock()
 	ri := nat.ipv6RICache.Get().(*ipv6RI)
 	defer nat.ipv6RICache.Put(ri)
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.remotePort[:], rPort)
 	binary.BigEndian.PutUint16(ri.natPort[:], natPort)
+	nat.ipv6UDPRWM.RLock()
+	defer nat.ipv6UDPRWM.RUnlock()
 	li, ok := nat.ipv6UDPRL[*ri]
 	if !ok {
 		return nil
@@ -725,12 +725,12 @@ func (nat *nat) QueryIPv6UDPPortMap(rIP net.IP, rPort, natPort uint16) *ipv6LI {
 }
 
 func (nat *nat) QueryICMPv6IDMap(rIP net.IP, natID uint16) *icmpv6LI {
-	nat.icmpv6RWM.RLock()
-	defer nat.icmpv6RWM.RUnlock()
-	ri := nat.ipv6RICache.Get().(*icmpv6RI)
-	defer nat.ipv6RICache.Put(ri)
+	ri := nat.icmpv6RICache.Get().(*icmpv6RI)
+	defer nat.icmpv6RICache.Put(ri)
 	copy(ri.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(ri.natID[:], natID)
+	nat.icmpv6RWM.RLock()
+	defer nat.icmpv6RWM.RUnlock()
 	li, ok := nat.icmpv6RL[*ri]
 	if !ok {
 		return nil
