@@ -26,14 +26,14 @@ type transporter struct {
 	conn   net.Conn
 	token  sessionToken
 
-	eth   *layers.Ethernet
-	arp   *layers.ARP
-	ipv4  *layers.IPv4
-	ipv6  *layers.IPv6
-	icmp4 *layers.ICMPv4
-	icmp6 *layers.ICMPv6
-	tcp   *layers.TCP
-	udp   *layers.UDP
+	eth    *layers.Ethernet
+	arp    *layers.ARP
+	ipv4   *layers.IPv4
+	ipv6   *layers.IPv6
+	icmpv4 *layers.ICMPv4
+	icmpv6 *layers.ICMPv6
+	tcp    *layers.TCP
+	udp    *layers.UDP
 
 	parser  *gopacket.DecodingLayerParser
 	decoded *[]gopacket.LayerType
@@ -60,8 +60,8 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 	arp := new(layers.ARP)
 	ip4 := new(layers.IPv4)
 	ip6 := new(layers.IPv6)
-	icmp4 := new(layers.ICMPv4)
-	icmp6 := new(layers.ICMPv6)
+	icmpv4 := new(layers.ICMPv4)
+	icmpv6 := new(layers.ICMPv6)
 	tcp := new(layers.TCP)
 	udp := new(layers.UDP)
 	var parser *gopacket.DecodingLayerParser
@@ -69,8 +69,8 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 		parser = gopacket.NewDecodingLayerParser(
 			layers.LayerTypeEthernet,
 			eth, arp,
-			ip4, icmp4,
-			ip6, icmp6,
+			ip4, icmpv4,
+			ip6, icmpv6,
 			tcp, udp,
 		)
 	} else {
@@ -97,8 +97,8 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 		arp:       arp,
 		ipv4:      ip4,
 		ipv6:      ip6,
-		icmp4:     icmp4,
-		icmp6:     icmp6,
+		icmpv4:    icmpv4,
+		icmpv6:    icmpv6,
 		tcp:       tcp,
 		udp:       udp,
 		parser:    parser,
@@ -199,10 +199,10 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 			tr.isNewSourceIPv6()
 			tr.isIPv6 = true
 		case layers.LayerTypeICMPv4:
-			// TODO ICMP
+			tr.decodeICMPv4()
 			return
 		case layers.LayerTypeICMPv6:
-			// TODO ICMP
+			tr.decodeICMPv6()
 			return
 		case layers.LayerTypeTCP:
 			tr.decodeTCP()
@@ -268,7 +268,7 @@ func (tr *transporter) decodeARPRequest(frame *frame) bool {
 		frame.Reset()
 		frame.WriteHeader(len(fr))
 		frame.WriteData(fr)
-		// send to self
+		// send to client self
 		_, _ = tr.conn.Write(frame.Bytes())
 		return true
 	case layers.ARPReply:
@@ -280,21 +280,45 @@ func (tr *transporter) decodeARPRequest(frame *frame) bool {
 	}
 }
 
+func (tr *transporter) decodeICMPv4() {
+	if tr.icmpv4.TypeCode.Type() != layers.ICMPv4TypeEchoRequest {
+		return
+	}
+	// add id map to nat
+	lIP := tr.ipv4.SrcIP
+	lID := tr.icmpv4.Id
+	rIP := tr.ipv4.DstIP
+	natID := tr.nat.AddICMPv4IDMap(lIP, lID, rIP)
+	if natID == 0 {
+		tr.ctx.logger.Warning("icmpv4 id map is full")
+		return
+	}
+	// replace MAC, IP addresses and icmp id
+	tr.eth.SrcMAC = tr.nat.localMAC
+	tr.ipv4.SrcIP = tr.nat.localIPv4
+	tr.icmpv4.Id = natID
+	// encode data to buffer
+	tr.payload = tr.icmpv4.Payload
+	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.icmpv4, tr.payload)
+	if err != nil {
+		const format = "(%s) failed to serialize icmpv4 frame: %s"
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
+		return
+	}
+	data := tr.slBuf.Bytes()
+	_ = tr.handle.WritePacketData(data)
+}
+
+func (tr *transporter) decodeICMPv6() {
+
+}
+
 func (tr *transporter) decodeTCP() {
 	switch {
 	case tr.isIPv4:
 		tr.decodeIPv4TCP()
 	case tr.isIPv6:
 		tr.decodeIPv6TCP()
-	}
-}
-
-func (tr *transporter) decodeUDP() {
-	switch {
-	case tr.isIPv4:
-		tr.decodeIPv4UDP()
-	case tr.isIPv6:
-		tr.decodeIPv6UDP()
 	}
 }
 
@@ -352,6 +376,15 @@ func (tr *transporter) decodeIPv6TCP() {
 	}
 	data := tr.slBuf.Bytes()
 	_ = tr.handle.WritePacketData(data)
+}
+
+func (tr *transporter) decodeUDP() {
+	switch {
+	case tr.isIPv4:
+		tr.decodeIPv4UDP()
+	case tr.isIPv6:
+		tr.decodeIPv6UDP()
+	}
 }
 
 func (tr *transporter) decodeIPv4UDP() {
