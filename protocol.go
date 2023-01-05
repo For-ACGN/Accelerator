@@ -142,8 +142,8 @@ var emptySessionToken = sessionToken{}
 // | uint16(big endian) |     var    |
 // +--------------------+------------+
 const (
-	maxFrameSize    = 48 * 1024 // 48 KiB
-	frameHeaderSize = 2         // uint16
+	maxFrameSize    = 64*1024 - 1 // 64 KiB
+	frameHeaderSize = 2           // uint16
 )
 
 type frame struct {

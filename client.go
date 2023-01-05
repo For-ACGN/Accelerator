@@ -346,8 +346,8 @@ func (client *Client) dial(ctx context.Context) (net.Conn, error) {
 		}
 		// set the buffer size near the MTU value
 		tcpConn := conn.(*tls.Conn).NetConn().(*net.TCPConn)
-		_ = tcpConn.SetReadBuffer(2048)
-		_ = tcpConn.SetWriteBuffer(2048)
+		// _ = tcpConn.SetReadBuffer(2048)
+		// _ = tcpConn.SetWriteBuffer(2048)
 		_ = tcpConn.SetNoDelay(true)
 		_ = tcpConn.SetKeepAlive(true)
 		_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
@@ -620,11 +620,6 @@ func (client *Client) transport(conn net.Conn) {
 			return
 		}
 		size = binary.BigEndian.Uint16(buf[:frameHeaderSize])
-		if size > maxFrameSize {
-			const format = "receive too large frame, size: 0x%X"
-			client.logger.Warningf(format, buf[:frameHeaderSize])
-			return
-		}
 		// read frame data
 		_, err = io.ReadFull(conn, buf[:size])
 		if err != nil {
@@ -660,12 +655,16 @@ func (client *Client) frameReader() {
 		fr  *frame
 		err error
 	)
-	buf := make([]byte, maxFrameSize)
+	buf := make([]byte, maxFrameSize+1)
 	for {
 		// read frame data
 		n, err = client.tapDev.Read(buf)
 		if err != nil {
 			return
+		}
+		if n > maxFrameSize {
+			client.logger.Warning("ignore local machine too large frame")
+			continue
 		}
 		// build frame
 		fr = client.frameCache.Get().(*frame)
