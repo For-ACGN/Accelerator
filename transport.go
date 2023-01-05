@@ -284,6 +284,9 @@ func (tr *transporter) decodeICMPv4() {
 	if tr.icmpv4.TypeCode.Type() != layers.ICMPv4TypeEchoRequest {
 		return
 	}
+	if tr.icmpv4.TypeCode.Code() != 0 {
+		return
+	}
 	// add id map to nat
 	lIP := tr.ipv4.SrcIP
 	lID := tr.icmpv4.Id
@@ -299,9 +302,9 @@ func (tr *transporter) decodeICMPv4() {
 	tr.icmpv4.Id = natID
 	// encode data to buffer
 	tr.payload = tr.icmpv4.Payload
-	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.icmpv4, tr.payload)
+	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.icmpv4, tr.payload)
 	if err != nil {
-		const format = "(%s) failed to serialize icmpv4 frame: %s"
+		const format = "(%s) failed to serialize icmpv4 echo request frame: %s"
 		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
 		return
 	}
