@@ -290,8 +290,6 @@ func (nat *nat) Run() {
 }
 
 func (nat *nat) AddIPv4TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
-	nat.ipv4TCPRWM.Lock()
-	defer nat.ipv4TCPRWM.Unlock()
 	// check is create port map
 	pm := nat.ipv4PMCache.Get().(*ipv4PM)
 	defer nat.ipv4PMCache.Put(pm)
@@ -299,6 +297,8 @@ func (nat *nat) AddIPv4TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	binary.BigEndian.PutUint16(pm.localPort[:], lPort)
 	copy(pm.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(pm.remotePort[:], rPort)
+	nat.ipv4TCPRWM.Lock()
+	defer nat.ipv4TCPRWM.Unlock()
 	pi, ok := nat.ipv4TCPPM[*pm]
 	if ok {
 		atomic.AddUint32(pi.curCtr, 1)
@@ -350,8 +350,6 @@ func (nat *nat) AddIPv4TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 }
 
 func (nat *nat) AddIPv4UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
-	nat.ipv4UDPRWM.Lock()
-	defer nat.ipv4UDPRWM.Unlock()
 	// check is create port map
 	pm := nat.ipv4PMCache.Get().(*ipv4PM)
 	defer nat.ipv4PMCache.Put(pm)
@@ -359,6 +357,8 @@ func (nat *nat) AddIPv4UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	binary.BigEndian.PutUint16(pm.localPort[:], lPort)
 	copy(pm.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(pm.remotePort[:], rPort)
+	nat.ipv4UDPRWM.Lock()
+	defer nat.ipv4UDPRWM.Unlock()
 	pi, ok := nat.ipv4UDPPM[*pm]
 	if ok {
 		atomic.AddUint32(pi.curCtr, 1)
@@ -410,14 +410,14 @@ func (nat *nat) AddIPv4UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 }
 
 func (nat *nat) AddICMPv4IDMap(lIP net.IP, lID uint16, rIP net.IP) uint16 {
-	nat.icmpv4RWM.Lock()
-	defer nat.icmpv4RWM.Unlock()
 	// check is create id map
 	pm := nat.icmpv4PMCache.Get().(*icmpv4PM)
 	defer nat.icmpv4PMCache.Put(pm)
 	copy(pm.localIP[:], lIP)
 	binary.BigEndian.PutUint16(pm.localID[:], lID)
 	copy(pm.remoteIP[:], rIP)
+	nat.icmpv4RWM.Lock()
+	defer nat.icmpv4RWM.Unlock()
 	pi, ok := nat.icmpv4PM[*pm]
 	if ok {
 		atomic.AddUint32(pi.curCtr, 1)
@@ -468,8 +468,6 @@ func (nat *nat) AddICMPv4IDMap(lIP net.IP, lID uint16, rIP net.IP) uint16 {
 }
 
 func (nat *nat) AddIPv6TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
-	nat.ipv6TCPRWM.Lock()
-	defer nat.ipv6TCPRWM.Unlock()
 	// check is create port map
 	pm := nat.ipv6PMCache.Get().(*ipv6PM)
 	defer nat.ipv6PMCache.Put(pm)
@@ -477,6 +475,8 @@ func (nat *nat) AddIPv6TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	binary.BigEndian.PutUint16(pm.localPort[:], lPort)
 	copy(pm.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(pm.remotePort[:], rPort)
+	nat.ipv6TCPRWM.Lock()
+	defer nat.ipv6TCPRWM.Unlock()
 	pi, ok := nat.ipv6TCPPM[*pm]
 	if ok {
 		atomic.AddUint32(pi.curCtr, 1)
@@ -528,8 +528,6 @@ func (nat *nat) AddIPv6TCPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 }
 
 func (nat *nat) AddIPv6UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort uint16) uint16 {
-	nat.ipv6UDPRWM.Lock()
-	defer nat.ipv6UDPRWM.Unlock()
 	// check is create port map
 	pm := nat.ipv6PMCache.Get().(*ipv6PM)
 	defer nat.ipv6PMCache.Put(pm)
@@ -537,6 +535,8 @@ func (nat *nat) AddIPv6UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 	binary.BigEndian.PutUint16(pm.localPort[:], lPort)
 	copy(pm.remoteIP[:], rIP)
 	binary.BigEndian.PutUint16(pm.remotePort[:], rPort)
+	nat.ipv6UDPRWM.Lock()
+	defer nat.ipv6UDPRWM.Unlock()
 	pi, ok := nat.ipv6UDPPM[*pm]
 	if ok {
 		atomic.AddUint32(pi.curCtr, 1)
@@ -588,14 +588,14 @@ func (nat *nat) AddIPv6UDPPortMap(lIP net.IP, lPort uint16, rIP net.IP, rPort ui
 }
 
 func (nat *nat) AddICMPv6IDMap(lIP net.IP, lID uint16, rIP net.IP) uint16 {
-	nat.icmpv6RWM.Lock()
-	defer nat.icmpv6RWM.Unlock()
 	// check is create id map
 	pm := nat.icmpv6PMCache.Get().(*icmpv6PM)
 	defer nat.icmpv6PMCache.Put(pm)
 	copy(pm.localIP[:], lIP)
 	binary.BigEndian.PutUint16(pm.localID[:], lID)
 	copy(pm.remoteIP[:], rIP)
+	nat.icmpv6RWM.Lock()
+	defer nat.icmpv6RWM.Unlock()
 	pi, ok := nat.icmpv6PM[*pm]
 	if ok {
 		atomic.AddUint32(pi.curCtr, 1)
