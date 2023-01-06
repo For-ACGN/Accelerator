@@ -238,7 +238,6 @@ func (tr *transporter) decodeEthernet(frame *frame) bool {
 	pool := tr.ctx.getConnPoolByMAC(dstMAC)
 	if pool != nil {
 		_, _ = pool.Write(frame.Bytes())
-		return false
 	}
 	return false
 }
@@ -269,6 +268,7 @@ func (tr *transporter) decodeARPRequest(frame *frame) bool {
 		frame.WriteHeader(len(fr))
 		frame.WriteData(fr)
 		// send to client self
+		_ = tr.conn.SetWriteDeadline(time.Now().Add(tr.ctx.timeout))
 		_, _ = tr.conn.Write(frame.Bytes())
 		return true
 	case layers.ARPReply:
