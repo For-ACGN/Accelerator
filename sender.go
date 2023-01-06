@@ -271,8 +271,9 @@ func (s *frameSender) sendICMPv4TimeExceeded(frame *frame) {
 	if li == nil {
 		return
 	}
-	// replace IP address in icmp payload
+	// replace IP address and icmp id in icmp payload
 	copy(ip4.SrcIP, li.localIP[:])
+	icmpv4.Id = binary.BigEndian.Uint16(li.localID[:])
 	s.payload = *payload
 	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, ip4, icmpv4, s.payload)
 	if err != nil {
@@ -314,15 +315,17 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 	}
 	// get original frame information
 	ip4 := new(layers.IPv4)
+	tcp := new(layers.TCP)
 	udp := new(layers.UDP)
 	payload := new(gopacket.Payload)
-	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, udp, payload)
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, tcp, udp, payload)
 	var decoded []gopacket.LayerType
 	err := parser.DecodeLayers(s.icmpv4.Payload, &decoded)
 	if err != nil {
 		s.ctx.logger.Warning("failed to decode icmpv4 port unreachable payload:", err)
 		return
 	}
+	// TODO process TCP
 	rIP := ip4.DstIP
 	rPort := uint16(udp.DstPort)
 	natPort := uint16(udp.SrcPort)
