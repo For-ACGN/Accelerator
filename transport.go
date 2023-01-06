@@ -217,14 +217,15 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 // TODO think ICMPv6 like arp.
 func (tr *transporter) decodeEthernet(frame *frame) bool {
 	tr.isNewSourceMAC()
-	// send to the gateway
-	if bytes.Equal(tr.eth.DstMAC, tr.nat.gatewayMAC) {
-		return true
-	}
+	// special case
 	if tr.eth.EthernetType == layers.EthernetTypeARP {
 		if tr.decodeARPRequest(frame) {
 			return false
 		}
+	}
+	// send to the gateway
+	if bytes.Equal(tr.eth.DstMAC, tr.nat.gatewayMAC) {
+		return true
 	}
 	dstMACPtr := tr.macCache.Get().(*mac)
 	defer tr.macCache.Put(dstMACPtr)

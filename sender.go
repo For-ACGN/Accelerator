@@ -315,10 +315,10 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 	}
 	// get original frame information
 	ip4 := new(layers.IPv4)
-	tcp := new(layers.TCP)
+	// tcp := new(layers.TCP)
 	udp := new(layers.UDP)
 	payload := new(gopacket.Payload)
-	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, tcp, udp, payload)
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, udp, payload)
 	var decoded []gopacket.LayerType
 	err := parser.DecodeLayers(s.icmpv4.Payload, &decoded)
 	if err != nil {
@@ -352,7 +352,7 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 	s.payload = p
 	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.icmpv4, s.payload)
 	if err != nil {
-		s.ctx.logger.Warning("failed to serialize icmpv4 ttl exceeded frame:", err)
+		s.ctx.logger.Warning("failed to serialize icmpv4 port unreachable frame:", err)
 		return
 	}
 	fr := s.slBuf.Bytes()
