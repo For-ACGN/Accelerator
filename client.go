@@ -128,7 +128,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		logger:       lg,
 		tlsConfig:    tlsConfig,
 		tapDev:       tapDev,
-		connPool:     newConnPool(poolSize, timeout),
+		connPool:     newConnPool(poolSize, timeout, false),
 		frameCh:      make(chan *frame, 128*poolSize),
 	}
 	client.frameCache.New = func() interface{} {
@@ -598,10 +598,12 @@ func (client *Client) transport(conn net.Conn) {
 	defer func() {
 		err := conn.Close()
 		if err != nil && !errors.Is(err, net.ErrClosed) {
-			if strings.Contains(err.Error(), "tls: failed to send closeNotify alert") {
+			if !strings.Contains(err.Error(), "tls: failed to send closeNotify alert") {
+				client.logger.Error("failed to close transporter:", err)
 				return
 			}
-			client.logger.Error("failed to close transporter:", err)
+			addr := conn.RemoteAddr()
+			client.logger.Warningf("transporter (%s %s) is closed", addr.Network(), addr)
 		}
 	}()
 	_ = conn.SetDeadline(time.Time{})
@@ -664,7 +666,7 @@ func (client *Client) frameReader() {
 			return
 		}
 		if n > maxFrameSize {
-			client.logger.Warning("ignore local machine too large frame")
+			client.logger.Warning("ignore too large frame from local machine")
 			continue
 		}
 		// build frame
