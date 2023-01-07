@@ -23,7 +23,7 @@ func main() {
 		_, addr, err := pc.ReadFrom(buf)
 		checkError(err)
 		go func(addr net.Addr) {
-			fmt.Println(addr)
+			fmt.Println(time.Now().Format(time.RFC3339), addr)
 			for i := 0; i < 60*240; i++ {
 				_, _ = pc.WriteTo(buf, addr)
 				time.Sleep(time.Second / 60)

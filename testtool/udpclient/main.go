@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 )
 
 var (
@@ -30,7 +31,7 @@ func main() {
 	for {
 		_, addr, err := pc.ReadFrom(buf)
 		checkError(err)
-		fmt.Println(addr)
+		fmt.Println(time.Now().Format(time.RFC3339), addr)
 	}
 }
 
