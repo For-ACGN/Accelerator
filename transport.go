@@ -171,7 +171,7 @@ func (tr *transporter) decodeWithoutNAT(frame *frame) {
 	// send to the target client
 	pool := tr.ctx.getConnPoolByMAC(dstMAC)
 	if pool != nil {
-		_, _ = pool.Write(frame.Bytes())
+		pool.Push(frame.Bytes())
 		return
 	}
 	// send to the under interface
@@ -238,7 +238,7 @@ func (tr *transporter) decodeEthernet(frame *frame) bool {
 	// send to the target client
 	pool := tr.ctx.getConnPoolByMAC(dstMAC)
 	if pool != nil {
-		_, _ = pool.Write(frame.Bytes())
+		pool.Push(frame.Bytes())
 	}
 	return false
 }

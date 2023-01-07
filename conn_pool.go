@@ -22,19 +22,30 @@ type connPool struct {
 	conns    map[*net.Conn]bool
 	connsRWM sync.RWMutex
 
+	frameCh chan []byte
+
 	closed int32
 
 	ctx    context.Context
 	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
 
-func newConnPool(size int, timeout time.Duration) *connPool {
+func newConnPool(size int, timeout time.Duration, server bool) *connPool {
 	pool := connPool{
 		timeout: timeout,
 		conns:   make(map[*net.Conn]bool, size),
 	}
 	pool.ctx, pool.cancel = context.WithCancel(context.Background())
 	pool.SetSize(size)
+	if !server {
+		return &pool
+	}
+	pool.frameCh = make(chan []byte, 4096*size)
+	for i := 0; i < size; i++ {
+		pool.wg.Add(1)
+		go pool.sendLoop()
+	}
 	return &pool
 }
 
@@ -93,6 +104,40 @@ func (pool *connPool) DeleteConn(conn *net.Conn) {
 	delete(pool.conns, conn)
 }
 
+// Push is used to push data to connection pool and wait sender
+// to send data, if send queue is full, data will be dropped.
+func (pool *connPool) Push(b []byte) {
+	// TODO remove data copy
+	cp := make([]byte, len(b))
+	copy(cp, b)
+	select {
+	case pool.frameCh <- cp:
+	default:
+	}
+}
+
+func (pool *connPool) sendLoop() {
+	defer pool.wg.Done()
+	defer func() {
+		if r := recover(); r != nil {
+			// pool.ctx.logger.Fatal("connPool.sendLoop", r)
+			// restart frame sender
+			time.Sleep(time.Second)
+			pool.wg.Add(1)
+			go pool.sendLoop()
+		}
+	}()
+	var b []byte
+	for {
+		select {
+		case b = <-pool.frameCh:
+			_, _ = pool.Write(b)
+		case <-pool.ctx.Done():
+			return
+		}
+	}
+}
+
 // Write is used to select one connection for write data.
 func (pool *connPool) Write(b []byte) (int, error) {
 	var (
@@ -122,6 +167,7 @@ func (pool *connPool) Write(b []byte) (int, error) {
 		if err == nil {
 			return n, nil
 		}
+		_ = conn.Close()
 	}
 	return n, err
 }
@@ -158,6 +204,7 @@ func (pool *connPool) isClosed() bool {
 func (pool *connPool) Close() error {
 	atomic.StoreInt32(&pool.closed, 1)
 	pool.cancel()
+	pool.wg.Wait()
 	var err error
 	pool.connsRWM.Lock()
 	defer pool.connsRWM.Unlock()

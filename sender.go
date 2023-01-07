@@ -160,7 +160,7 @@ func (s *frameSender) sendWithoutNAT(frame *frame) {
 	if pool == nil {
 		return
 	}
-	_, _ = pool.Write(frame.Bytes())
+	pool.Push(frame.Bytes())
 }
 
 func (s *frameSender) sendWithNAT(frame *frame) {
@@ -247,7 +247,7 @@ func (s *frameSender) sendICMPv4EchoReply(frame *frame) {
 	if pool == nil {
 		return
 	}
-	_, _ = pool.Write(frame.Bytes())
+	pool.Push(frame.Bytes())
 }
 
 func (s *frameSender) sendICMPv4TimeExceeded(frame *frame) {
@@ -306,7 +306,7 @@ func (s *frameSender) sendICMPv4TimeExceeded(frame *frame) {
 	if pool == nil {
 		return
 	}
-	_, _ = pool.Write(frame.Bytes())
+	pool.Push(frame.Bytes())
 }
 
 func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
@@ -368,7 +368,7 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 	if pool == nil {
 		return
 	}
-	_, _ = pool.Write(frame.Bytes())
+	pool.Push(frame.Bytes())
 }
 
 func (s *frameSender) sendICMPv6(frame *frame) {
@@ -418,7 +418,7 @@ func (s *frameSender) sendIPv4TCP(frame *frame) {
 	if pool == nil {
 		return
 	}
-	_, _ = pool.Write(frame.Bytes())
+	pool.Push(frame.Bytes())
 }
 
 func (s *frameSender) sendIPv6TCP(frame *frame) {
@@ -455,7 +455,7 @@ func (s *frameSender) sendIPv6TCP(frame *frame) {
 	if pool == nil {
 		return
 	}
-	_, _ = pool.Write(frame.Bytes())
+	pool.Push(frame.Bytes())
 }
 
 func (s *frameSender) sendUDP(frame *frame) {
@@ -501,7 +501,7 @@ func (s *frameSender) sendIPv4UDP(frame *frame) {
 	if pool == nil {
 		return
 	}
-	_, _ = pool.Write(frame.Bytes())
+	pool.Push(frame.Bytes())
 }
 
 func (s *frameSender) sendIPv6UDP(frame *frame) {
@@ -538,5 +538,5 @@ func (s *frameSender) sendIPv6UDP(frame *frame) {
 	if pool == nil {
 		return
 	}
-	_, _ = pool.Write(frame.Bytes())
+	pool.Push(frame.Bytes())
 }
