@@ -1,22 +1,32 @@
-package testtool
+package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
+	"log"
 	"math"
 	"os"
 	"strconv"
-	"testing"
-
-	"github.com/stretchr/testify/require"
 )
 
-func TestDrawGrid(t *testing.T) {
-	file, err := os.Open("output.txt")
-	require.NoError(t, err)
+var (
+	input  string
+	output string
+)
+
+func init() {
+	flag.StringVar(&input, "i", "input.txt", "input network latency")
+	flag.StringVar(&output, "o", "output.jpeg", "output jpeg path")
+	flag.Parse()
+}
+
+func main() {
+	file, err := os.Open(input) // #nosec
+	checkError(err)
 	defer func() { _ = file.Close() }()
 
 	// read samples
@@ -24,7 +34,7 @@ func TestDrawGrid(t *testing.T) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		s, err := strconv.Atoi(scanner.Text())
-		require.NoError(t, err)
+		checkError(err)
 		sample = append(sample, s)
 	}
 
@@ -39,9 +49,8 @@ func TestDrawGrid(t *testing.T) {
 			max = sample[i]
 		}
 	}
-
-	fmt.Println("min:", min)
-	fmt.Println("max:", max)
+	fmt.Println("minimum latency:", min)
+	fmt.Println("maximum latency:", max)
 
 	// initialize grid
 	width := len(sample)
@@ -79,9 +88,15 @@ func TestDrawGrid(t *testing.T) {
 			}
 		}
 	}
-	dst, err := os.Create("result.jpeg")
-	require.NoError(t, err)
+	dst, err := os.Create(output) // #nosec
+	checkError(err)
 	defer func() { _ = dst.Close() }()
 	err = jpeg.Encode(dst, img, nil)
-	require.NoError(t, err)
+	checkError(err)
+}
+
+func checkError(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
 }
