@@ -185,7 +185,7 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 		err          error
 	)
 	nc := cfg.NAT
-	mapTimeout := time.Duration(nc.MapTimeout)
+	mapTimeout := time.Duration(nc.Timeout)
 	if mapTimeout < minNATMapTimeout {
 		mapTimeout = minNATMapTimeout
 	}

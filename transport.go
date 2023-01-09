@@ -314,7 +314,63 @@ func (tr *transporter) decodeICMPv4() {
 }
 
 func (tr *transporter) decodeICMPv6() {
+	switch tr.icmpv6.TypeCode.Type() {
+	case layers.ICMPv6TypeEchoRequest:
+		tr.decodeICMPv6EchoRequest()
+	case layers.ICMPv6TypeNeighborSolicitation:
+		tr.decodeICMPv6NeighborSolicitation()
+	case layers.ICMPv6TypeNeighborAdvertisement:
+		tr.decodeICMPv6NeighborAdvertisement()
+	}
+}
 
+func (tr *transporter) decodeICMPv6EchoRequest() {
+	if tr.icmpv6.TypeCode.Code() != 0 {
+		return
+	}
+	echo := new(layers.ICMPv6Echo)
+	err := echo.DecodeFromBytes(tr.icmpv6.Payload, gopacket.NilDecodeFeedback)
+	if err != nil {
+		const format = "(%s) failed to decode icmpv6 echo request frame: %s"
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
+		return
+	}
+	// add id map to nat
+	lIP := tr.ipv6.SrcIP
+	lID := echo.Identifier
+	rIP := tr.ipv6.DstIP
+	natID := tr.nat.AddICMPv6IDMap(lIP, lID, rIP)
+	if natID == 0 {
+		tr.ctx.logger.Warning("icmpv6 id map is full")
+		return
+	}
+	// replace MAC, IP addresses and icmp id
+	tr.eth.SrcMAC = tr.nat.localMAC
+	tr.ipv6.SrcIP = tr.nat.localIPv6
+	echo.Identifier = natID
+	_ = tr.icmpv6.SetNetworkLayerForChecksum(tr.ipv6)
+	// encode data to buffer
+	tr.payload = echo.Payload
+	err = gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv6, tr.icmpv6, echo, tr.payload)
+	if err != nil {
+		const format = "(%s) failed to serialize icmpv6 echo request frame: %s"
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
+		return
+	}
+	data := tr.slBuf.Bytes()
+	_ = tr.handle.WritePacketData(data)
+}
+
+func (tr *transporter) decodeICMPv6NeighborSolicitation() {
+	if tr.icmpv6.TypeCode.Code() != 0 {
+		return
+	}
+}
+
+func (tr *transporter) decodeICMPv6NeighborAdvertisement() {
+	if tr.icmpv6.TypeCode.Code() != 0 {
+		return
+	}
 }
 
 func (tr *transporter) decodeTCP() {

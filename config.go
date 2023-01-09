@@ -40,8 +40,8 @@ type ServerConfig struct {
 	} `toml:"tls"`
 
 	NAT struct {
-		Enabled    bool     `toml:"enabled"`
-		MapTimeout duration `toml:"map_timeout"`
+		Enabled bool     `toml:"enabled"`
+		Timeout duration `toml:"timeout"`
 
 		MAC struct {
 			Local   string `toml:"local"`
