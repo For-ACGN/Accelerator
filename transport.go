@@ -227,6 +227,10 @@ func (tr *transporter) decodeEthernet(frame *frame) bool {
 	if bytes.Equal(tr.eth.DstMAC, tr.nat.gatewayMAC) {
 		return true
 	}
+	// IPv6 special case
+	if bytes.Equal(tr.eth.DstMAC[:3], []byte{0x33, 0x33, 0xFF}) {
+		return true
+	}
 	dstMACPtr := tr.macCache.Get().(*mac)
 	defer tr.macCache.Put(dstMACPtr)
 	dstMAC := *dstMACPtr
@@ -365,6 +369,45 @@ func (tr *transporter) decodeICMPv6NeighborSolicitation() {
 	if tr.icmpv6.TypeCode.Code() != 0 {
 		return
 	}
+	ns := new(layers.ICMPv6NeighborSolicitation)
+	err := ns.DecodeFromBytes(tr.icmpv6.Payload, gopacket.NilDecodeFeedback)
+	if err != nil {
+		const format = "(%s) failed to decode icmpv6 neighbor solicitation frame: %s"
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
+		return
+	}
+	if !tr.nat.gatewayIPv6.Equal(ns.TargetAddress) {
+		// TODO common case
+		return
+	}
+	na := new(layers.ICMPv6NeighborAdvertisement)
+	na.Flags = 0xE0
+	na.TargetAddress = tr.nat.gatewayIPv6
+	opt := layers.ICMPv6Option{
+		Type: layers.ICMPv6OptTargetAddress,
+		Data: tr.nat.gatewayMAC,
+	}
+	na.Options = append(na.Options, opt)
+	// replace MAC and IP addresses
+	tr.eth.SrcMAC, tr.eth.DstMAC = tr.nat.gatewayMAC, tr.eth.SrcMAC
+	tr.ipv6.SrcIP, tr.ipv6.DstIP = tr.nat.gatewayIPv6, tr.ipv6.SrcIP
+	tr.icmpv6.TypeCode = layers.CreateICMPv6TypeCode(layers.ICMPv6TypeNeighborAdvertisement, 0)
+	_ = tr.icmpv6.SetNetworkLayerForChecksum(tr.ipv6)
+	// encode data to buffer
+	err = gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv6, tr.icmpv6, na)
+	if err != nil {
+		const format = "(%s) failed to serialize icmpv6 echo request frame: %s"
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), err)
+		return
+	}
+	fr := tr.slBuf.Bytes()
+	// TODO think reuse frame
+	f := newFrame()
+	f.WriteHeader(len(fr))
+	f.WriteData(fr)
+	// send to client self
+	_ = tr.conn.SetWriteDeadline(time.Now().Add(tr.ctx.timeout))
+	_, _ = tr.conn.Write(f.Bytes())
 }
 
 func (tr *transporter) decodeICMPv6NeighborAdvertisement() {
