@@ -227,8 +227,8 @@ func (tr *transporter) decodeEthernet(frame *frame) bool {
 	if bytes.Equal(tr.eth.DstMAC, tr.nat.gatewayMAC) {
 		return true
 	}
-	// IPv6 special case
-	if bytes.Equal(tr.eth.DstMAC[:3], []byte{0x33, 0x33, 0xFF}) {
+	// IPv6 special case about ICMPv6
+	if bytes.Equal(tr.eth.DstMAC[:2], []byte{0x33, 0x33}) {
 		return true
 	}
 	dstMACPtr := tr.macCache.Get().(*mac)
@@ -237,6 +237,10 @@ func (tr *transporter) decodeEthernet(frame *frame) bool {
 	copy(dstMAC[:], tr.eth.DstMAC)
 	if dstMAC == broadcast {
 		tr.ctx.broadcastExcept(frame.Bytes(), tr.token)
+		return false
+	}
+	// ignore multicast
+	if tr.eth.SrcMAC[0]&1 == 1 {
 		return false
 	}
 	// send to the target client
@@ -547,7 +551,7 @@ func (tr *transporter) decodeIPv6UDP() {
 }
 
 func (tr *transporter) isNewSourceMAC() {
-	if bytes.Equal(tr.eth.SrcMAC, broadcast[:]) {
+	if tr.eth.SrcMAC[0]&1 == 1 { // not unicast
 		return
 	}
 	var exist bool
@@ -564,7 +568,9 @@ func (tr *transporter) isNewSourceMAC() {
 	srcMAC := mac{}
 	copy(srcMAC[:], tr.eth.SrcMAC)
 	tr.srcMAC = append(tr.srcMAC, srcMAC[:])
-	tr.ctx.bindMAC(tr.token, srcMAC)
+	if !tr.ctx.bindMAC(tr.token, srcMAC) {
+		// TODO add warning
+	}
 }
 
 func (tr *transporter) isNewSourceIPv4() {
@@ -586,6 +592,7 @@ func (tr *transporter) isNewSourceIPv4() {
 	copy(srcIP[:], tr.ipv4.SrcIP)
 	tr.srcIPv4 = append(tr.srcIPv4, srcIP[:])
 	if !tr.ctx.bindIPv4(tr.token, srcIP) {
+		// TODO add warning
 		return
 	}
 	srcMAC := mac{}

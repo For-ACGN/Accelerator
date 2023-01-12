@@ -718,7 +718,7 @@ func (srv *Server) isValidSessionToken(token sessionToken) bool {
 	return now.Before(e)
 }
 
-func (srv *Server) bindMAC(token sessionToken, mac mac) {
+func (srv *Server) bindMAC(token sessionToken, mac mac) bool {
 	srv.macsRWM.Lock()
 	defer srv.macsRWM.Unlock()
 	t := srv.macs[mac]
@@ -727,10 +727,11 @@ func (srv *Server) bindMAC(token sessionToken, mac mac) {
 		defer srv.connPoolsRWM.RUnlock()
 		pool := srv.connPools[t]
 		if pool != nil && !pool.IsEmpty() {
-			return
+			return false
 		}
 	}
 	srv.macs[mac] = token
+	return true
 }
 
 func (srv *Server) unbindMAC(token sessionToken) {

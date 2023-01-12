@@ -319,6 +319,7 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 	udp := new(layers.UDP)
 	payload := new(gopacket.Payload)
 	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, udp, payload)
+	parser.IgnoreUnsupported = true
 	var decoded []gopacket.LayerType
 	err := parser.DecodeLayers(s.icmpv4.Payload, &decoded)
 	if err != nil {
