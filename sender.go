@@ -315,7 +315,6 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 	}
 	// get original frame information
 	ip4 := new(layers.IPv4)
-	// tcp := new(layers.TCP)
 	udp := new(layers.UDP)
 	payload := new(gopacket.Payload)
 	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, udp, payload)
@@ -326,7 +325,9 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 		s.ctx.logger.Warning("failed to decode icmpv4 port unreachable payload:", err)
 		return
 	}
-	// TODO process TCP
+	if len(decoded) != 3 {
+		return
+	}
 	rIP := ip4.DstIP
 	rPort := uint16(udp.DstPort)
 	natPort := uint16(udp.SrcPort)
@@ -373,7 +374,71 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 }
 
 func (s *frameSender) sendICMPv6(frame *frame) {
+	switch s.icmpv6.TypeCode.Type() {
+	case layers.ICMPv6TypeEchoReply:
+		s.sendICMPv6EchoReply(frame)
+	case layers.ICMPv6TypeTimeExceeded:
+		s.sendICMPv6TimeExceeded(frame)
+	case layers.ICMPv6TypeDestinationUnreachable:
+		s.sendICMPv6DestinationUnreachable(frame)
+	}
+}
 
+func (s *frameSender) sendICMPv6EchoReply(frame *frame) {
+	if s.icmpv6.TypeCode.Code() != 0 {
+		return
+	}
+	echo := new(layers.ICMPv6Echo)
+	err := echo.DecodeFromBytes(s.icmpv6.Payload, gopacket.NilDecodeFeedback)
+	if err != nil {
+		s.ctx.logger.Warning("failed to decode icmpv6 echo reply frame:", err)
+		return
+	}
+	rIP := s.ipv6.SrcIP
+	natID := echo.Identifier
+	li := s.nat.QueryICMPv6IDMap(rIP, natID)
+	if li == nil {
+		return
+	}
+	// replace MAC, IP address and icmp id
+	dstMAC := s.ctx.ipv6ToMAC(li.localIP)
+	s.eth.DstMAC = dstMAC[:]
+	copy(s.ipv6.DstIP, li.localIP[:])
+	_ = s.icmpv6.SetNetworkLayerForChecksum(s.ipv6)
+	echo.Identifier = binary.BigEndian.Uint16(li.localID[:])
+	s.payload = echo.Payload
+	// encode data to buffer
+	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.icmpv6, echo, s.payload)
+	if err != nil {
+		s.ctx.logger.Warning("failed to serialize icmpv6 echo reply frame:", err)
+		return
+	}
+	fr := s.slBuf.Bytes()
+	frame.Reset()
+	frame.WriteHeader(len(fr))
+	frame.WriteData(fr)
+	// send to the target client
+	dstIPv6Ptr := s.ipv6Cache.Get().(*ipv6)
+	defer s.ipv6Cache.Put(dstIPv6Ptr)
+	dstIPv6 := *dstIPv6Ptr
+	copy(dstIPv6[:], s.ipv6.DstIP)
+	pool := s.ctx.getConnPoolByIPv6(dstIPv6)
+	if pool == nil {
+		return
+	}
+	pool.Push(frame.Bytes())
+}
+
+func (s *frameSender) sendICMPv6TimeExceeded(frame *frame) {
+	if s.icmpv6.TypeCode.Code() != layers.ICMPv6CodeHopLimitExceeded {
+		return
+	}
+}
+
+func (s *frameSender) sendICMPv6DestinationUnreachable(frame *frame) {
+	if s.icmpv6.TypeCode.Code() != layers.ICMPv6CodePortUnreachable {
+		return
+	}
 }
 
 func (s *frameSender) sendTCP(frame *frame) {
@@ -398,9 +463,9 @@ func (s *frameSender) sendIPv4TCP(frame *frame) {
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv4.DstIP, li.localIP[:])
 	s.tcp.DstPort = layers.TCPPort(binary.BigEndian.Uint16(li.localPort[:]))
-	// encode data to buffer
 	_ = s.tcp.SetNetworkLayerForChecksum(s.ipv4)
 	s.payload = s.tcp.Payload
+	// encode data to buffer
 	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.tcp, s.payload)
 	if err != nil {
 		s.ctx.logger.Warning("failed to serialize ipv4 tcp frame:", err)
@@ -435,9 +500,9 @@ func (s *frameSender) sendIPv6TCP(frame *frame) {
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv6.DstIP, li.localIP[:])
 	s.tcp.DstPort = layers.TCPPort(binary.BigEndian.Uint16(li.localPort[:]))
-	// encode data to buffer
 	_ = s.tcp.SetNetworkLayerForChecksum(s.ipv6)
 	s.payload = s.tcp.Payload
+	// encode data to buffer
 	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.tcp, s.payload)
 	if err != nil {
 		s.ctx.logger.Warning("failed to serialize ipv6 tcp frame:", err)
@@ -481,9 +546,9 @@ func (s *frameSender) sendIPv4UDP(frame *frame) {
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv4.DstIP, li.localIP[:])
 	s.udp.DstPort = layers.UDPPort(binary.BigEndian.Uint16(li.localPort[:]))
-	// encode data to buffer
 	_ = s.udp.SetNetworkLayerForChecksum(s.ipv4)
 	s.payload = s.udp.Payload
+	// encode data to buffer
 	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv4, s.udp, s.payload)
 	if err != nil {
 		s.ctx.logger.Warning("failed to serialize ipv4 udp frame:", err)
@@ -518,9 +583,9 @@ func (s *frameSender) sendIPv6UDP(frame *frame) {
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv6.DstIP, li.localIP[:])
 	s.udp.DstPort = layers.UDPPort(binary.BigEndian.Uint16(li.localPort[:]))
-	// encode data to buffer
 	_ = s.udp.SetNetworkLayerForChecksum(s.ipv6)
 	s.payload = s.udp.Payload
+	// encode data to buffer
 	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.udp, s.payload)
 	if err != nil {
 		s.ctx.logger.Warning("failed to serialize ipv6 udp frame:", err)

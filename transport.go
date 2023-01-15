@@ -309,8 +309,8 @@ func (tr *transporter) decodeICMPv4() {
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv4.SrcIP = tr.nat.localIPv4
 	tr.icmpv4.Id = natID
-	// encode data to buffer
 	tr.payload = tr.icmpv4.Payload
+	// encode data to buffer
 	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.icmpv4, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize icmpv4 echo request frame: %s"
@@ -355,10 +355,10 @@ func (tr *transporter) decodeICMPv6EchoRequest() {
 	// replace MAC, IP addresses and icmp id
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv6.SrcIP = tr.nat.localIPv6
-	echo.Identifier = natID
 	_ = tr.icmpv6.SetNetworkLayerForChecksum(tr.ipv6)
-	// encode data to buffer
+	echo.Identifier = natID
 	tr.payload = echo.Payload
+	// encode data to buffer
 	err = gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv6, tr.icmpv6, echo, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize icmpv6 echo request frame: %s"
@@ -444,9 +444,9 @@ func (tr *transporter) decodeIPv4TCP() {
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv4.SrcIP = tr.nat.localIPv4
 	tr.tcp.SrcPort = layers.TCPPort(natPort)
-	// encode data to buffer
 	_ = tr.tcp.SetNetworkLayerForChecksum(tr.ipv4)
 	tr.payload = tr.tcp.Payload
+	// encode data to buffer
 	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.tcp, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 tcp frame: %s"
@@ -472,9 +472,9 @@ func (tr *transporter) decodeIPv6TCP() {
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv6.SrcIP = tr.nat.localIPv6
 	tr.tcp.SrcPort = layers.TCPPort(natPort)
-	// encode data to buffer
 	_ = tr.tcp.SetNetworkLayerForChecksum(tr.ipv6)
 	tr.payload = tr.tcp.Payload
+	// encode data to buffer
 	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv6, tr.tcp, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv6 tcp frame: %s"
@@ -509,9 +509,9 @@ func (tr *transporter) decodeIPv4UDP() {
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv4.SrcIP = tr.nat.localIPv4
 	tr.udp.SrcPort = layers.UDPPort(natPort)
-	// encode data to buffer
 	_ = tr.udp.SetNetworkLayerForChecksum(tr.ipv4)
 	tr.payload = tr.udp.Payload
+	// encode data to buffer
 	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv4, tr.udp, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv4 udp frame: %s"
@@ -537,9 +537,9 @@ func (tr *transporter) decodeIPv6UDP() {
 	tr.eth.SrcMAC = tr.nat.localMAC
 	tr.ipv6.SrcIP = tr.nat.localIPv6
 	tr.udp.SrcPort = layers.UDPPort(natPort)
-	// encode data to buffer
 	_ = tr.udp.SetNetworkLayerForChecksum(tr.ipv6)
 	tr.payload = tr.udp.Payload
+	// encode data to buffer
 	err := gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv6, tr.udp, tr.payload)
 	if err != nil {
 		const format = "(%s) failed to serialize ipv6 udp frame: %s"
