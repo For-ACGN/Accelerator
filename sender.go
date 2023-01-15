@@ -259,10 +259,14 @@ func (s *frameSender) sendICMPv4TimeExceeded(frame *frame) {
 	icmpv4 := new(layers.ICMPv4)
 	payload := new(gopacket.Payload)
 	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, ip4, icmpv4, payload)
+	parser.IgnoreUnsupported = true
 	var decoded []gopacket.LayerType
 	err := parser.DecodeLayers(s.icmpv4.Payload, &decoded)
 	if err != nil {
 		s.ctx.logger.Warning("failed to decode icmpv4 ttl exceeded payload:", err)
+		return
+	}
+	if len(decoded) != 3 {
 		return
 	}
 	rIP := ip4.DstIP
@@ -439,10 +443,14 @@ func (s *frameSender) sendICMPv6TimeExceeded(frame *frame) {
 	echo := new(layers.ICMPv6Echo)
 	payload := new(gopacket.Payload)
 	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, ip6, icmpv6, echo, payload)
+	parser.IgnoreUnsupported = true
 	var decoded []gopacket.LayerType
 	err := parser.DecodeLayers(s.icmpv6.Payload, &decoded)
 	if err != nil {
 		s.ctx.logger.Warning("failed to decode icmpv6 ttl exceeded payload:", err)
+		return
+	}
+	if len(decoded) != 4 {
 		return
 	}
 	rIP := ip6.DstIP
@@ -493,6 +501,64 @@ func (s *frameSender) sendICMPv6DestinationUnreachable(frame *frame) {
 	if s.icmpv6.TypeCode.Code() != layers.ICMPv6CodePortUnreachable {
 		return
 	}
+	// get original frame information
+	ip6 := new(layers.IPv6)
+	udp := new(layers.UDP)
+	payload := new(gopacket.Payload)
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, ip6, udp, payload)
+	parser.IgnoreUnsupported = true
+	var decoded []gopacket.LayerType
+	err := parser.DecodeLayers(s.icmpv6.Payload, &decoded)
+	if err != nil {
+		s.ctx.logger.Warning("failed to decode icmpv6 port unreachable payload:", err)
+		return
+	}
+	if len(decoded) != 3 {
+		return
+	}
+	rIP := ip6.DstIP
+	rPort := uint16(udp.DstPort)
+	natPort := uint16(udp.SrcPort)
+	li := s.nat.QueryIPv6UDPPortMap(rIP, rPort, natPort)
+	if li == nil {
+		return
+	}
+	// replace IP address and udp port in icmp payload
+	copy(ip6.SrcIP, li.localIP[:])
+	udp.SrcPort = layers.UDPPort(binary.BigEndian.Uint16(li.localPort[:]))
+	s.payload = *payload
+	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, ip6, udp, s.payload)
+	if err != nil {
+		s.ctx.logger.Warning("failed to serialize icmpv6 port unreachable payload:", err)
+		return
+	}
+	b := s.slBuf.Bytes()
+	p := make([]byte, len(b))
+	copy(p, b)
+	// replace MAC, IP address
+	dstMAC := s.ctx.ipv6ToMAC(li.localIP)
+	s.eth.DstMAC = dstMAC[:]
+	copy(s.ipv6.DstIP, li.localIP[:])
+	s.payload = p
+	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.icmpv6, s.payload)
+	if err != nil {
+		s.ctx.logger.Warning("failed to serialize icmpv6 port unreachable frame:", err)
+		return
+	}
+	fr := s.slBuf.Bytes()
+	frame.Reset()
+	frame.WriteHeader(len(fr))
+	frame.WriteData(fr)
+	// send to the target client
+	dstIPv6Ptr := s.ipv6Cache.Get().(*ipv6)
+	defer s.ipv6Cache.Put(dstIPv6Ptr)
+	dstIPv6 := *dstIPv6Ptr
+	copy(dstIPv6[:], s.ipv6.DstIP)
+	pool := s.ctx.getConnPoolByIPv6(dstIPv6)
+	if pool == nil {
+		return
+	}
+	pool.Push(frame.Bytes())
 }
 
 func (s *frameSender) sendTCP(frame *frame) {
