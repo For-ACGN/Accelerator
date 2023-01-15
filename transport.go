@@ -357,7 +357,7 @@ func (tr *transporter) decodeICMPv6EchoRequest() {
 	tr.ipv6.SrcIP = tr.nat.localIPv6
 	_ = tr.icmpv6.SetNetworkLayerForChecksum(tr.ipv6)
 	echo.Identifier = natID
-	tr.payload = echo.Payload
+	tr.payload = tr.icmpv6.Payload[4:] // size of ICMPv6Echo
 	// encode data to buffer
 	err = gopacket.SerializeLayers(tr.slBuf, tr.slOpt, tr.eth, tr.ipv6, tr.icmpv6, echo, tr.payload)
 	if err != nil {

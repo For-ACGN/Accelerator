@@ -410,7 +410,7 @@ func (s *frameSender) sendICMPv6EchoReply(frame *frame) {
 	copy(s.ipv6.DstIP, li.localIP[:])
 	_ = s.icmpv6.SetNetworkLayerForChecksum(s.ipv6)
 	echo.Identifier = binary.BigEndian.Uint16(li.localID[:])
-	s.payload = echo.Payload
+	s.payload = s.icmpv6.Payload[4:] // size of ICMPv6Echo
 	// encode data to buffer
 	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.icmpv6, echo, s.payload)
 	if err != nil {
