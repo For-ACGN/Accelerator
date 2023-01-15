@@ -5,7 +5,7 @@
 
 [client]
   mode           = "tcp-tls" # tcp-tls or udp-quic
-  conn_pool_size = 64
+  conn_pool_size = 8
   timeout        = "10s"
 
 [tcp]

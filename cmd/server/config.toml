@@ -1,11 +1,11 @@
 [common]
-  interface = "eth0" # run "acc-server.exe -list-dev" on Windows
+  interface = "eth0" # run "acc-server.exe -list-dev" on Windows, "\\Device\\NPF_{GUID}"
   pwd_hash  = "bfc6885fabb921c9c9094cb0118864a4605bec2cdf81869ee844ec2c7f1b7f73" # test
   log_path  = "acc-server.log"
 
 [server]
   conn_pool_size   = 64
-  num_frame_sender = 64
+  num_frame_sender = 128
   timeout          = "15s"
 
 [tcp]
@@ -27,8 +27,8 @@
 # On cloud computing platform like aws, usually need to
 # enable it(virtual network interface maybe filter it).
 [nat]
-  enabled     = false
-  map_timeout = "1m"
+  enabled = false
+  timeout = "1m"
 
   [nat.mac]
     local   = "AB:FF:FF:FF:FF:FF"
