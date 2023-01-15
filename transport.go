@@ -158,7 +158,7 @@ func (tr *transporter) decodeWithoutNAT(frame *frame) {
 	if len(decoded) < 1 || decoded[0] != layers.LayerTypeEthernet {
 		return
 	}
-	tr.isNewSourceMAC()
+	tr.bindMAC()
 	dstMACPtr := tr.macCache.Get().(*mac)
 	defer tr.macCache.Put(dstMACPtr)
 	dstMAC := *dstMACPtr
@@ -193,10 +193,10 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 				return
 			}
 		case layers.LayerTypeIPv4:
-			tr.isNewSourceIPv4()
+			tr.bindIPv4()
 			tr.isIPv4 = true
 		case layers.LayerTypeIPv6:
-			tr.isNewSourceIPv6()
+			tr.bindIPv6()
 			tr.isIPv6 = true
 		case layers.LayerTypeICMPv4:
 			tr.decodeICMPv4()
@@ -216,7 +216,7 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 
 // TODO think ICMPv6 like arp.
 func (tr *transporter) decodeEthernet(frame *frame) bool {
-	tr.isNewSourceMAC()
+	tr.bindMAC()
 	// special case
 	if tr.eth.EthernetType == layers.EthernetTypeARP {
 		if tr.decodeARPRequest(frame) {
@@ -550,7 +550,7 @@ func (tr *transporter) decodeIPv6UDP() {
 	_ = tr.handle.WritePacketData(data)
 }
 
-func (tr *transporter) isNewSourceMAC() {
+func (tr *transporter) bindMAC() {
 	if tr.eth.SrcMAC[0]&1 == 1 { // not unicast
 		return
 	}
@@ -573,7 +573,7 @@ func (tr *transporter) isNewSourceMAC() {
 	}
 }
 
-func (tr *transporter) isNewSourceIPv4() {
+func (tr *transporter) bindIPv4() {
 	if !tr.ipv4.SrcIP.IsGlobalUnicast() {
 		return
 	}
@@ -601,7 +601,7 @@ func (tr *transporter) isNewSourceIPv4() {
 	tr.ctx.bindIPv4ToMAC(srcIP, srcMAC)
 }
 
-func (tr *transporter) isNewSourceIPv6() {
+func (tr *transporter) bindIPv6() {
 	if !tr.ipv6.SrcIP.IsGlobalUnicast() {
 		return
 	}
