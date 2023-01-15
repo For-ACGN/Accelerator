@@ -433,6 +433,60 @@ func (s *frameSender) sendICMPv6TimeExceeded(frame *frame) {
 	if s.icmpv6.TypeCode.Code() != layers.ICMPv6CodeHopLimitExceeded {
 		return
 	}
+	// get original frame information
+	ip6 := new(layers.IPv6)
+	icmpv6 := new(layers.ICMPv6)
+	echo := new(layers.ICMPv6Echo)
+	payload := new(gopacket.Payload)
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, ip6, icmpv6, echo, payload)
+	var decoded []gopacket.LayerType
+	err := parser.DecodeLayers(s.icmpv6.Payload, &decoded)
+	if err != nil {
+		s.ctx.logger.Warning("failed to decode icmpv6 ttl exceeded payload:", err)
+		return
+	}
+	rIP := ip6.DstIP
+	natID := echo.Identifier
+	li := s.nat.QueryICMPv6IDMap(rIP, natID)
+	if li == nil {
+		return
+	}
+	// replace IP address and icmp id in icmp payload
+	copy(ip6.SrcIP, li.localIP[:])
+	echo.Identifier = binary.BigEndian.Uint16(li.localID[:])
+	s.payload = *payload
+	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, ip6, icmpv6, echo, s.payload)
+	if err != nil {
+		s.ctx.logger.Warning("failed to serialize icmpv6 ttl exceeded frame payload:", err)
+		return
+	}
+	b := s.slBuf.Bytes()
+	p := make([]byte, len(b))
+	copy(p, b)
+	// replace MAC, IP address
+	dstMAC := s.ctx.ipv6ToMAC(li.localIP)
+	s.eth.DstMAC = dstMAC[:]
+	copy(s.ipv6.DstIP, li.localIP[:])
+	s.payload = p
+	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.icmpv6, s.payload)
+	if err != nil {
+		s.ctx.logger.Warning("failed to serialize icmpv6 ttl exceeded frame:", err)
+		return
+	}
+	fr := s.slBuf.Bytes()
+	frame.Reset()
+	frame.WriteHeader(len(fr))
+	frame.WriteData(fr)
+	// send to the target client
+	dstIPv6Ptr := s.ipv6Cache.Get().(*ipv6)
+	defer s.ipv6Cache.Put(dstIPv6Ptr)
+	dstIPv6 := *dstIPv6Ptr
+	copy(dstIPv6[:], s.ipv6.DstIP)
+	pool := s.ctx.getConnPoolByIPv6(dstIPv6)
+	if pool == nil {
+		return
+	}
+	pool.Push(frame.Bytes())
 }
 
 func (s *frameSender) sendICMPv6DestinationUnreachable(frame *frame) {
