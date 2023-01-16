@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 )
 
 // frameSender is used to parse frame from destination network
@@ -18,11 +19,13 @@ type frameSender struct {
 
 	enableNAT bool
 
+	handle     *pcap.Handle
 	nat        *nat
 	frameCh    chan *frame
 	frameCache *sync.Pool
 
 	eth    *layers.Ethernet
+	arp    *layers.ARP
 	ipv4   *layers.IPv4
 	ipv6   *layers.IPv6
 	icmpv4 *layers.ICMPv4
@@ -45,8 +48,8 @@ type frameSender struct {
 }
 
 func (srv *Server) newFrameSender() *frameSender {
-	enableNAT := srv.enableNAT
 	eth := new(layers.Ethernet)
+	arp := new(layers.ARP)
 	ip4 := new(layers.IPv4)
 	ip6 := new(layers.IPv6)
 	icmpv4 := new(layers.ICMPv4)
@@ -54,10 +57,10 @@ func (srv *Server) newFrameSender() *frameSender {
 	tcp := new(layers.TCP)
 	udp := new(layers.UDP)
 	var parser *gopacket.DecodingLayerParser
-	if enableNAT {
+	if srv.enableNAT {
 		parser = gopacket.NewDecodingLayerParser(
 			layers.LayerTypeEthernet,
-			eth,
+			eth, arp,
 			ip4, icmpv4,
 			ip6, icmpv6,
 			tcp, udp,
@@ -77,11 +80,13 @@ func (srv *Server) newFrameSender() *frameSender {
 	slBuf := gopacket.NewSerializeBuffer()
 	sender := frameSender{
 		ctx:        srv,
-		enableNAT:  enableNAT,
+		enableNAT:  srv.enableNAT,
+		handle:     srv.handle,
 		nat:        srv.nat,
 		frameCh:    srv.frameCh,
 		frameCache: srv.frameCache,
 		eth:        eth,
+		arp:        arp,
 		ipv4:       ip4,
 		ipv6:       ip6,
 		icmpv4:     icmpv4,
@@ -179,6 +184,39 @@ func (s *frameSender) sendWithNAT(frame *frame) {
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
 		case layers.LayerTypeEthernet:
+			// TODO move to new function
+			if bytes.Equal(s.eth.DstMAC, broadcast[:]) {
+				if s.eth.EthernetType != layers.EthernetTypeARP {
+					return
+				}
+				if s.arp.Operation != layers.ARPRequest {
+					return
+				}
+				if !bytes.Equal(s.arp.SourceHwAddress, s.nat.gatewayMAC) {
+					return
+				}
+				if !s.nat.gatewayIPv4.Equal(s.arp.SourceProtAddress) {
+					return
+				}
+				if !s.nat.localIPv4.Equal(s.arp.DstProtAddress) {
+					return
+				}
+				s.eth.SrcMAC, s.eth.DstMAC = s.nat.localMAC, s.nat.gatewayMAC
+				s.arp.Operation = layers.ARPReply
+				s.arp.SourceHwAddress = s.nat.localMAC
+				s.arp.SourceProtAddress = s.nat.localIPv4
+				s.arp.DstHwAddress = s.nat.gatewayMAC
+				s.arp.DstProtAddress = s.nat.gatewayIPv4
+				// encode data to buffer
+				err = gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.arp)
+				if err != nil {
+					s.ctx.logger.Warning("failed to serialize arp reply frame:", err)
+					return
+				}
+				data := s.slBuf.Bytes()
+				_ = s.handle.WritePacketData(data)
+				return
+			}
 			if !bytes.Equal(s.eth.DstMAC, s.nat.localMAC) {
 				return
 			}

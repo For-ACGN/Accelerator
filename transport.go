@@ -55,7 +55,6 @@ type transporter struct {
 }
 
 func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporter {
-	enableNAT := srv.enableNAT
 	eth := new(layers.Ethernet)
 	arp := new(layers.ARP)
 	ip4 := new(layers.IPv4)
@@ -65,7 +64,7 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 	tcp := new(layers.TCP)
 	udp := new(layers.UDP)
 	var parser *gopacket.DecodingLayerParser
-	if enableNAT {
+	if srv.enableNAT {
 		parser = gopacket.NewDecodingLayerParser(
 			layers.LayerTypeEthernet,
 			eth, arp,
@@ -88,9 +87,9 @@ func (srv *Server) newTransporter(conn net.Conn, token sessionToken) *transporte
 	slBuf := gopacket.NewSerializeBuffer()
 	tc := transporter{
 		ctx:       srv,
-		enableNAT: enableNAT,
-		nat:       srv.nat,
+		enableNAT: srv.enableNAT,
 		handle:    srv.handle,
+		nat:       srv.nat,
 		conn:      conn,
 		token:     token,
 		eth:       eth,
