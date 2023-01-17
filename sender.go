@@ -184,39 +184,17 @@ func (s *frameSender) sendWithNAT(frame *frame) {
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
 		case layers.LayerTypeEthernet:
-			// TODO move to new function
+			// process arp request from gateway
 			if bytes.Equal(s.eth.DstMAC, broadcast[:]) {
-				if s.eth.EthernetType != layers.EthernetTypeARP {
-					return
-				}
-				if s.arp.Operation != layers.ARPRequest {
-					return
-				}
-				if !bytes.Equal(s.arp.SourceHwAddress, s.nat.gatewayMAC) {
-					return
-				}
-				if !s.nat.gatewayIPv4.Equal(s.arp.SourceProtAddress) {
-					return
-				}
-				if !s.nat.localIPv4.Equal(s.arp.DstProtAddress) {
-					return
-				}
-				s.eth.SrcMAC, s.eth.DstMAC = s.nat.localMAC, s.nat.gatewayMAC
-				s.arp.Operation = layers.ARPReply
-				s.arp.SourceHwAddress = s.nat.localMAC
-				s.arp.SourceProtAddress = s.nat.localIPv4
-				s.arp.DstHwAddress = s.nat.gatewayMAC
-				s.arp.DstProtAddress = s.nat.gatewayIPv4
-				// encode data to buffer
-				err = gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.arp)
-				if err != nil {
-					s.ctx.logger.Warning("failed to serialize arp reply frame:", err)
-					return
-				}
-				data := s.slBuf.Bytes()
-				_ = s.handle.WritePacketData(data)
+				s.sendARPReply()
 				return
 			}
+			// process ICMPv6 Solicitation/Advertisement from gateway
+			if bytes.Equal(s.eth.DstMAC[:2], []byte{0x33, 0x33}) {
+				// TODO ICMPv6
+				return
+			}
+			// ignore frames with different MAC address
 			if !bytes.Equal(s.eth.DstMAC, s.nat.localMAC) {
 				return
 			}
@@ -238,6 +216,38 @@ func (s *frameSender) sendWithNAT(frame *frame) {
 			return
 		}
 	}
+}
+
+func (s *frameSender) sendARPReply() {
+	if s.eth.EthernetType != layers.EthernetTypeARP {
+		return
+	}
+	if s.arp.Operation != layers.ARPRequest {
+		return
+	}
+	if !bytes.Equal(s.arp.SourceHwAddress, s.nat.gatewayMAC) {
+		return
+	}
+	if !s.nat.gatewayIPv4.Equal(s.arp.SourceProtAddress) {
+		return
+	}
+	if !s.nat.localIPv4.Equal(s.arp.DstProtAddress) {
+		return
+	}
+	s.eth.SrcMAC, s.eth.DstMAC = s.nat.localMAC, s.nat.gatewayMAC
+	s.arp.Operation = layers.ARPReply
+	s.arp.SourceHwAddress = s.nat.localMAC
+	s.arp.SourceProtAddress = s.nat.localIPv4
+	s.arp.DstHwAddress = s.nat.gatewayMAC
+	s.arp.DstProtAddress = s.nat.gatewayIPv4
+	// encode data to buffer
+	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.arp)
+	if err != nil {
+		s.ctx.logger.Warning("failed to serialize arp reply frame:", err)
+		return
+	}
+	data := s.slBuf.Bytes()
+	_ = s.handle.WritePacketData(data)
 }
 
 func (s *frameSender) sendICMPv4(frame *frame) {
