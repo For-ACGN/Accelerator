@@ -150,13 +150,15 @@ func (s *frameSender) sendWithoutNAT(frame *frame) {
 	if len(decoded) < 1 || decoded[0] != layers.LayerTypeEthernet {
 		return
 	}
-
+	// invalid mac address
+	if bytes.Equal(s.eth.DstMAC, zeroMAC) {
+		return
+	}
 	dstMACPtr := s.macCache.Get().(*mac)
 	defer s.macCache.Put(dstMACPtr)
 	dstMAC := *dstMACPtr
 	copy(dstMAC[:], s.eth.DstMAC)
-
-	if dstMAC == broadcast {
+	if dstMAC[0]&1 == 1 {
 		s.ctx.broadcast(frame.Bytes())
 		return
 	}
@@ -184,6 +186,10 @@ func (s *frameSender) sendWithNAT(frame *frame) {
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
 		case layers.LayerTypeEthernet:
+			// invalid mac address
+			if bytes.Equal(s.eth.DstMAC, zeroMAC) {
+				return
+			}
 			// process arp request from gateway
 			if bytes.Equal(s.eth.DstMAC, broadcast[:]) {
 				s.sendARPReply()
@@ -225,21 +231,15 @@ func (s *frameSender) sendARPReply() {
 	if s.arp.Operation != layers.ARPRequest {
 		return
 	}
-	if !bytes.Equal(s.arp.SourceHwAddress, s.nat.gatewayMAC) {
-		return
-	}
-	if !s.nat.gatewayIPv4.Equal(s.arp.SourceProtAddress) {
-		return
-	}
 	if !s.nat.localIPv4.Equal(s.arp.DstProtAddress) {
 		return
 	}
-	s.eth.SrcMAC, s.eth.DstMAC = s.nat.localMAC, s.nat.gatewayMAC
+	s.eth.SrcMAC, s.eth.DstMAC = s.nat.localMAC, s.eth.SrcMAC
 	s.arp.Operation = layers.ARPReply
+	s.arp.DstHwAddress = s.arp.SourceHwAddress
+	s.arp.DstProtAddress = s.arp.SourceProtAddress
 	s.arp.SourceHwAddress = s.nat.localMAC
 	s.arp.SourceProtAddress = s.nat.localIPv4
-	s.arp.DstHwAddress = s.nat.gatewayMAC
-	s.arp.DstProtAddress = s.nat.gatewayIPv4
 	// encode data to buffer
 	err := gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.arp)
 	if err != nil {

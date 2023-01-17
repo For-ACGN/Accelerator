@@ -158,11 +158,15 @@ func (tr *transporter) decodeWithoutNAT(frame *frame) {
 		return
 	}
 	tr.bindMAC()
+	// invalid mac address
+	if bytes.Equal(tr.eth.DstMAC, zeroMAC) {
+		return
+	}
 	dstMACPtr := tr.macCache.Get().(*mac)
 	defer tr.macCache.Put(dstMACPtr)
 	dstMAC := *dstMACPtr
 	copy(dstMAC[:], tr.eth.DstMAC)
-	if dstMAC == broadcast {
+	if dstMAC[0]&1 == 1 {
 		_ = tr.handle.WritePacketData(frame.Data())
 		tr.ctx.broadcastExcept(frame.Bytes(), tr.token)
 		return
@@ -216,6 +220,10 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 // TODO think ICMPv6 like arp.
 func (tr *transporter) decodeEthernet(frame *frame) bool {
 	tr.bindMAC()
+	// invalid mac address
+	if bytes.Equal(tr.eth.DstMAC, zeroMAC) {
+		return false
+	}
 	// special case
 	if tr.eth.EthernetType == layers.EthernetTypeARP {
 		if tr.decodeARPRequest(frame) {
@@ -550,6 +558,9 @@ func (tr *transporter) decodeIPv6UDP() {
 }
 
 func (tr *transporter) bindMAC() {
+	if bytes.Equal(tr.eth.SrcMAC, zeroMAC) {
+		return
+	}
 	if tr.eth.SrcMAC[0]&1 == 1 { // not unicast
 		return
 	}
