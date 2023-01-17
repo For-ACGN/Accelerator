@@ -128,7 +128,7 @@ func (s *frameSender) sendLoop() {
 			if s.enableNAT {
 				s.sendWithNAT(fr)
 			} else {
-				s.sendWithoutNAT(fr)
+				s.sendWithBridge(fr)
 			}
 		case <-s.ctx.ctx.Done():
 			return
@@ -136,7 +136,7 @@ func (s *frameSender) sendLoop() {
 	}
 }
 
-func (s *frameSender) sendWithoutNAT(frame *frame) {
+func (s *frameSender) sendWithBridge(frame *frame) {
 	defer func() {
 		frame.Reset()
 		s.frameCache.Put(frame)

@@ -143,12 +143,12 @@ func (tr *transporter) transport() {
 		if tr.enableNAT {
 			tr.decodeWithNAT(fr)
 		} else {
-			tr.decodeWithoutNAT(fr)
+			tr.decodeWithBridge(fr)
 		}
 	}
 }
 
-func (tr *transporter) decodeWithoutNAT(frame *frame) {
+func (tr *transporter) decodeWithBridge(frame *frame) {
 	err := tr.parser.DecodeLayers(frame.Data(), tr.decoded)
 	if err != nil {
 		return
