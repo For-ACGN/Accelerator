@@ -489,16 +489,15 @@ func (s *frameSender) sendICMPv6TimeExceeded(frame *frame) {
 	ip6 := new(layers.IPv6)
 	icmpv6 := new(layers.ICMPv6)
 	echo := new(layers.ICMPv6Echo)
-	payload := new(gopacket.Payload)
-	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, ip6, icmpv6, echo, payload)
+	parser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv6, ip6, icmpv6, echo)
 	parser.IgnoreUnsupported = true
 	var decoded []gopacket.LayerType
-	err := parser.DecodeLayers(s.icmpv6.Payload, &decoded)
+	err := parser.DecodeLayers(s.icmpv6.Payload[4:], &decoded) // size of reserved
 	if err != nil {
-		s.ctx.logger.Warning("failed to decode icmpv6 ttl exceeded payload:", err)
+		s.ctx.logger.Warning("failed to decode icmpv6 hop limit exceeded payload:", err)
 		return
 	}
-	if len(decoded) != 4 {
+	if len(decoded) != 3 {
 		return
 	}
 	rIP := ip6.DstIP
@@ -509,24 +508,26 @@ func (s *frameSender) sendICMPv6TimeExceeded(frame *frame) {
 	}
 	// replace IP address and icmp id in icmp payload
 	copy(ip6.SrcIP, li.localIP[:])
+	_ = icmpv6.SetNetworkLayerForChecksum(ip6)
 	echo.Identifier = binary.BigEndian.Uint16(li.localID[:])
-	s.payload = *payload
+	s.payload = icmpv6.Payload[4:] // size of ICMPv6Echo
 	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, ip6, icmpv6, echo, s.payload)
 	if err != nil {
-		s.ctx.logger.Warning("failed to serialize icmpv6 ttl exceeded frame payload:", err)
+		s.ctx.logger.Warning("failed to serialize icmpv6 hop limit exceeded frame payload:", err)
 		return
 	}
 	b := s.slBuf.Bytes()
-	p := make([]byte, len(b))
-	copy(p, b)
+	p := make([]byte, 4+len(b)) // padding ICMPv6 reserved
+	copy(p[4:], b)
 	// replace MAC, IP address
 	dstMAC := s.ctx.ipv6ToMAC(li.localIP)
 	s.eth.DstMAC = dstMAC[:]
 	copy(s.ipv6.DstIP, li.localIP[:])
+	_ = s.icmpv6.SetNetworkLayerForChecksum(s.ipv6)
 	s.payload = p
 	err = gopacket.SerializeLayers(s.slBuf, s.slOpt, s.eth, s.ipv6, s.icmpv6, s.payload)
 	if err != nil {
-		s.ctx.logger.Warning("failed to serialize icmpv6 ttl exceeded frame:", err)
+		s.ctx.logger.Warning("failed to serialize icmpv6 hop limit exceeded frame:", err)
 		return
 	}
 	fr := s.slBuf.Bytes()
