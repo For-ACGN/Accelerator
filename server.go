@@ -725,6 +725,9 @@ func (srv *Server) bindMACAddress(token sessionToken, mac mac) bool {
 	srv.macsRWM.Lock()
 	defer srv.macsRWM.Unlock()
 	t := srv.macs[mac]
+	if t == token {
+		return true
+	}
 	if t != emptySessionToken {
 		srv.connPoolsRWM.RLock()
 		defer srv.connPoolsRWM.RUnlock()
@@ -752,6 +755,9 @@ func (srv *Server) bindIPv4Address(token sessionToken, ip ipv4) bool {
 	srv.ipv4sRWM.Lock()
 	defer srv.ipv4sRWM.Unlock()
 	t := srv.ipv4s[ip]
+	if t == token {
+		return true
+	}
 	if t != emptySessionToken {
 		srv.connPoolsRWM.RLock()
 		defer srv.connPoolsRWM.RUnlock()
@@ -780,6 +786,9 @@ func (srv *Server) bindIPv6Address(token sessionToken, ip ipv6) bool {
 	srv.ipv6sRWM.Lock()
 	defer srv.ipv6sRWM.Unlock()
 	t := srv.ipv6s[ip]
+	if t == token {
+		return true
+	}
 	if t != emptySessionToken {
 		srv.connPoolsRWM.RLock()
 		defer srv.connPoolsRWM.RUnlock()

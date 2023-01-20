@@ -107,11 +107,10 @@ func (pool *connPool) DeleteConn(conn *net.Conn) {
 // Push is used to push data to connection pool and wait sender
 // to send data, if send queue is full, data will be dropped.
 func (pool *connPool) Push(b []byte) {
-	// TODO remove data copy
-	cp := make([]byte, len(b))
-	copy(cp, b)
+	data := make([]byte, len(b))
+	copy(data, b)
 	select {
-	case pool.frameCh <- cp:
+	case pool.frameCh <- data:
 	default:
 	}
 }

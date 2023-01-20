@@ -563,15 +563,11 @@ func (tr *transporter) decodeIPv6UDP() {
 }
 
 func (tr *transporter) bindMACAddress() {
-	var exist bool
+	// check already bind
 	for i := 0; i < len(tr.srcMAC); i++ {
 		if bytes.Equal(tr.srcMAC[i], tr.eth.SrcMAC) {
-			exist = true
-			break
+			return
 		}
-	}
-	if exist {
-		return
 	}
 	// invalid source mac address
 	if bytes.Equal(tr.eth.SrcMAC, zeroMAC) {
@@ -592,15 +588,11 @@ func (tr *transporter) bindMACAddress() {
 }
 
 func (tr *transporter) bindIPv4Address() {
-	var exist bool
+	// check already bind
 	for i := 0; i < len(tr.srcIPv4); i++ {
 		if tr.srcIPv4[i].Equal(tr.ipv4.SrcIP) {
-			exist = true
-			break
+			return
 		}
-	}
-	if exist {
-		return
 	}
 	if !tr.ipv4.SrcIP.IsGlobalUnicast() {
 		return
@@ -616,20 +608,15 @@ func (tr *transporter) bindIPv4Address() {
 	}
 	srcMAC := mac{}
 	copy(srcMAC[:], tr.eth.SrcMAC)
-	tr.srcMAC = append(tr.srcMAC, srcMAC[:])
 	tr.ctx.bindIPv4ToMAC(srcIP, srcMAC)
 }
 
 func (tr *transporter) bindIPv6Address() {
-	var exist bool
+	// check already bind
 	for i := 0; i < len(tr.srcIPv6); i++ {
 		if tr.srcIPv6[i].Equal(tr.ipv6.SrcIP) {
-			exist = true
-			break
+			return
 		}
-	}
-	if exist {
-		return
 	}
 	if !tr.ipv6.SrcIP.IsGlobalUnicast() {
 		return
@@ -645,6 +632,5 @@ func (tr *transporter) bindIPv6Address() {
 	}
 	srcMAC := mac{}
 	copy(srcMAC[:], tr.eth.SrcMAC)
-	tr.srcMAC = append(tr.srcMAC, srcMAC[:])
 	tr.ctx.bindIPv6ToMAC(srcIP, srcMAC)
 }
