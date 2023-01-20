@@ -581,10 +581,12 @@ func (tr *transporter) bindMACAddress() {
 	srcMAC := mac{}
 	copy(srcMAC[:], tr.eth.SrcMAC)
 	tr.srcMAC = append(tr.srcMAC, srcMAC[:])
-	if !tr.ctx.bindMACAddress(tr.token, srcMAC) {
-		const format = "(%s) failed to bind mac address"
-		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr())
+	if tr.ctx.bindMACAddress(tr.token, srcMAC) {
+		return
 	}
+	const format = "(%s) failed to bind mac address: %s"
+	tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), net.HardwareAddr(srcMAC[:]))
+	// TODO send alert to client
 }
 
 func (tr *transporter) bindIPv4Address() {
@@ -601,14 +603,15 @@ func (tr *transporter) bindIPv4Address() {
 	srcIP := ipv4{}
 	copy(srcIP[:], tr.ipv4.SrcIP)
 	tr.srcIPv4 = append(tr.srcIPv4, srcIP[:])
-	if !tr.ctx.bindIPv4Address(tr.token, srcIP) {
-		const format = "(%s) failed to bind ipv4 address"
-		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr())
+	if tr.ctx.bindIPv4Address(tr.token, srcIP) {
+		srcMAC := mac{}
+		copy(srcMAC[:], tr.eth.SrcMAC)
+		tr.ctx.bindIPv4ToMAC(srcIP, srcMAC)
 		return
 	}
-	srcMAC := mac{}
-	copy(srcMAC[:], tr.eth.SrcMAC)
-	tr.ctx.bindIPv4ToMAC(srcIP, srcMAC)
+	const format = "(%s) failed to bind ipv4 address: %s"
+	tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), net.IP(srcIP[:]))
+	// TODO send alert to client
 }
 
 func (tr *transporter) bindIPv6Address() {
@@ -625,12 +628,13 @@ func (tr *transporter) bindIPv6Address() {
 	srcIP := ipv6{}
 	copy(srcIP[:], tr.ipv6.SrcIP)
 	tr.srcIPv6 = append(tr.srcIPv6, srcIP[:])
-	if !tr.ctx.bindIPv6Address(tr.token, srcIP) {
-		const format = "(%s) failed to bind ipv6 address"
-		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr())
+	if tr.ctx.bindIPv6Address(tr.token, srcIP) {
+		srcMAC := mac{}
+		copy(srcMAC[:], tr.eth.SrcMAC)
+		tr.ctx.bindIPv6ToMAC(srcIP, srcMAC)
 		return
 	}
-	srcMAC := mac{}
-	copy(srcMAC[:], tr.eth.SrcMAC)
-	tr.ctx.bindIPv6ToMAC(srcIP, srcMAC)
+	const format = "(%s) failed to bind ipv6 address: %s"
+	tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), net.IP(srcIP[:]))
+	// TODO send alert to client
 }
