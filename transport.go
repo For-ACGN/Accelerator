@@ -558,12 +558,6 @@ func (tr *transporter) decodeIPv6UDP() {
 }
 
 func (tr *transporter) bindMAC() {
-	if bytes.Equal(tr.eth.SrcMAC, zeroMAC) {
-		return
-	}
-	if tr.eth.SrcMAC[0]&1 == 1 { // not unicast
-		return
-	}
 	var exist bool
 	for i := 0; i < len(tr.srcMAC); i++ {
 		if bytes.Equal(tr.srcMAC[i], tr.eth.SrcMAC) {
@@ -574,19 +568,23 @@ func (tr *transporter) bindMAC() {
 	if exist {
 		return
 	}
+	if bytes.Equal(tr.eth.SrcMAC, zeroMAC) {
+		return
+	}
+	if tr.eth.SrcMAC[0]&1 == 1 { // not unicast
+		return
+	}
 	// must copy, because DecodeLayers use reference
 	srcMAC := mac{}
 	copy(srcMAC[:], tr.eth.SrcMAC)
 	tr.srcMAC = append(tr.srcMAC, srcMAC[:])
 	if !tr.ctx.bindMAC(tr.token, srcMAC) {
-		// TODO add warning
+		const format = "(%s) failed to bind mac address"
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr())
 	}
 }
 
 func (tr *transporter) bindIPv4() {
-	if !tr.ipv4.SrcIP.IsGlobalUnicast() {
-		return
-	}
 	var exist bool
 	for i := 0; i < len(tr.srcIPv4); i++ {
 		if tr.srcIPv4[i].Equal(tr.ipv4.SrcIP) {
@@ -597,12 +595,16 @@ func (tr *transporter) bindIPv4() {
 	if exist {
 		return
 	}
+	if !tr.ipv4.SrcIP.IsGlobalUnicast() {
+		return
+	}
 	// must copy, because DecodeLayers use reference
 	srcIP := ipv4{}
 	copy(srcIP[:], tr.ipv4.SrcIP)
 	tr.srcIPv4 = append(tr.srcIPv4, srcIP[:])
 	if !tr.ctx.bindIPv4(tr.token, srcIP) {
-		// TODO add warning
+		const format = "(%s) failed to bind ipv4 address"
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr())
 		return
 	}
 	srcMAC := mac{}
@@ -612,9 +614,6 @@ func (tr *transporter) bindIPv4() {
 }
 
 func (tr *transporter) bindIPv6() {
-	if !tr.ipv6.SrcIP.IsGlobalUnicast() {
-		return
-	}
 	var exist bool
 	for i := 0; i < len(tr.srcIPv6); i++ {
 		if tr.srcIPv6[i].Equal(tr.ipv6.SrcIP) {
@@ -625,12 +624,16 @@ func (tr *transporter) bindIPv6() {
 	if exist {
 		return
 	}
+	if !tr.ipv6.SrcIP.IsGlobalUnicast() {
+		return
+	}
 	// must copy, because DecodeLayers use reference
 	srcIP := ipv6{}
 	copy(srcIP[:], tr.ipv6.SrcIP)
 	tr.srcIPv6 = append(tr.srcIPv6, srcIP[:])
 	if !tr.ctx.bindIPv6(tr.token, srcIP) {
-		// TODO add warning
+		const format = "(%s) failed to bind ipv6 address"
+		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr())
 		return
 	}
 	srcMAC := mac{}
