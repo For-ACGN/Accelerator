@@ -157,27 +157,32 @@ func (tr *transporter) decodeWithBridge(frame *frame) {
 	if len(decoded) < 1 || decoded[0] != layers.LayerTypeEthernet {
 		return
 	}
-	tr.bindMACAddress()
-	// invalid mac address
+	// invalid destination mac address
 	if bytes.Equal(tr.eth.DstMAC, zeroMAC) {
 		return
 	}
+	tr.bindMACAddress()
 	dstMACPtr := tr.macCache.Get().(*mac)
 	defer tr.macCache.Put(dstMACPtr)
 	dstMAC := *dstMACPtr
 	copy(dstMAC[:], tr.eth.DstMAC)
-	if dstMAC[0]&1 == 1 {
+	if dstMAC == broadcast {
 		_ = tr.handle.WritePacketData(frame.Data())
 		tr.ctx.broadcastExcept(frame.Bytes(), tr.token)
 		return
 	}
-	// send to the target client
+	// send to the under interface for multicast
+	if dstMAC[0]&1 == 1 {
+		_ = tr.handle.WritePacketData(frame.Data())
+		return
+	}
+	// send to the target client in accelerator LAN
 	pool := tr.ctx.getConnPoolByMACAddress(dstMAC)
 	if pool != nil {
 		pool.Push(frame.Bytes())
 		return
 	}
-	// send to the under interface
+	// send to the other client in remote LAN
 	_ = tr.handle.WritePacketData(frame.Data())
 }
 
@@ -219,11 +224,11 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 
 // TODO think ICMPv6 like arp.
 func (tr *transporter) decodeEthernet(frame *frame) bool {
-	tr.bindMACAddress()
-	// invalid mac address
+	// invalid destination mac address
 	if bytes.Equal(tr.eth.DstMAC, zeroMAC) {
 		return false
 	}
+	tr.bindMACAddress()
 	// special case
 	if tr.eth.EthernetType == layers.EthernetTypeARP {
 		if tr.decodeARPRequest(frame) {
@@ -568,10 +573,12 @@ func (tr *transporter) bindMACAddress() {
 	if exist {
 		return
 	}
+	// invalid source mac address
 	if bytes.Equal(tr.eth.SrcMAC, zeroMAC) {
 		return
 	}
-	if tr.eth.SrcMAC[0]&1 == 1 { // not unicast
+	// not unicast
+	if tr.eth.SrcMAC[0]&1 == 1 {
 		return
 	}
 	// must copy, because DecodeLayers use reference

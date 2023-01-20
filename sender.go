@@ -150,7 +150,7 @@ func (s *frameSender) sendWithBridge(frame *frame) {
 	if len(decoded) < 1 || decoded[0] != layers.LayerTypeEthernet {
 		return
 	}
-	// invalid mac address
+	// invalid destination mac address
 	if bytes.Equal(s.eth.DstMAC, zeroMAC) {
 		return
 	}
@@ -186,7 +186,7 @@ func (s *frameSender) sendWithNAT(frame *frame) {
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
 		case layers.LayerTypeEthernet:
-			// invalid mac address
+			// invalid destination mac address
 			if bytes.Equal(s.eth.DstMAC, zeroMAC) {
 				return
 			}
