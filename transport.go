@@ -157,7 +157,7 @@ func (tr *transporter) decodeWithBridge(frame *frame) {
 	if len(decoded) < 1 || decoded[0] != layers.LayerTypeEthernet {
 		return
 	}
-	tr.bindMAC()
+	tr.bindMACAddress()
 	// invalid mac address
 	if bytes.Equal(tr.eth.DstMAC, zeroMAC) {
 		return
@@ -172,7 +172,7 @@ func (tr *transporter) decodeWithBridge(frame *frame) {
 		return
 	}
 	// send to the target client
-	pool := tr.ctx.getConnPoolByMAC(dstMAC)
+	pool := tr.ctx.getConnPoolByMACAddress(dstMAC)
 	if pool != nil {
 		pool.Push(frame.Bytes())
 		return
@@ -196,10 +196,10 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 				return
 			}
 		case layers.LayerTypeIPv4:
-			tr.bindIPv4()
+			tr.bindIPv4Address()
 			tr.isIPv4 = true
 		case layers.LayerTypeIPv6:
-			tr.bindIPv6()
+			tr.bindIPv6Address()
 			tr.isIPv6 = true
 		case layers.LayerTypeICMPv4:
 			tr.decodeICMPv4()
@@ -219,7 +219,7 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 
 // TODO think ICMPv6 like arp.
 func (tr *transporter) decodeEthernet(frame *frame) bool {
-	tr.bindMAC()
+	tr.bindMACAddress()
 	// invalid mac address
 	if bytes.Equal(tr.eth.DstMAC, zeroMAC) {
 		return false
@@ -251,7 +251,7 @@ func (tr *transporter) decodeEthernet(frame *frame) bool {
 		return false
 	}
 	// send to the target client
-	pool := tr.ctx.getConnPoolByMAC(dstMAC)
+	pool := tr.ctx.getConnPoolByMACAddress(dstMAC)
 	if pool != nil {
 		pool.Push(frame.Bytes())
 	}
@@ -557,7 +557,7 @@ func (tr *transporter) decodeIPv6UDP() {
 	_ = tr.handle.WritePacketData(data)
 }
 
-func (tr *transporter) bindMAC() {
+func (tr *transporter) bindMACAddress() {
 	var exist bool
 	for i := 0; i < len(tr.srcMAC); i++ {
 		if bytes.Equal(tr.srcMAC[i], tr.eth.SrcMAC) {
@@ -578,13 +578,13 @@ func (tr *transporter) bindMAC() {
 	srcMAC := mac{}
 	copy(srcMAC[:], tr.eth.SrcMAC)
 	tr.srcMAC = append(tr.srcMAC, srcMAC[:])
-	if !tr.ctx.bindMAC(tr.token, srcMAC) {
+	if !tr.ctx.bindMACAddress(tr.token, srcMAC) {
 		const format = "(%s) failed to bind mac address"
 		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr())
 	}
 }
 
-func (tr *transporter) bindIPv4() {
+func (tr *transporter) bindIPv4Address() {
 	var exist bool
 	for i := 0; i < len(tr.srcIPv4); i++ {
 		if tr.srcIPv4[i].Equal(tr.ipv4.SrcIP) {
@@ -602,7 +602,7 @@ func (tr *transporter) bindIPv4() {
 	srcIP := ipv4{}
 	copy(srcIP[:], tr.ipv4.SrcIP)
 	tr.srcIPv4 = append(tr.srcIPv4, srcIP[:])
-	if !tr.ctx.bindIPv4(tr.token, srcIP) {
+	if !tr.ctx.bindIPv4Address(tr.token, srcIP) {
 		const format = "(%s) failed to bind ipv4 address"
 		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr())
 		return
@@ -613,7 +613,7 @@ func (tr *transporter) bindIPv4() {
 	tr.ctx.bindIPv4ToMAC(srcIP, srcMAC)
 }
 
-func (tr *transporter) bindIPv6() {
+func (tr *transporter) bindIPv6Address() {
 	var exist bool
 	for i := 0; i < len(tr.srcIPv6); i++ {
 		if tr.srcIPv6[i].Equal(tr.ipv6.SrcIP) {
@@ -631,7 +631,7 @@ func (tr *transporter) bindIPv6() {
 	srcIP := ipv6{}
 	copy(srcIP[:], tr.ipv6.SrcIP)
 	tr.srcIPv6 = append(tr.srcIPv6, srcIP[:])
-	if !tr.ctx.bindIPv6(tr.token, srcIP) {
+	if !tr.ctx.bindIPv6Address(tr.token, srcIP) {
 		const format = "(%s) failed to bind ipv6 address"
 		tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr())
 		return

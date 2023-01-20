@@ -158,12 +158,12 @@ func (s *frameSender) sendWithBridge(frame *frame) {
 	defer s.macCache.Put(dstMACPtr)
 	dstMAC := *dstMACPtr
 	copy(dstMAC[:], s.eth.DstMAC)
-	if dstMAC[0]&1 == 1 {
+	if dstMAC[0]&1 == 1 { // not unicast
 		s.ctx.broadcast(frame.Bytes())
 		return
 	}
 	// send to the target client
-	pool := s.ctx.getConnPoolByMAC(dstMAC)
+	pool := s.ctx.getConnPoolByMACAddress(dstMAC)
 	if pool == nil {
 		return
 	}
@@ -291,7 +291,7 @@ func (s *frameSender) sendICMPv4EchoReply(frame *frame) {
 	defer s.ipv4Cache.Put(dstIPv4Ptr)
 	dstIPv4 := *dstIPv4Ptr
 	copy(dstIPv4[:], s.ipv4.DstIP)
-	pool := s.ctx.getConnPoolByIPv4(dstIPv4)
+	pool := s.ctx.getConnPoolByIPv4Address(dstIPv4)
 	if pool == nil {
 		return
 	}
@@ -354,7 +354,7 @@ func (s *frameSender) sendICMPv4TimeExceeded(frame *frame) {
 	defer s.ipv4Cache.Put(dstIPv4Ptr)
 	dstIPv4 := *dstIPv4Ptr
 	copy(dstIPv4[:], s.ipv4.DstIP)
-	pool := s.ctx.getConnPoolByIPv4(dstIPv4)
+	pool := s.ctx.getConnPoolByIPv4Address(dstIPv4)
 	if pool == nil {
 		return
 	}
@@ -418,7 +418,7 @@ func (s *frameSender) sendICMPv4DestinationUnreachable(frame *frame) {
 	defer s.ipv4Cache.Put(dstIPv4Ptr)
 	dstIPv4 := *dstIPv4Ptr
 	copy(dstIPv4[:], s.ipv4.DstIP)
-	pool := s.ctx.getConnPoolByIPv4(dstIPv4)
+	pool := s.ctx.getConnPoolByIPv4Address(dstIPv4)
 	if pool == nil {
 		return
 	}
@@ -474,7 +474,7 @@ func (s *frameSender) sendICMPv6EchoReply(frame *frame) {
 	defer s.ipv6Cache.Put(dstIPv6Ptr)
 	dstIPv6 := *dstIPv6Ptr
 	copy(dstIPv6[:], s.ipv6.DstIP)
-	pool := s.ctx.getConnPoolByIPv6(dstIPv6)
+	pool := s.ctx.getConnPoolByIPv6Address(dstIPv6)
 	if pool == nil {
 		return
 	}
@@ -538,7 +538,7 @@ func (s *frameSender) sendICMPv6TimeExceeded(frame *frame) {
 	defer s.ipv6Cache.Put(dstIPv6Ptr)
 	dstIPv6 := *dstIPv6Ptr
 	copy(dstIPv6[:], s.ipv6.DstIP)
-	pool := s.ctx.getConnPoolByIPv6(dstIPv6)
+	pool := s.ctx.getConnPoolByIPv6Address(dstIPv6)
 	if pool == nil {
 		return
 	}
@@ -602,7 +602,7 @@ func (s *frameSender) sendICMPv6DestinationUnreachable(frame *frame) {
 	defer s.ipv6Cache.Put(dstIPv6Ptr)
 	dstIPv6 := *dstIPv6Ptr
 	copy(dstIPv6[:], s.ipv6.DstIP)
-	pool := s.ctx.getConnPoolByIPv6(dstIPv6)
+	pool := s.ctx.getConnPoolByIPv6Address(dstIPv6)
 	if pool == nil {
 		return
 	}
@@ -648,7 +648,7 @@ func (s *frameSender) sendIPv4TCP(frame *frame) {
 	defer s.ipv4Cache.Put(dstIPv4Ptr)
 	dstIPv4 := *dstIPv4Ptr
 	copy(dstIPv4[:], s.ipv4.DstIP)
-	pool := s.ctx.getConnPoolByIPv4(dstIPv4)
+	pool := s.ctx.getConnPoolByIPv4Address(dstIPv4)
 	if pool == nil {
 		return
 	}
@@ -685,7 +685,7 @@ func (s *frameSender) sendIPv6TCP(frame *frame) {
 	defer s.ipv6Cache.Put(dstIPv6Ptr)
 	dstIPv6 := *dstIPv6Ptr
 	copy(dstIPv6[:], s.ipv6.DstIP)
-	pool := s.ctx.getConnPoolByIPv6(dstIPv6)
+	pool := s.ctx.getConnPoolByIPv6Address(dstIPv6)
 	if pool == nil {
 		return
 	}
@@ -731,7 +731,7 @@ func (s *frameSender) sendIPv4UDP(frame *frame) {
 	defer s.ipv4Cache.Put(dstIPv4Ptr)
 	dstIPv4 := *dstIPv4Ptr
 	copy(dstIPv4[:], s.ipv4.DstIP)
-	pool := s.ctx.getConnPoolByIPv4(dstIPv4)
+	pool := s.ctx.getConnPoolByIPv4Address(dstIPv4)
 	if pool == nil {
 		return
 	}
@@ -768,7 +768,7 @@ func (s *frameSender) sendIPv6UDP(frame *frame) {
 	defer s.ipv6Cache.Put(dstIPv6Ptr)
 	dstIPv6 := *dstIPv6Ptr
 	copy(dstIPv6[:], s.ipv6.DstIP)
-	pool := s.ctx.getConnPoolByIPv6(dstIPv6)
+	pool := s.ctx.getConnPoolByIPv6Address(dstIPv6)
 	if pool == nil {
 		return
 	}
