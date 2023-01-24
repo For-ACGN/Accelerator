@@ -248,13 +248,13 @@ func bindListeners(cfg *ServerConfig, tc *tls.Config, t time.Duration) ([]net.Li
 		if err != nil {
 			return nil, err
 		}
+		listener = &tcpListener{listener.(*net.TCPListener)}
+		tlsListener = tls.NewListener(listener, tc)
 		defer func() {
 			if !ok {
 				_ = listener.Close()
 			}
 		}()
-		listener = &tcpListener{listener.(*net.TCPListener)}
-		tlsListener = tls.NewListener(listener, tc)
 		listened = true
 	}
 	// bind UDP listener

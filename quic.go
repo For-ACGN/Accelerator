@@ -127,6 +127,11 @@ func (c *qConn) Close() error {
 	c.acceptOnce.Do(func() {
 		c.acceptErr = errQUICConnClosed
 	})
+
+	// TODO wait https://github.com/quic-go/quic-go/issues/3291
+	// wait send finish like TCP linger
+	time.Sleep(time.Second)
+
 	var err error
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
