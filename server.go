@@ -244,15 +244,17 @@ func bindListeners(cfg *ServerConfig, tc *tls.Config, t time.Duration) ([]net.Li
 	)
 	// bind TCP listener
 	if cfg.TCP.Enabled {
-		tlsListener, err = tls.Listen(cfg.TCP.Network, cfg.TCP.Address, tc)
+		listener, err := net.Listen(cfg.TCP.Network, cfg.TCP.Address)
 		if err != nil {
 			return nil, err
 		}
 		defer func() {
 			if !ok {
-				_ = tlsListener.Close()
+				_ = listener.Close()
 			}
 		}()
+		listener = &tcpListener{listener.(*net.TCPListener)}
+		tlsListener = tls.NewListener(listener, tc)
 		listened = true
 	}
 	// bind UDP listener
@@ -395,15 +397,6 @@ func (srv *Server) handleConn(conn net.Conn) {
 			srv.logger.Errorf(format, remoteAddr, err)
 		}
 	}()
-
-	// TODO process remove it
-	tcpConn := conn.(*tls.Conn).NetConn().(*net.TCPConn)
-	// _ = tcpConn.SetReadBuffer(2048)
-	// _ = tcpConn.SetWriteBuffer(2048)
-	_ = tcpConn.SetNoDelay(true)
-	_ = tcpConn.SetKeepAlive(true)
-	_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
-
 	_ = conn.SetDeadline(time.Now().Add(2 * srv.timeout))
 	err := srv.authenticate(conn)
 	if err != nil {
