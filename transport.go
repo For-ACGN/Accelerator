@@ -167,13 +167,19 @@ func (tr *transporter) decodeWithBridge(frame *frame) {
 	dstMAC := *dstMACPtr
 	copy(dstMAC[:], tr.eth.DstMAC)
 	if dstMAC == broadcast {
-		_ = tr.handle.WritePacketData(frame.Data())
 		tr.ctx.broadcastExcept(frame.Bytes(), tr.token)
+		tr.writeToInterface(frame.Data())
+		return
+	}
+	// special case for IPv6 neighbor solicitation
+	if bytes.Equal(dstMAC[:2], []byte{0x33, 0x33}) {
+		tr.ctx.broadcastExcept(frame.Bytes(), tr.token)
+		tr.writeToInterface(frame.Data())
 		return
 	}
 	// send to the under interface for multicast
 	if dstMAC[0]&1 == 1 {
-		_ = tr.handle.WritePacketData(frame.Data())
+		tr.writeToInterface(frame.Data())
 		return
 	}
 	// send to the target client in accelerator LAN
@@ -183,7 +189,7 @@ func (tr *transporter) decodeWithBridge(frame *frame) {
 		return
 	}
 	// send to the other client in remote LAN
-	_ = tr.handle.WritePacketData(frame.Data())
+	tr.writeToInterface(frame.Data())
 }
 
 func (tr *transporter) decodeWithNAT(frame *frame) {
@@ -330,7 +336,7 @@ func (tr *transporter) decodeICMPv4() {
 		return
 	}
 	data := tr.slBuf.Bytes()
-	_ = tr.handle.WritePacketData(data)
+	tr.writeToInterface(data)
 }
 
 func (tr *transporter) decodeICMPv6() {
@@ -378,7 +384,7 @@ func (tr *transporter) decodeICMPv6EchoRequest() {
 		return
 	}
 	data := tr.slBuf.Bytes()
-	_ = tr.handle.WritePacketData(data)
+	tr.writeToInterface(data)
 }
 
 func (tr *transporter) decodeICMPv6NeighborSolicitation() {
@@ -466,7 +472,7 @@ func (tr *transporter) decodeIPv4TCP() {
 		return
 	}
 	data := tr.slBuf.Bytes()
-	_ = tr.handle.WritePacketData(data)
+	tr.writeToInterface(data)
 }
 
 func (tr *transporter) decodeIPv6TCP() {
@@ -494,7 +500,7 @@ func (tr *transporter) decodeIPv6TCP() {
 		return
 	}
 	data := tr.slBuf.Bytes()
-	_ = tr.handle.WritePacketData(data)
+	tr.writeToInterface(data)
 }
 
 func (tr *transporter) decodeUDP() {
@@ -531,7 +537,7 @@ func (tr *transporter) decodeIPv4UDP() {
 		return
 	}
 	data := tr.slBuf.Bytes()
-	_ = tr.handle.WritePacketData(data)
+	tr.writeToInterface(data)
 }
 
 func (tr *transporter) decodeIPv6UDP() {
@@ -559,7 +565,7 @@ func (tr *transporter) decodeIPv6UDP() {
 		return
 	}
 	data := tr.slBuf.Bytes()
-	_ = tr.handle.WritePacketData(data)
+	tr.writeToInterface(data)
 }
 
 func (tr *transporter) bindMACAddress() {
@@ -637,4 +643,8 @@ func (tr *transporter) bindIPv6Address() {
 	const format = "(%s) failed to bind ipv6 address: %s"
 	tr.ctx.logger.Warningf(format, tr.conn.RemoteAddr(), net.IP(srcIP[:]))
 	// TODO send alert to client
+}
+
+func (tr *transporter) writeToInterface(data []byte) {
+	_ = tr.handle.WritePacketData(data)
 }

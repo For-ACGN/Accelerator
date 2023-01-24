@@ -158,7 +158,8 @@ func (s *frameSender) sendWithBridge(frame *frame) {
 	defer s.macCache.Put(dstMACPtr)
 	dstMAC := *dstMACPtr
 	copy(dstMAC[:], s.eth.DstMAC)
-	if dstMAC[0]&1 == 1 { // not unicast
+	// broadcast and multicast
+	if dstMAC[0]&1 == 1 {
 		s.ctx.broadcast(frame.Bytes())
 		return
 	}
@@ -247,7 +248,7 @@ func (s *frameSender) sendARPReply() {
 		return
 	}
 	data := s.slBuf.Bytes()
-	_ = s.handle.WritePacketData(data)
+	s.writeToInterface(data)
 }
 
 func (s *frameSender) sendICMPv4(frame *frame) {
@@ -774,4 +775,8 @@ func (s *frameSender) sendIPv6UDP(frame *frame) {
 		return
 	}
 	pool.Push(frame.Bytes())
+}
+
+func (s *frameSender) writeToInterface(data []byte) {
+	_ = s.handle.WritePacketData(data)
 }
