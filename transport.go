@@ -141,14 +141,14 @@ func (tr *transporter) transport() {
 		fr.WriteHeader(int(size))
 		fr.WriteData(buf[:size])
 		if tr.enableNAT {
-			tr.decodeWithNAT(fr)
+			tr.sendWithNAT(fr)
 		} else {
-			tr.decodeWithBridge(fr)
+			tr.sendWithBridge(fr)
 		}
 	}
 }
 
-func (tr *transporter) decodeWithBridge(frame *frame) {
+func (tr *transporter) sendWithBridge(frame *frame) {
 	err := tr.parser.DecodeLayers(frame.Data(), tr.decoded)
 	if err != nil {
 		return
@@ -192,7 +192,7 @@ func (tr *transporter) decodeWithBridge(frame *frame) {
 	tr.writeToInterface(frame.Data())
 }
 
-func (tr *transporter) decodeWithNAT(frame *frame) {
+func (tr *transporter) sendWithNAT(frame *frame) {
 	err := tr.parser.DecodeLayers(frame.Data(), tr.decoded)
 	if err != nil {
 		return
@@ -203,7 +203,7 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 	for i := 0; i < len(decoded); i++ {
 		switch decoded[i] {
 		case layers.LayerTypeEthernet:
-			if !tr.decodeEthernet(frame) {
+			if !tr.sendEthernet(frame) {
 				return
 			}
 		case layers.LayerTypeIPv4:
@@ -213,23 +213,23 @@ func (tr *transporter) decodeWithNAT(frame *frame) {
 			tr.bindIPv6Address()
 			tr.isIPv6 = true
 		case layers.LayerTypeICMPv4:
-			tr.decodeICMPv4()
+			tr.sendICMPv4()
 			return
 		case layers.LayerTypeICMPv6:
-			tr.decodeICMPv6()
+			tr.sendICMPv6()
 			return
 		case layers.LayerTypeTCP:
-			tr.decodeTCP()
+			tr.sendTCP()
 			return
 		case layers.LayerTypeUDP:
-			tr.decodeUDP()
+			tr.sendUDP()
 			return
 		}
 	}
 }
 
 // TODO think ICMPv6 like arp.
-func (tr *transporter) decodeEthernet(frame *frame) bool {
+func (tr *transporter) sendEthernet(frame *frame) bool {
 	// invalid destination mac address
 	if bytes.Equal(tr.eth.DstMAC, zeroMAC) {
 		return false
@@ -237,7 +237,7 @@ func (tr *transporter) decodeEthernet(frame *frame) bool {
 	tr.bindMACAddress()
 	// special case
 	if tr.eth.EthernetType == layers.EthernetTypeARP {
-		if tr.decodeARPRequest(frame) {
+		if tr.sendARPRequest(frame) {
 			return false
 		}
 	}
@@ -269,7 +269,7 @@ func (tr *transporter) decodeEthernet(frame *frame) bool {
 	return false
 }
 
-func (tr *transporter) decodeARPRequest(frame *frame) bool {
+func (tr *transporter) sendARPRequest(frame *frame) bool {
 	op := tr.arp.Operation
 	switch op {
 	case layers.ARPRequest:
@@ -307,7 +307,7 @@ func (tr *transporter) decodeARPRequest(frame *frame) bool {
 	}
 }
 
-func (tr *transporter) decodeICMPv4() {
+func (tr *transporter) sendICMPv4() {
 	if tr.icmpv4.TypeCode.Type() != layers.ICMPv4TypeEchoRequest {
 		return
 	}
@@ -339,18 +339,18 @@ func (tr *transporter) decodeICMPv4() {
 	tr.writeToInterface(data)
 }
 
-func (tr *transporter) decodeICMPv6() {
+func (tr *transporter) sendICMPv6() {
 	switch tr.icmpv6.TypeCode.Type() {
 	case layers.ICMPv6TypeEchoRequest:
-		tr.decodeICMPv6EchoRequest()
+		tr.sendICMPv6EchoRequest()
 	case layers.ICMPv6TypeNeighborSolicitation:
-		tr.decodeICMPv6NeighborSolicitation()
+		tr.sendICMPv6NeighborSolicitation()
 	case layers.ICMPv6TypeNeighborAdvertisement:
-		tr.decodeICMPv6NeighborAdvertisement()
+		tr.sendICMPv6NeighborAdvertisement()
 	}
 }
 
-func (tr *transporter) decodeICMPv6EchoRequest() {
+func (tr *transporter) sendICMPv6EchoRequest() {
 	if tr.icmpv6.TypeCode.Code() != 0 {
 		return
 	}
@@ -387,7 +387,7 @@ func (tr *transporter) decodeICMPv6EchoRequest() {
 	tr.writeToInterface(data)
 }
 
-func (tr *transporter) decodeICMPv6NeighborSolicitation() {
+func (tr *transporter) sendICMPv6NeighborSolicitation() {
 	if tr.icmpv6.TypeCode.Code() != 0 {
 		return
 	}
@@ -432,22 +432,22 @@ func (tr *transporter) decodeICMPv6NeighborSolicitation() {
 	_, _ = tr.conn.Write(f.Bytes())
 }
 
-func (tr *transporter) decodeICMPv6NeighborAdvertisement() {
+func (tr *transporter) sendICMPv6NeighborAdvertisement() {
 	if tr.icmpv6.TypeCode.Code() != 0 {
 		return
 	}
 }
 
-func (tr *transporter) decodeTCP() {
+func (tr *transporter) sendTCP() {
 	switch {
 	case tr.isIPv4:
-		tr.decodeIPv4TCP()
+		tr.sendIPv4TCP()
 	case tr.isIPv6:
-		tr.decodeIPv6TCP()
+		tr.sendIPv6TCP()
 	}
 }
 
-func (tr *transporter) decodeIPv4TCP() {
+func (tr *transporter) sendIPv4TCP() {
 	// add port map to nat
 	lIP := tr.ipv4.SrcIP
 	lPort := uint16(tr.tcp.SrcPort)
@@ -475,7 +475,7 @@ func (tr *transporter) decodeIPv4TCP() {
 	tr.writeToInterface(data)
 }
 
-func (tr *transporter) decodeIPv6TCP() {
+func (tr *transporter) sendIPv6TCP() {
 	// add port map to nat
 	lIP := tr.ipv6.SrcIP
 	lPort := uint16(tr.tcp.SrcPort)
@@ -503,16 +503,16 @@ func (tr *transporter) decodeIPv6TCP() {
 	tr.writeToInterface(data)
 }
 
-func (tr *transporter) decodeUDP() {
+func (tr *transporter) sendUDP() {
 	switch {
 	case tr.isIPv4:
-		tr.decodeIPv4UDP()
+		tr.sendIPv4UDP()
 	case tr.isIPv6:
-		tr.decodeIPv6UDP()
+		tr.sendIPv6UDP()
 	}
 }
 
-func (tr *transporter) decodeIPv4UDP() {
+func (tr *transporter) sendIPv4UDP() {
 	// add port map to nat
 	lIP := tr.ipv4.SrcIP
 	lPort := uint16(tr.udp.SrcPort)
@@ -540,7 +540,7 @@ func (tr *transporter) decodeIPv4UDP() {
 	tr.writeToInterface(data)
 }
 
-func (tr *transporter) decodeIPv6UDP() {
+func (tr *transporter) sendIPv6UDP() {
 	// add port map to nat
 	lIP := tr.ipv6.SrcIP
 	lPort := uint16(tr.udp.SrcPort)
