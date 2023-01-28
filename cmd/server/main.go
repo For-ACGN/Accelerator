@@ -10,6 +10,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"time"
 
@@ -77,6 +78,10 @@ func main() {
 func listDevices() {
 	devs, err := pcap.FindAllDevs()
 	checkError(err)
+	// sort device list by name
+	sort.Slice(devs, func(i, j int) bool {
+		return devs[i].Name < devs[j].Name
+	})
 	type item struct {
 		name string
 		ip   string
@@ -90,11 +95,16 @@ func listDevices() {
 		dev := devs[i]
 		l := len(dev.Addresses)
 		for j := 0; j < l; j++ {
+			if !dev.Addresses[j].IP.IsGlobalUnicast() {
+				continue
+			}
 			buf.WriteString(dev.Addresses[j].IP.String())
 			if j != l-1 {
-				buf.WriteString(", ")
+				buf.WriteString(" ")
 			}
 		}
+		// for \\Device\\NPF_{GUID} on Windows
+		dev.Name = strings.ReplaceAll(dev.Name, "\\", "\\\\")
 		l = len(dev.Name)
 		if l > maxNameLen {
 			maxNameLen = l
