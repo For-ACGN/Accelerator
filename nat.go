@@ -124,7 +124,10 @@ type icmpv6LI struct {
 type nat struct {
 	logger *logger
 
-	mapTimeout  time.Duration
+	mapTimeout time.Duration
+	enableIPv4 bool
+	enableIPv6 bool
+
 	localMAC    net.HardwareAddr
 	gatewayMAC  net.HardwareAddr
 	localIPv4   net.IP
@@ -236,6 +239,8 @@ func newNAT(lg *logger, cfg *ServerConfig) (*nat, error) {
 	n := nat{
 		logger:      lg,
 		mapTimeout:  mapTimeout,
+		enableIPv4:  nc.IPv4.Enabled,
+		enableIPv6:  nc.IPv6.Enabled,
 		localMAC:    localMAC,
 		gatewayMAC:  gatewayMAC,
 		localIPv4:   localIPv4,

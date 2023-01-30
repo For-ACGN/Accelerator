@@ -207,9 +207,15 @@ func (tr *transporter) sendWithNAT(frame *frame) {
 				return
 			}
 		case layers.LayerTypeIPv4:
+			if !tr.nat.enableIPv4 {
+				return
+			}
 			tr.bindIPv4Address()
 			tr.isIPv4 = true
 		case layers.LayerTypeIPv6:
+			if !tr.nat.enableIPv6 {
+				return
+			}
 			tr.bindIPv6Address()
 			tr.isIPv6 = true
 		case layers.LayerTypeICMPv4:

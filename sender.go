@@ -206,8 +206,14 @@ func (s *frameSender) sendWithNAT(frame *frame) {
 				return
 			}
 		case layers.LayerTypeIPv4:
+			if !s.nat.enableIPv4 {
+				return
+			}
 			s.isIPv4 = true
 		case layers.LayerTypeIPv6:
+			if !s.nat.enableIPv6 {
+				return
+			}
 			s.isIPv6 = true
 		case layers.LayerTypeICMPv4:
 			s.sendICMPv4(frame)

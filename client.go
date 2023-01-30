@@ -344,11 +344,7 @@ func (client *Client) dial(ctx context.Context) (net.Conn, error) {
 		if err != nil {
 			return nil, err
 		}
-		// set the buffer size near the MTU value
 		tcpConn := conn.(*tls.Conn).NetConn().(*net.TCPConn)
-		// TODO think it
-		// _ = tcpConn.SetReadBuffer(2048)
-		// _ = tcpConn.SetWriteBuffer(2048)
 		_ = tcpConn.SetNoDelay(true)
 		_ = tcpConn.SetKeepAlive(true)
 		_ = tcpConn.SetKeepAlivePeriod(15 * time.Second)
