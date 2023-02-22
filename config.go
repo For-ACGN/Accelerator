@@ -106,8 +106,8 @@ type ClientConfig struct {
 type duration time.Duration
 
 // MarshalText implement encoding.TextMarshaler.
-func (d duration) MarshalText() ([]byte, error) {
-	return []byte(time.Duration(d).String()), nil
+func (d *duration) MarshalText() ([]byte, error) {
+	return []byte(time.Duration(*d).String()), nil
 }
 
 // UnmarshalText implement encoding.TextUnmarshaler.

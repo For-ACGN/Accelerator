@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lucas-clemente/quic-go"
+	"github.com/quic-go/quic-go"
 )
 
 const (
-	defaultTimeout   = 30 * time.Second // dial and accept
-	defaultNextProto = "h3"             // HTTP/3
+	defaultQUICTimeout   = 30 * time.Second // dial and accept
+	defaultQUICNextProto = "h3"             // HTTP/3
 )
 
 var errQUICConnClosed = errors.New("quic connection is closed")
@@ -205,11 +205,11 @@ func quicListen(network, address string, config *tls.Config, timeout time.Durati
 		}
 	}()
 	if timeout < 1 {
-		timeout = defaultTimeout
+		timeout = defaultQUICTimeout
 	}
 	if len(config.NextProtos) == 0 {
 		c := config.Clone()
-		c.NextProtos = []string{defaultNextProto}
+		c.NextProtos = []string{defaultQUICNextProto}
 		config = c
 	}
 	quicCfg := quic.Config{
@@ -249,12 +249,12 @@ func quicDial(ctx context.Context, lAddr, rAddr *net.UDPAddr, config *tls.Config
 	}()
 	if len(config.NextProtos) == 0 {
 		c := config.Clone()
-		c.NextProtos = []string{defaultNextProto}
+		c.NextProtos = []string{defaultQUICNextProto}
 		config = c
 	}
 	quicCfg := quic.Config{
-		HandshakeIdleTimeout: defaultTimeout,
-		MaxIdleTimeout:       4 * defaultTimeout,
+		HandshakeIdleTimeout: defaultQUICTimeout,
+		MaxIdleTimeout:       4 * defaultQUICTimeout,
 		KeepAlivePeriod:      15 * time.Second,
 	}
 	conn, err := quic.DialContext(ctx, udpConn, rAddr, rAddr.String(), config, &quicCfg)
@@ -276,7 +276,7 @@ func quicDial(ctx context.Context, lAddr, rAddr *net.UDPAddr, config *tls.Config
 		}
 	}()
 	// write data for trigger handshake
-	_ = stream.SetWriteDeadline(time.Now().Add(defaultTimeout))
+	_ = stream.SetWriteDeadline(time.Now().Add(defaultQUICTimeout))
 	_, err = stream.Write([]byte{0})
 	if err != nil {
 		return nil, err
