@@ -468,6 +468,7 @@ func (srv *Server) isValidClient(conn net.Conn) (bool, error) {
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
 		ProtoMinor: 1,
+		Header:     make(http.Header),
 	}
 	resp.Header.Set("Content-Type", "text/plain; charset=utf-8")
 	resp.Header.Set("Date", time.Now().Format(http.TimeFormat))
