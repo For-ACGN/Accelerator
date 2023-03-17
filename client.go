@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	defaultClientConnPoolSize = 64
+	defaultClientConnPoolSize = 4
 	defaultClientTimeout      = 15 * time.Second
 )
 

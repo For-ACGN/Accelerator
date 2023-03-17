@@ -9,9 +9,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -226,7 +228,7 @@ func newServerTLSConfig(cfg *ServerConfig) (*tls.Config, error) {
 	}
 	config := tls.Config{
 		MinVersion:   tls.VersionTLS13,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientAuth:   tls.VerifyClientCertIfGiven,
 		Certificates: []tls.Certificate{tlsCert},
 		ClientCAs:    x509.NewCertPool(),
 	}
@@ -397,8 +399,17 @@ func (srv *Server) handleConn(conn net.Conn) {
 			srv.logger.Errorf(format, remoteAddr, err)
 		}
 	}()
-	_ = conn.SetDeadline(time.Now().Add(2 * srv.timeout))
-	err := srv.authenticate(conn)
+	_ = conn.SetDeadline(time.Now().Add(srv.timeout))
+	valid, err := srv.isValidClient(conn)
+	if err != nil {
+		const format = "(%s) failed to check client is valid: %s"
+		srv.logger.Warningf(format, remoteAddr, err)
+		return
+	}
+	if !valid {
+		return
+	}
+	err = srv.authenticate(conn)
 	if err != nil {
 		const format = "(%s) failed to authenticate: %s"
 		srv.logger.Warningf(format, remoteAddr, err)
@@ -424,6 +435,45 @@ func (srv *Server) handleConn(conn net.Conn) {
 		const format = "(%s) receive invalid command: %d"
 		srv.logger.Warningf(format, remoteAddr, cmd)
 	}
+}
+
+func (srv *Server) isValidClient(conn net.Conn) (bool, error) {
+	var state tls.ConnectionState
+	switch c := conn.(type) {
+	case *tls.Conn:
+		err := c.Handshake()
+		if err != nil {
+			return false, err
+		}
+		state = c.ConnectionState()
+	case *qConn:
+		err := c.Handshake()
+		if err != nil {
+			return false, err
+		}
+		state = c.conn.ConnectionState().TLS.ConnectionState
+	default:
+		panic(fmt.Sprintf("invalid connection type: %T", conn))
+	}
+	if !state.HandshakeComplete {
+		return false, nil
+	}
+	if len(state.VerifiedChains) > 0 {
+		return true, nil
+	}
+	_ = conn.SetDeadline(time.Now().Add(srv.timeout))
+	resp := http.Response{
+		Status:     "404 Not Found",
+		StatusCode: http.StatusNotFound,
+		Proto:      "HTTP/1.1",
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+	}
+	resp.Header.Set("Content-Type", "text/plain; charset=utf-8")
+	resp.Header.Set("Date", time.Now().Format(http.TimeFormat))
+	resp.ContentLength = 19
+	resp.Body = io.NopCloser(strings.NewReader("404 page not found\n"))
+	return false, resp.Write(conn)
 }
 
 func (srv *Server) authenticate(conn net.Conn) error {

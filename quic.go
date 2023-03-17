@@ -62,6 +62,11 @@ func (c *qConn) acceptStream() error {
 	return c.acceptErr
 }
 
+// Handshake is used to handshake with peer.
+func (c *qConn) Handshake() error {
+	return c.acceptStream()
+}
+
 // Read reads data from the connection.
 func (c *qConn) Read(b []byte) (n int, err error) {
 	err = c.acceptStream()
