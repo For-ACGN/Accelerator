@@ -41,7 +41,7 @@ func newConnPool(size int, timeout time.Duration, server bool) *connPool {
 	if !server {
 		return &pool
 	}
-	pool.frameCh = make(chan []byte, 4096*size)
+	pool.frameCh = make(chan []byte, 128*size) // TODO replace 128 to 4096
 	for i := 0; i < size; i++ {
 		pool.wg.Add(1)
 		go pool.sendLoop()
