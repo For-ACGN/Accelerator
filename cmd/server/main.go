@@ -137,7 +137,7 @@ func runPPROF() {
 	} else {
 		pprofURL = fmt.Sprintf("/%d", time.Now().UnixNano())
 	}
-	log.Printf("[debug] pprof url: http://%s%s/debug/pprof/", listener.Addr(), pprofURL)
+	log.Printf("[info] pprof url: http://%s%s/debug/pprof/", listener.Addr(), pprofURL)
 
 	pprofIndex := func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, pprofURL+"/debug/pprof/") {
