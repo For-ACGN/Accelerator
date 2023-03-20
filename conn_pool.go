@@ -14,7 +14,9 @@ var (
 	errConnPoolClosed = errors.New("connection pool is closed")
 )
 
-// connPool is used to send frame packet with lower RTT.
+// connPool is used to send frame packet for lower RTT.
+// Server side use Push for delegate data to sender in
+// the conn pool for prevent block when one user block.
 type connPool struct {
 	size    atomic.Value
 	timeout time.Duration
@@ -41,7 +43,7 @@ func newConnPool(size int, timeout time.Duration, server bool) *connPool {
 	if !server {
 		return &pool
 	}
-	pool.frameCh = make(chan []byte, 128*size) // TODO replace 128 to 4096
+	pool.frameCh = make(chan []byte, 128*size)
 	for i := 0; i < size; i++ {
 		pool.wg.Add(1)
 		go pool.sendLoop()
@@ -152,7 +154,7 @@ func (pool *connPool) Write(b []byte) (int, error) {
 			}
 			// wait some time for add new connection
 			select {
-			case <-time.After(250 * time.Millisecond):
+			case <-time.After(10 * time.Millisecond):
 			case <-pool.ctx.Done():
 				return 0, errConnPoolClosed
 			}

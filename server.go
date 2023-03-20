@@ -408,6 +408,8 @@ func (srv *Server) handleConn(conn net.Conn) {
 		return
 	}
 	if !valid {
+		const format = "(%s) is detecting service"
+		srv.logger.Warningf(format, remoteAddr)
 		return
 	}
 	err = srv.authenticate(conn)

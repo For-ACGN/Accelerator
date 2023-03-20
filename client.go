@@ -289,7 +289,7 @@ func (client *Client) Run() error {
 	go client.watcher()
 	for {
 		select {
-		case <-time.After(25 * time.Millisecond):
+		case <-time.After(10 * time.Millisecond):
 		case <-client.ctx.Done():
 			return errors.WithStack(errClientClosed)
 		}
@@ -499,7 +499,7 @@ func (client *Client) watcher() {
 			go client.watcher()
 		}
 	}()
-	const period = 100 * time.Millisecond
+	const period = 10 * time.Millisecond
 	timer := time.NewTimer(period)
 	defer timer.Stop()
 	for {
