@@ -128,7 +128,7 @@ func NewClient(cfg *ClientConfig) (*Client, error) {
 		logger:       lg,
 		tlsConfig:    tlsConfig,
 		tapDev:       tapDev,
-		connPool:     newConnPool(poolSize, timeout, false),
+		connPool:     newConnPool(lg, poolSize, timeout, false),
 		frameCh:      make(chan *frame, 128*poolSize),
 	}
 	client.frameCache.New = func() interface{} {

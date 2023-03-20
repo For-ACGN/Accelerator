@@ -910,7 +910,7 @@ func (srv *Server) prepareConnPool(token sessionToken) {
 		return
 	}
 	// TODO read client conn pool size
-	srv.connPools[token] = newConnPool(srv.connPoolSize, srv.timeout, true)
+	srv.connPools[token] = newConnPool(srv.logger, srv.connPoolSize, srv.timeout, true)
 }
 
 func (srv *Server) removeConnPool(token sessionToken) {

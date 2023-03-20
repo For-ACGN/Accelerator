@@ -18,6 +18,7 @@ var (
 // Server side use Push for delegate data to sender in
 // the conn pool for prevent block when one user block.
 type connPool struct {
+	logger  *logger
 	size    atomic.Value
 	timeout time.Duration
 
@@ -33,8 +34,9 @@ type connPool struct {
 	wg     sync.WaitGroup
 }
 
-func newConnPool(size int, timeout time.Duration, server bool) *connPool {
+func newConnPool(logger *logger, size int, timeout time.Duration, server bool) *connPool {
 	pool := connPool{
+		logger:  logger,
 		timeout: timeout,
 		conns:   make(map[*net.Conn]bool, size),
 	}
@@ -121,7 +123,7 @@ func (pool *connPool) sendLoop() {
 	defer pool.wg.Done()
 	defer func() {
 		if r := recover(); r != nil {
-			// pool.ctx.logger.Fatal("connPool.sendLoop", r)
+			pool.logger.Fatal("connPool.sendLoop", r)
 			// restart frame sender
 			time.Sleep(time.Second)
 			pool.wg.Add(1)
