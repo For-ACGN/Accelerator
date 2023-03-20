@@ -1,6 +1,7 @@
 package accelerator
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -162,7 +163,7 @@ func NewServer(cfg *ServerConfig) (*Server, error) {
 		ipv4ToMACs:   make(map[ipv4]mac, 16),
 		ipv6ToMACs:   make(map[ipv6]mac, 16),
 		connPools:    make(map[sessionToken]*connPool, 16),
-		frameCh:      make(chan *frame, 64*1024),
+		frameCh:      make(chan *frame, 64*1024), // TODO add config
 		frameCache:   new(sync.Pool),
 		income:       make(chan struct{}, 1),
 	}
@@ -455,13 +456,17 @@ func (srv *Server) isValidClient(conn net.Conn) (bool, error) {
 	default:
 		panic(fmt.Sprintf("invalid connection type: %T", conn))
 	}
-	if !state.HandshakeComplete {
-		return false, nil
-	}
-	if len(state.VerifiedChains) > 0 {
+	if state.HandshakeComplete && len(state.VerifiedChains) > 0 {
 		return true, nil
 	}
 	_ = conn.SetDeadline(time.Now().Add(srv.timeout))
+	req, err := http.ReadRequest(bufio.NewReader(io.LimitReader(conn, 4*1024*1024)))
+	if err != nil {
+		return false, nil
+	}
+	if req.Proto != "HTTP/1.1" {
+		return false, nil
+	}
 	resp := http.Response{
 		Status:     "404 Not Found",
 		StatusCode: http.StatusNotFound,
