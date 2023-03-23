@@ -252,10 +252,11 @@ func bindListeners(cfg *ServerConfig, tc *tls.Config, t time.Duration) ([]net.Li
 			return nil, err
 		}
 		listener = &tcpListener{listener.(*net.TCPListener)}
+		tc.NextProtos = append(tc.NextProtos, "http/1.1")
 		tlsListener = tls.NewListener(listener, tc)
 		defer func() {
 			if !ok {
-				_ = listener.Close()
+				_ = tlsListener.Close()
 			}
 		}()
 		listened = true
@@ -461,6 +462,11 @@ func (srv *Server) isValidClient(conn net.Conn) (bool, error) {
 	if state.HandshakeComplete && len(state.VerifiedChains) > 0 {
 		return true, nil
 	}
+	switch conn.(type) {
+	case *tls.Conn:
+	default:
+		return false, nil
+	}
 	_ = conn.SetDeadline(time.Now().Add(srv.timeout))
 	req, err := http.ReadRequest(bufio.NewReader(io.LimitReader(conn, 4*1024*1024)))
 	if err != nil {
@@ -564,23 +570,23 @@ func (srv *Server) defend(conn net.Conn) {
 
 func (srv *Server) handleLogin(conn net.Conn) {
 	remoteAddr := conn.RemoteAddr()
-	obf := make([]byte, obfSize)
-	_, err := io.ReadFull(conn, obf)
+	sizeBuf := make([]byte, 2)
+	_, err := io.ReadFull(conn, sizeBuf)
 	if err != nil {
-		const format = "(%s) failed to receive random data: %s"
+		const format = "(%s) failed to receive connection pool size: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
 	// generate session token
-	h := sha512.New()
 	data, err := generateRandomData()
 	if err != nil {
 		const format = "(%s) failed to generate random data: %s"
 		srv.logger.Errorf(format, remoteAddr, err)
 		return
 	}
+	h := sha512.New()
 	h.Write(data)
-	h.Write(obf)
+	h.Write(sizeBuf)
 	token := sessionToken{}
 	copy(token[:], h.Sum(nil))
 	// send session token
