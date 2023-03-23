@@ -56,13 +56,19 @@ func buildAuthResponse() ([]byte, error) {
 
 func generateRandomData() ([]byte, error) {
 	sizeBuf := make([]byte, 2)
-	_, err := rand.Read(sizeBuf)
-	if err != nil {
-		return nil, errors.WithStack(err)
+	var size uint16
+	for {
+		_, err := rand.Read(sizeBuf)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		size = binary.BigEndian.Uint16(sizeBuf)
+		if size > 128 {
+			break
+		}
 	}
-	size := binary.BigEndian.Uint16(sizeBuf)
 	padding := make([]byte, size)
-	_, err = rand.Read(padding)
+	_, err := rand.Read(padding)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -87,28 +93,58 @@ func generateRandomData() ([]byte, error) {
 // If the new connection reach the server side maximum connection pool
 // size, server will send error about full.
 //
-// =========[client request] <------> [server response]===========
+// ============[client request]============        ============[server response]============
 //
-// Log in
-// +---------+-------------+          +----------+---------------+
-// | command | random data |          | response | session token |
-// +---------+-------------+          +----------+---------------+
-// |  byte   |  16 bytes   |          |   byte   |   32 bytes    |
-// +---------+-------------+          +----------+---------------+
+// # Log in
+// +---------+-------------+                       +---------------+-------------+
+// | command | random data |                       | session token | random data |
+// +---------+-------------+                       +---------------+-------------+
+// |  byte   | 2+var bytes |                       |   32 bytes    | 2+var bytes |
+// +---------+-------------+                       +---------------+-------------+
 //
-// Log off
-// +---------+---------------+        +----------+
-// | command | session token |        | response |
-// +---------+---------------+        +----------+
-// |  byte   |   32 bytes    |        |   byte   |
-// +---------+---------------+        +----------+
+// ## query connection pool size
+// +-------------+                                 +--------------------+-------------+
+// | random data |                                 | max conn pool size | random data |
+// +-------------+                                 +--------------------+-------------+
+// | 2+var bytes |                                 | uint16(big endian) | 2+var bytes |
+// +-------------+                                 +--------------------+-------------+
 //
-// Transport
-// +---------+---------------+        +----------+----------------------+
-// | command | session token |        | response | [max conn pool size] |
-// +---------+---------------+        +----------+----------------------+
-// |  byte   |   32 bytes    |        |   byte   |  uint16(big endian)  |
-// +---------+---------------+        +----------+----------------------+
+// ## set connection pool size
+// +--------------------+-------------+            +----------+-------------+
+// |   conn pool size   | random data |            | response | random data |
+// +--------------------+-------------+            +----------+-------------+
+// | uint16(big endian) | 2+var bytes |            |   byte   | 2+var bytes |
+// +--------------------+-------------+            +----------+-------------+
+//
+// # Log off
+// +---------+---------------+-------------+       +----------+-------------+
+// | command | session token | random data |       | response | random data |
+// +---------+---------------+-------------+       +----------+-------------+
+// |  byte   |   32 bytes    | 2+var bytes |       |   byte   | 2+var bytes |
+// +---------+---------------+-------------+       +----------+-------------+
+//
+// # Transport
+//
+// [client request]
+// +---------+---------------+---------+-------------+
+// | command | session token | options | random data |
+// +---------+---------------+---------+-------------+
+// |  byte   |   32 bytes    |   var   | 2+var bytes |
+// +---------+---------------+---------+-------------+
+//
+// ## options in client request
+// +---------+----------+
+// | num opt | compress |
+// +---------+----------+
+// |  uint8  |   bool   |
+// +---------+----------+
+//
+// [server response]
+// +----------+----------------------+-------------+
+// | response | [max conn pool size] | random data |
+// +----------+----------------------+-------------+
+// |   byte   |  uint16(big endian)  | 2+var bytes |
+// +----------+----------------------+-------------+
 const (
 	cmdLogin = iota
 	cmdLogoff
@@ -117,7 +153,6 @@ const (
 
 const (
 	cmdSize   = 1
-	obfSize   = 16
 	tokenSize = 32
 
 	loginOK  = 0x01
