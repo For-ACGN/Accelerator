@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
+	"io"
 
 	"github.com/pkg/errors"
 )
@@ -75,6 +76,21 @@ func generateRandomData() ([]byte, error) {
 	return append(sizeBuf, padding...), nil
 }
 
+// TODO use it in server and client
+func readPaddingRandomData(r io.Reader) error {
+	buf := make([]byte, 2)
+	_, err := io.ReadFull(r, buf)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	size := binary.BigEndian.Uint16(buf)
+	_, err = io.CopyN(io.Discard, r, int64(size))
+	if err != nil {
+		return errors.Wrap(err, "failed to receive padding random data")
+	}
+	return nil
+}
+
 // --------------------------------------------command---------------------------------------------
 
 // When the Client send cmdLogin, Server will create a new connection
@@ -95,35 +111,35 @@ func generateRandomData() ([]byte, error) {
 //
 // ============[client request]============        ============[server response]============
 //
-// # Log in
+// --------Log in--------
 // +---------+-------------+                       +---------------+-------------+
 // | command | random data |                       | session token | random data |
 // +---------+-------------+                       +---------------+-------------+
 // |  byte   | 2+var bytes |                       |   32 bytes    | 2+var bytes |
 // +---------+-------------+                       +---------------+-------------+
 //
-// ## query connection pool size
+// # query connection pool size
 // +-------------+                                 +--------------------+-------------+
 // | random data |                                 | max conn pool size | random data |
 // +-------------+                                 +--------------------+-------------+
 // | 2+var bytes |                                 | uint16(big endian) | 2+var bytes |
 // +-------------+                                 +--------------------+-------------+
 //
-// ## set connection pool size
+// # set connection pool size
 // +--------------------+-------------+            +----------+-------------+
 // |   conn pool size   | random data |            | response | random data |
 // +--------------------+-------------+            +----------+-------------+
 // | uint16(big endian) | 2+var bytes |            |   byte   | 2+var bytes |
 // +--------------------+-------------+            +----------+-------------+
 //
-// # Log off
+// --------Log off--------
 // +---------+---------------+-------------+       +----------+-------------+
 // | command | session token | random data |       | response | random data |
 // +---------+---------------+-------------+       +----------+-------------+
 // |  byte   |   32 bytes    | 2+var bytes |       |   byte   | 2+var bytes |
 // +---------+---------------+-------------+       +----------+-------------+
 //
-// # Transport
+// --------Transport--------
 //
 // [client request]
 // +---------+---------------+---------+-------------+
@@ -132,7 +148,7 @@ func generateRandomData() ([]byte, error) {
 // |  byte   |   32 bytes    |   var   | 2+var bytes |
 // +---------+---------------+---------+-------------+
 //
-// ## options in client request
+// # options in client request
 // +---------+----------+
 // | num opt | compress |
 // +---------+----------+
@@ -140,11 +156,20 @@ func generateRandomData() ([]byte, error) {
 // +---------+----------+
 //
 // [server response]
-// +----------+----------------------+-------------+
-// | response | [max conn pool size] | random data |
-// +----------+----------------------+-------------+
-// |   byte   |  uint16(big endian)  | 2+var bytes |
-// +----------+----------------------+-------------+
+// +----------+--------+-------------+
+// | response | option | random data |
+// +----------+--------+-------------+
+// |   byte   |   var  | 2+var bytes |
+// +----------+--------+-------------+
+//
+// # options in server response
+//
+// ## connection pool is full
+// +--------------------+
+// | max conn pool size |
+// +--------------------+
+// | uint16(big endian) |
+// +--------------------+
 const (
 	cmdLogin = iota
 	cmdLogoff
