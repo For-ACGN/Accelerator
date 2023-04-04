@@ -139,6 +139,7 @@ func (w *cfhWriter) searchDict(frame []byte) (uint8, bool) {
 }
 
 func (w *cfhWriter) fastSearchDictEthIPv4TCP(frame []byte) (uint8, bool) {
+	const offset = 14 + (20 - 4*2)
 	var dict []byte
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
@@ -147,7 +148,7 @@ func (w *cfhWriter) fastSearchDictEthIPv4TCP(frame []byte) (uint8, bool) {
 			continue
 		}
 		// IPv4 src/dst address, TCP/UDP src/dst port
-		if !bytes.Equal(dict[26:26+4+4+2+2], frame[26:26+4+4+2+2]) {
+		if !bytes.Equal(dict[offset:offset+4+4+2+2], frame[offset:offset+4+4+2+2]) {
 			continue
 		}
 		return uint8(i), true
@@ -156,6 +157,7 @@ func (w *cfhWriter) fastSearchDictEthIPv4TCP(frame []byte) (uint8, bool) {
 }
 
 func (w *cfhWriter) fastSearchDictEthIPv4UDP(frame []byte) (uint8, bool) {
+	const offset = 14 + (20 - 4*2)
 	var dict []byte
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
@@ -164,7 +166,7 @@ func (w *cfhWriter) fastSearchDictEthIPv4UDP(frame []byte) (uint8, bool) {
 			continue
 		}
 		// IPv4 src/dst address, UDP src/dst port
-		if !bytes.Equal(dict[26:26+4+4+2+2], frame[26:26+4+4+2+2]) {
+		if !bytes.Equal(dict[offset:offset+4+4+2+2], frame[offset:offset+4+4+2+2]) {
 			continue
 		}
 		return uint8(i), true
@@ -173,19 +175,47 @@ func (w *cfhWriter) fastSearchDictEthIPv4UDP(frame []byte) (uint8, bool) {
 }
 
 func (w *cfhWriter) fastSearchDictEthIPv6TCP(frame []byte) (uint8, bool) {
-
+	const offset = 14 + (40 - 16*2)
+	var dict []byte
+	for i := 0; i < len(w.dict); i++ {
+		dict = w.dict[i]
+		// Ethernet dst/src address
+		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
+			continue
+		}
+		// IPv6 src/dst address, TCP/UDP src/dst port
+		if !bytes.Equal(dict[offset:offset+16+16+2+2], frame[offset:offset+16+16+2+2]) {
+			continue
+		}
+		return uint8(i), true
+	}
+	return 0, false
 }
 
 func (w *cfhWriter) fastSearchDictEthIPv6UDP(frame []byte) (uint8, bool) {
-
+	const offset = 14 + (40 - 16*2)
+	var dict []byte
+	for i := 0; i < len(w.dict); i++ {
+		dict = w.dict[i]
+		// Ethernet dst/src address
+		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
+			continue
+		}
+		// IPv6 src/dst address, UDP src/dst port
+		if !bytes.Equal(dict[offset:offset+16+16+2+2], frame[offset:offset+16+16+2+2]) {
+			continue
+		}
+		return uint8(i), true
+	}
+	return 0, false
 }
 
 func (w *cfhWriter) addNewDict(frame []byte) {
-	dict := make([]byte, len(frame))
-	copy(dict, frame)
 	for i := len(w.dict) - 1; i > 0; i-- {
 		w.dict[i] = w.dict[i-1]
 	}
+	dict := make([]byte, len(frame))
+	copy(dict, frame)
 	w.dict[0] = dict
 }
 
