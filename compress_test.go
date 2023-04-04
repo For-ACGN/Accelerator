@@ -26,7 +26,7 @@ func TestCompressHeader(t *testing.T) {
 
 	output := bytes.NewBuffer(nil)
 
-	w := newCHWriter(output)
+	w := newCFHWriter(output)
 
 	_, err = w.Write(frame1b)
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestCompressHeader(t *testing.T) {
 
 	// 13/54
 
-	r := newCHReader(output)
+	r := newCFHReader(output)
 
 	f := make([]byte, 54)
 	_, err = r.Read(f)
