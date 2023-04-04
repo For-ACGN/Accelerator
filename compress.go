@@ -122,27 +122,30 @@ func (w *cfhWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func (w *cfhWriter) searchDict(frame []byte) (uint8, bool) {
+func (w *cfhWriter) searchDict(frame []byte) int {
 	size := len(frame)
 	switch {
-	case size == 14+20+20: // Ethernet + IPv4 + TCP
-		return w.fastSearchDictEthIPv4TCP(frame)
-	case size == 14+20+8: // Ethernet + IPv4 + UDP
-		return w.fastSearchDictEthIPv4UDP(frame)
-	case size == 14+40+20: // Ethernet + IPv6 + TCP
-		return w.fastSearchDictEthIPv6TCP(frame)
-	case size == 14+40+8: // Ethernet + IPv6 + UDP
-		return w.fastSearchDictEthIPv6UDP(frame)
+	case size == 14+20+20:
+		return w.fastSearchDictEthernetIPv4TCP(frame)
+	case size == 14+20+8:
+		return w.fastSearchDictEthernetIPv4UDP(frame)
+	case size == 14+40+20:
+		return w.fastSearchDictEthernetIPv6TCP(frame)
+	case size == 14+40+8:
+		return w.fastSearchDictEthernetIPv6UDP(frame)
+	default:
+		return w.slowSearchDict(frame)
 	}
-	// compare each byte
-
 }
 
-func (w *cfhWriter) fastSearchDictEthIPv4TCP(frame []byte) (uint8, bool) {
+func (w *cfhWriter) fastSearchDictEthernetIPv4TCP(frame []byte) int {
 	const offset = 14 + (20 - 4*2)
 	var dict []byte
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
+		if len(dict) != len(frame) {
+			continue
+		}
 		// Ethernet dst/src address
 		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
 			continue
@@ -151,16 +154,19 @@ func (w *cfhWriter) fastSearchDictEthIPv4TCP(frame []byte) (uint8, bool) {
 		if !bytes.Equal(dict[offset:offset+4+4+2+2], frame[offset:offset+4+4+2+2]) {
 			continue
 		}
-		return uint8(i), true
+		return i
 	}
-	return 0, false
+	return -1
 }
 
-func (w *cfhWriter) fastSearchDictEthIPv4UDP(frame []byte) (uint8, bool) {
+func (w *cfhWriter) fastSearchDictEthernetIPv4UDP(frame []byte) int {
 	const offset = 14 + (20 - 4*2)
 	var dict []byte
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
+		if len(dict) != len(frame) {
+			continue
+		}
 		// Ethernet dst/src address
 		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
 			continue
@@ -169,16 +175,19 @@ func (w *cfhWriter) fastSearchDictEthIPv4UDP(frame []byte) (uint8, bool) {
 		if !bytes.Equal(dict[offset:offset+4+4+2+2], frame[offset:offset+4+4+2+2]) {
 			continue
 		}
-		return uint8(i), true
+		return i
 	}
-	return 0, false
+	return -1
 }
 
-func (w *cfhWriter) fastSearchDictEthIPv6TCP(frame []byte) (uint8, bool) {
+func (w *cfhWriter) fastSearchDictEthernetIPv6TCP(frame []byte) int {
 	const offset = 14 + (40 - 16*2)
 	var dict []byte
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
+		if len(dict) != len(frame) {
+			continue
+		}
 		// Ethernet dst/src address
 		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
 			continue
@@ -187,16 +196,19 @@ func (w *cfhWriter) fastSearchDictEthIPv6TCP(frame []byte) (uint8, bool) {
 		if !bytes.Equal(dict[offset:offset+16+16+2+2], frame[offset:offset+16+16+2+2]) {
 			continue
 		}
-		return uint8(i), true
+		return i
 	}
-	return 0, false
+	return -1
 }
 
-func (w *cfhWriter) fastSearchDictEthIPv6UDP(frame []byte) (uint8, bool) {
+func (w *cfhWriter) fastSearchDictEthernetIPv6UDP(frame []byte) int {
 	const offset = 14 + (40 - 16*2)
 	var dict []byte
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
+		if len(dict) != len(frame) {
+			continue
+		}
 		// Ethernet dst/src address
 		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
 			continue
@@ -205,9 +217,41 @@ func (w *cfhWriter) fastSearchDictEthIPv6UDP(frame []byte) (uint8, bool) {
 		if !bytes.Equal(dict[offset:offset+16+16+2+2], frame[offset:offset+16+16+2+2]) {
 			continue
 		}
-		return uint8(i), true
+		return i
 	}
-	return 0, false
+	return -1
+}
+
+func (w *cfhWriter) slowSearchDict(frame []byte) int {
+	var (
+		dict []byte
+		diff int
+	)
+	minDiff := cfhMaxDataSize
+	maxDiff := len(frame) / 4
+	dictIdx := -1
+next:
+	for i := 0; i < len(w.dict); i++ {
+		dict = w.dict[i]
+		if len(dict) != len(frame) {
+			continue
+		}
+		diff = 0
+		for j := 0; j < len(dict); j++ {
+			if dict[j] == frame[j] {
+				continue
+			}
+			diff++
+			if diff > maxDiff {
+				continue next
+			}
+		}
+		if diff < minDiff {
+			minDiff = diff
+			dictIdx = i
+		}
+	}
+	return dictIdx
 }
 
 func (w *cfhWriter) addNewDict(frame []byte) {
