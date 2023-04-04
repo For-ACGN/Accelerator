@@ -49,6 +49,8 @@ import (
 //
 // The threshold is used to quickly detect the need for a new dictionary
 const (
+	cfhMaxDataSize = 255
+
 	// IPv4(total length, checksum) + UDP(length, checksum)
 	defaultThreshold = 4 + 4
 
@@ -57,36 +59,31 @@ const (
 	cfhCMDDelDict
 )
 
-type wDict struct {
-	data  []byte
-	size  int
-	addAt uint64
-}
-
 type cfhWriter struct {
 	w    io.Writer
+	dict [][]byte
 	th   uint8
-	dict []wDict
 	buf  bytes.Buffer
 }
 
 func newCFHWriter(w io.Writer) io.Writer {
-	return newCFHWriterWithThreshold(w, 0)
+	return newCFHWriterWithArgs(w, 256, 0)
 }
 
-func newCFHWriterWithThreshold(w io.Writer, threshold uint8) io.Writer {
+func newCFHWriterWithArgs(w io.Writer, size, threshold uint8) io.Writer {
 	if threshold == 0 {
 		threshold = defaultThreshold
 	}
 	return &cfhWriter{
-		w:  w,
-		th: threshold,
+		w:    w,
+		dict: make([][]byte, size),
+		th:   threshold,
 	}
 }
 
 func (w *cfhWriter) Write(b []byte) (int, error) {
-	if len(b) > 255 {
-		return 0, errors.New("too large buffer")
+	if len(b) > cfhMaxDataSize {
+		return 0, errors.New("write too large data")
 	}
 	if w.dict == nil {
 		w.dict = make([]byte, len(b))
@@ -125,6 +122,73 @@ func (w *cfhWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
+func (w *cfhWriter) searchDict(frame []byte) (uint8, bool) {
+	size := len(frame)
+	switch {
+	case size == 14+20+20: // Ethernet + IPv4 + TCP
+		return w.fastSearchDictEthIPv4TCP(frame)
+	case size == 14+20+8: // Ethernet + IPv4 + UDP
+		return w.fastSearchDictEthIPv4UDP(frame)
+	case size == 14+40+20: // Ethernet + IPv6 + TCP
+		return w.fastSearchDictEthIPv6TCP(frame)
+	case size == 14+40+8: // Ethernet + IPv6 + UDP
+		return w.fastSearchDictEthIPv6UDP(frame)
+	}
+	// compare each byte
+
+}
+
+func (w *cfhWriter) fastSearchDictEthIPv4TCP(frame []byte) (uint8, bool) {
+	var dict []byte
+	for i := 0; i < len(w.dict); i++ {
+		dict = w.dict[i]
+		// Ethernet dst/src address
+		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
+			continue
+		}
+		// IPv4 src/dst address, TCP/UDP src/dst port
+		if !bytes.Equal(dict[26:26+4+4+2+2], frame[26:26+4+4+2+2]) {
+			continue
+		}
+		return uint8(i), true
+	}
+	return 0, false
+}
+
+func (w *cfhWriter) fastSearchDictEthIPv4UDP(frame []byte) (uint8, bool) {
+	var dict []byte
+	for i := 0; i < len(w.dict); i++ {
+		dict = w.dict[i]
+		// Ethernet dst/src address
+		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
+			continue
+		}
+		// IPv4 src/dst address, UDP src/dst port
+		if !bytes.Equal(dict[26:26+4+4+2+2], frame[26:26+4+4+2+2]) {
+			continue
+		}
+		return uint8(i), true
+	}
+	return 0, false
+}
+
+func (w *cfhWriter) fastSearchDictEthIPv6TCP(frame []byte) (uint8, bool) {
+
+}
+
+func (w *cfhWriter) fastSearchDictEthIPv6UDP(frame []byte) (uint8, bool) {
+
+}
+
+func (w *cfhWriter) addNewDict(frame []byte) {
+	dict := make([]byte, len(frame))
+	copy(dict, frame)
+	for i := len(w.dict) - 1; i > 0; i-- {
+		w.dict[i] = w.dict[i-1]
+	}
+	w.dict[0] = dict
+}
+
 type cfhReader struct {
 	r    io.Reader
 	dict []byte
@@ -139,8 +203,8 @@ func newCFHReader(r io.Reader) io.Reader {
 }
 
 func (r *cfhReader) Read(b []byte) (int, error) {
-	if len(b) > 255 {
-		return 0, errors.New("too large buffer")
+	if len(b) > cfhMaxDataSize {
+		return 0, errors.New("read with too large buffer")
 	}
 	if r.dict == nil {
 		size := make([]byte, 1)

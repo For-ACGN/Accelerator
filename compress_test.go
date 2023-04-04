@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 	"time"
-	
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,76 +24,91 @@ func TestCompressHeader(t *testing.T) {
 	require.NoError(t, err)
 	frame3b, err := hex.DecodeString(frame3)
 	require.NoError(t, err)
-	
+
 	output := bytes.NewBuffer(nil)
-	
+
 	w := newCFHWriter(output)
-	
+
 	_, err = w.Write(frame1b)
 	require.NoError(t, err)
 	fmt.Println(output.Len(), output.Bytes())
-	
+
 	_, err = w.Write(frame2b)
 	require.NoError(t, err)
 	fmt.Println(output.Len(), output.Bytes())
-	
+
 	_, err = w.Write(frame3b)
 	require.NoError(t, err)
 	fmt.Println(output.Len(), output.Bytes())
-	
+
 	// 13/54
-	
+
 	r := newCFHReader(output)
-	
+
 	f := make([]byte, 54)
 	_, err = r.Read(f)
 	fmt.Println(f)
 	require.Equal(t, frame1, hex.EncodeToString(f))
-	
+
 	f = make([]byte, 54)
 	_, err = r.Read(f)
 	fmt.Println(f)
 	require.Equal(t, frame2, hex.EncodeToString(f))
-	
+
 	f = make([]byte, 54)
 	_, err = r.Read(f)
 	fmt.Println(f)
 	require.Equal(t, frame3, hex.EncodeToString(f))
-	
+
 	// 7/76
+}
+
+type wDict struct {
+	data  []byte
+	size  int
+	addAt uint64
 }
 
 func TestCompressBenchmark(t *testing.T) {
 	var bb []wDict
 	bb = make([]wDict, 256)
 	for i := 0; i < len(bb); i++ {
-		bb[i].data = make([]byte, 32)
+		bb[i].data = make([]byte, 54)
 		bb[i].data[16] = 159
 	}
-	
-	src := make([]byte, 32)
-	
+
+	src := make([]byte, 54)
+
 	now := time.Now()
-	
+
 	var c int
 	for i := 0; i < 22369; i++ {
 		for j := 0; j < len(bb); j++ {
 			bs := bb[j].data
-			
-			bytes.Equal(bs[:4], src[:4])
-			bytes.Equal(bs[4:8], src[4:8])
-			bytes.Equal(bs[8:12], src[8:12])
-			bytes.Equal(bs[12:16], src[12:16])
-			
-			// for k := 0; k < len(bs); k++ {
-			// 	if bs[k] != src[k] {
-			// 		c++
-			// 	}
-			// }
+
+			// bytes.Equal(bs[:12], src[:12])
+			// bytes.Equal(bs[26:30+4+2+2], src[26:30+4+2+2])
+
+			// bytes.Equal(bs[:14], src[:14])
+
+			// bytes.Equal(bs[4:8], src[4:8])
+			// bytes.Equal(bs[8:12], src[8:12])
+			// bytes.Equal(bs[12:16], src[12:16])
+
+			// bytes.Equal(bs[16:20], src[16:20])
+			// bytes.Equal(bs[20:24], src[20:24])
+			// bytes.Equal(bs[24:28], src[24:28])
+			// bytes.Equal(bs[28:32], src[28:32])
+
+			for k := 0; k < len(bs); k++ {
+				if bs[k] != src[k] {
+					c++
+				}
+			}
 		}
 	}
-	
+
 	fmt.Println(time.Since(now).Milliseconds(), "ms")
-	
+
 	fmt.Println(c)
 }
