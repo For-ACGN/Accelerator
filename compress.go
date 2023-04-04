@@ -9,7 +9,8 @@ import (
 // cfhWriter and cfhReader are used to compress frame
 // header data like Ethernet, IPv4, IPv4, TCP and UDP.
 //
-// The data structure is operation + data
+// Usually, these data only change a small portion
+// throughout the entire context.
 //
 // 1. add new dictionary
 // The new dictionary will be the top.
@@ -45,20 +46,42 @@ import (
 // +---------+-------+
 // |  byte   | uint8 |
 // +---------+-------+
+//
+// The threshold is used to quickly detect the need for a new dictionary
 const (
+	// IPv4(total length, checksum) + UDP(length, checksum)
+	defaultThreshold = 4 + 4
+
 	cfhCMDAddDict = 1 + iota
-	cfgCMDData
+	cfhCMDData
 	cfhCMDDelDict
 )
 
+type wDict struct {
+	data  []byte
+	size  int
+	addAt uint64
+}
+
 type cfhWriter struct {
 	w    io.Writer
-	dict []byte
+	th   uint8
+	dict []wDict
 	buf  bytes.Buffer
 }
 
 func newCFHWriter(w io.Writer) io.Writer {
-	return &cfhWriter{w: w}
+	return newCFHWriterWithThreshold(w, 0)
+}
+
+func newCFHWriterWithThreshold(w io.Writer, threshold uint8) io.Writer {
+	if threshold == 0 {
+		threshold = defaultThreshold
+	}
+	return &cfhWriter{
+		w:  w,
+		th: threshold,
+	}
 }
 
 func (w *cfhWriter) Write(b []byte) (int, error) {
