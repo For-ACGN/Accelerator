@@ -46,36 +46,27 @@ import (
 // |  byte   |
 // +---------+
 //
-// 4. repeat prevent frame header data
+// 4. repeat previous frame header data
 //
 // +---------+------------------+
 // | command | dictionary index |
 // +---------+------------------+
 // |  byte   |      uint8       |
 // +---------+------------------+
-//
-// 5. delete dictionary
-// When the dictionary pool is full, remove the oldest one.
-//
-// +---------+-------+
-// | command | index |
-// +---------+-------+
-// |  byte   | uint8 |
-// +---------+-------+
+const cfhMaxDataSize = 255
+
 const (
 	cfhCMDAddDict = 1 + iota
 	cfhCMDData
 	cfhCMDLast
 	cfhCMDPrev
-	cfhCMDDelDict
 )
-
-const cfhMaxDataSize = 255
 
 type cfhWriter struct {
 	w    io.Writer
 	dict [][]byte
-	last []byte
+	last bytes.Buffer
+	chg  bytes.Buffer
 	buf  bytes.Buffer
 }
 
@@ -91,45 +82,64 @@ func newCFHWriterWithSize(w io.Writer, size uint8) io.Writer {
 }
 
 func (w *cfhWriter) Write(b []byte) (int, error) {
-	if len(b) > cfhMaxDataSize {
+	n := len(b)
+	if n > cfhMaxDataSize {
 		return 0, errors.New("write too large data")
 	}
 	w.buf.Reset()
+	// check data is as same as the last
+	if bytes.Equal(w.last.Bytes(), b) {
+		w.buf.WriteByte(cfhCMDLast)
+		_, err := w.w.Write(w.buf.Bytes())
+		if err != nil {
+			return 0, err
+		}
+		return n, nil
+	}
+	// search the dictionary
 	idx := w.searchDict(b)
 	if idx == -1 {
 		w.addDict(b)
+		w.updateLast(b)
 		w.buf.WriteByte(cfhCMDAddDict)
-		w.buf.WriteByte(byte(len(b)))
+		w.buf.WriteByte(byte(n))
 		w.buf.Write(b)
 		_, err := w.w.Write(w.buf.Bytes())
 		if err != nil {
 			return 0, err
 		}
-		return len(b), nil
+		return n, nil
 	}
-	// move the dictionary to the top
-
 	// compare the new data with the dictionary
-	for i := 0; i < len(w.dict); i++ {
-		if w.dict[i] == b[i] {
+	dict := w.dict[idx]
+	for i := 0; i < n; i++ {
+		if dict[i] == b[i] {
 			continue
 		}
-		w.buf.WriteByte(byte(i))
-		w.buf.WriteByte(b[i])
-		// update template
-		w.dict[i] = b[i]
+		w.chg.WriteByte(byte(i))
+		w.chg.WriteByte(b[i])
+		// update dictionary data
+		dict[i] = b[i]
 	}
-	// write changed data number
-	_, err := w.w.Write([]byte{byte(w.buf.Len() / 2)})
+	if w.chg.Len() == 0 {
+		w.buf.WriteByte(cfhCMDPrev)
+		w.buf.WriteByte(byte(idx))
+	} else {
+		w.buf.WriteByte(cfhCMDData)
+		w.buf.WriteByte(byte(idx))
+		w.buf.WriteByte(byte(w.chg.Len() / 2))
+		w.buf.Write(w.chg.Bytes())
+		w.chg.Reset()
+	}
+	// move the dictionary to the top
+	w.moveDict(idx)
+	w.updateLast(b)
+	// write the actual changed data
+	_, err := w.w.Write(w.buf.Bytes())
 	if err != nil {
 		return 0, err
 	}
-	// write changed data
-	_, err = w.w.Write(w.buf.Bytes())
-	if err != nil {
-		return 0, err
-	}
-	return len(b), nil
+	return n, nil
 }
 
 func (w *cfhWriter) searchDict(frame []byte) int {
@@ -273,12 +283,26 @@ next:
 }
 
 func (w *cfhWriter) addDict(frame []byte) {
+	// remove the oldest dictionary
 	for i := len(w.dict) - 1; i > 0; i-- {
 		w.dict[i] = w.dict[i-1]
 	}
 	dict := make([]byte, len(frame))
 	copy(dict, frame)
 	w.dict[0] = dict
+}
+
+func (w *cfhWriter) moveDict(idx int) {
+	dict := w.dict[idx]
+	for i := idx; i > 0; i-- {
+		w.dict[i] = w.dict[i-1]
+	}
+	w.dict[0] = dict
+}
+
+func (w *cfhWriter) updateLast(frame []byte) {
+	w.last.Reset()
+	w.last.Write(frame)
 }
 
 type cfhReader struct {
