@@ -38,7 +38,23 @@ import (
 // | uint8 | byte |
 // +-------+------+
 //
-// 3. delete dictionary
+// 3. repeat last frame header data
+//
+// +---------+
+// | command |
+// +---------+
+// |  byte   |
+// +---------+
+//
+// 4. repeat prevent frame header data
+//
+// +---------+------------------+
+// | command | dictionary index |
+// +---------+------------------+
+// |  byte   |      uint8       |
+// +---------+------------------+
+//
+// 5. delete dictionary
 // When the dictionary pool is full, remove the oldest one.
 //
 // +---------+-------+
@@ -46,38 +62,31 @@ import (
 // +---------+-------+
 // |  byte   | uint8 |
 // +---------+-------+
-//
-// The threshold is used to quickly detect the need for a new dictionary
 const (
-	cfhMaxDataSize = 255
-
-	// IPv4(total length, checksum) + UDP(length, checksum)
-	defaultThreshold = 4 + 4
-
 	cfhCMDAddDict = 1 + iota
 	cfhCMDData
+	cfhCMDLast
+	cfhCMDPrev
 	cfhCMDDelDict
 )
+
+const cfhMaxDataSize = 255
 
 type cfhWriter struct {
 	w    io.Writer
 	dict [][]byte
-	th   uint8
+	last []byte
 	buf  bytes.Buffer
 }
 
 func newCFHWriter(w io.Writer) io.Writer {
-	return newCFHWriterWithArgs(w, 256, 0)
+	return newCFHWriterWithSize(w, 256)
 }
 
-func newCFHWriterWithArgs(w io.Writer, size, threshold uint8) io.Writer {
-	if threshold == 0 {
-		threshold = defaultThreshold
-	}
+func newCFHWriterWithSize(w io.Writer, size uint8) io.Writer {
 	return &cfhWriter{
 		w:    w,
 		dict: make([][]byte, size),
-		th:   threshold,
 	}
 }
 
@@ -85,21 +94,22 @@ func (w *cfhWriter) Write(b []byte) (int, error) {
 	if len(b) > cfhMaxDataSize {
 		return 0, errors.New("write too large data")
 	}
-	if w.dict == nil {
-		w.dict = make([]byte, len(b))
-		copy(w.dict, b)
-		_, err := w.w.Write([]byte{byte(len(b))})
-		if err != nil {
-			return 0, err
-		}
-		_, err = w.w.Write(w.dict)
-		if err != nil {
-			return 0, err
-		}
-		return len(w.dict), nil
-	}
 	w.buf.Reset()
-	// compare the new data with the latest template
+	idx := w.searchDict(b)
+	if idx == -1 {
+		w.addDict(b)
+		w.buf.WriteByte(cfhCMDAddDict)
+		w.buf.WriteByte(byte(len(b)))
+		w.buf.Write(b)
+		_, err := w.w.Write(w.buf.Bytes())
+		if err != nil {
+			return 0, err
+		}
+		return len(b), nil
+	}
+	// move the dictionary to the top
+
+	// compare the new data with the dictionary
 	for i := 0; i < len(w.dict); i++ {
 		if w.dict[i] == b[i] {
 			continue
@@ -141,17 +151,19 @@ func (w *cfhWriter) searchDict(frame []byte) int {
 func (w *cfhWriter) fastSearchDictEthernetIPv4TCP(frame []byte) int {
 	const offset = 14 + (20 - 4*2)
 	var dict []byte
+	frameP1 := frame[:6+6]
+	frameP2 := frame[offset : offset+4+4+2+2]
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
 		if len(dict) != len(frame) {
 			continue
 		}
 		// Ethernet dst/src address
-		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
+		if !bytes.Equal(dict[:6+6], frameP1) {
 			continue
 		}
 		// IPv4 src/dst address, TCP/UDP src/dst port
-		if !bytes.Equal(dict[offset:offset+4+4+2+2], frame[offset:offset+4+4+2+2]) {
+		if !bytes.Equal(dict[offset:offset+4+4+2+2], frameP2) {
 			continue
 		}
 		return i
@@ -162,17 +174,19 @@ func (w *cfhWriter) fastSearchDictEthernetIPv4TCP(frame []byte) int {
 func (w *cfhWriter) fastSearchDictEthernetIPv4UDP(frame []byte) int {
 	const offset = 14 + (20 - 4*2)
 	var dict []byte
+	frameP1 := frame[:6+6]
+	frameP2 := frame[offset : offset+4+4+2+2]
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
 		if len(dict) != len(frame) {
 			continue
 		}
 		// Ethernet dst/src address
-		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
+		if !bytes.Equal(dict[:6+6], frameP1) {
 			continue
 		}
 		// IPv4 src/dst address, UDP src/dst port
-		if !bytes.Equal(dict[offset:offset+4+4+2+2], frame[offset:offset+4+4+2+2]) {
+		if !bytes.Equal(dict[offset:offset+4+4+2+2], frameP2) {
 			continue
 		}
 		return i
@@ -183,17 +197,19 @@ func (w *cfhWriter) fastSearchDictEthernetIPv4UDP(frame []byte) int {
 func (w *cfhWriter) fastSearchDictEthernetIPv6TCP(frame []byte) int {
 	const offset = 14 + (40 - 16*2)
 	var dict []byte
+	frameP1 := frame[:6+6]
+	frameP2 := frame[offset : offset+16+16+2+2]
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
 		if len(dict) != len(frame) {
 			continue
 		}
 		// Ethernet dst/src address
-		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
+		if !bytes.Equal(dict[:6+6], frameP1) {
 			continue
 		}
 		// IPv6 src/dst address, TCP/UDP src/dst port
-		if !bytes.Equal(dict[offset:offset+16+16+2+2], frame[offset:offset+16+16+2+2]) {
+		if !bytes.Equal(dict[offset:offset+16+16+2+2], frameP2) {
 			continue
 		}
 		return i
@@ -204,17 +220,19 @@ func (w *cfhWriter) fastSearchDictEthernetIPv6TCP(frame []byte) int {
 func (w *cfhWriter) fastSearchDictEthernetIPv6UDP(frame []byte) int {
 	const offset = 14 + (40 - 16*2)
 	var dict []byte
+	frameP1 := frame[:6+6]
+	frameP2 := frame[offset : offset+16+16+2+2]
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
 		if len(dict) != len(frame) {
 			continue
 		}
 		// Ethernet dst/src address
-		if !bytes.Equal(dict[:6+6], frame[:6+6]) {
+		if !bytes.Equal(dict[:6+6], frameP1) {
 			continue
 		}
 		// IPv6 src/dst address, UDP src/dst port
-		if !bytes.Equal(dict[offset:offset+16+16+2+2], frame[offset:offset+16+16+2+2]) {
+		if !bytes.Equal(dict[offset:offset+16+16+2+2], frameP2) {
 			continue
 		}
 		return i
@@ -254,7 +272,7 @@ next:
 	return dictIdx
 }
 
-func (w *cfhWriter) addNewDict(frame []byte) {
+func (w *cfhWriter) addDict(frame []byte) {
 	for i := len(w.dict) - 1; i > 0; i-- {
 		w.dict[i] = w.dict[i-1]
 	}
