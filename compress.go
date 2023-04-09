@@ -63,6 +63,7 @@ const (
 	cfhCMDPrev
 )
 
+// cfhWriter is used to compress frame header data.
 type cfhWriter struct {
 	w    io.Writer
 	dict [][]byte
@@ -91,6 +92,9 @@ func newCFHWriterWithSize(w io.Writer, size int) (io.Writer, error) {
 }
 
 func (w *cfhWriter) Write(b []byte) (int, error) {
+	if len(b) > cfhMaxDataSize {
+		return 0, errors.New("write too large data")
+	}
 	if w.err != nil {
 		return 0, w.err
 	}
@@ -103,9 +107,6 @@ func (w *cfhWriter) Write(b []byte) (int, error) {
 
 func (w *cfhWriter) write(b []byte) (int, error) {
 	n := len(b)
-	if n > cfhMaxDataSize {
-		return 0, errors.New("write too large data")
-	}
 	w.buf.Reset()
 	// check data is as same as the last
 	if bytes.Equal(w.last.Bytes(), b) {
@@ -325,12 +326,15 @@ func (w *cfhWriter) updateLast(data []byte) {
 	w.last.Write(data)
 }
 
+// cfhReader is used to decompress frame header data.
 type cfhReader struct {
 	r    io.Reader
 	dict [][]byte
 	buf  []byte
+	chg  []byte
 	last bytes.Buffer
 	data bytes.Buffer
+	err  error
 }
 
 func newCFHReader(r io.Reader) io.Reader {
@@ -349,24 +353,35 @@ func newCFHReaderWithSize(r io.Reader, size int) (io.Reader, error) {
 		r:    r,
 		dict: make([][]byte, size),
 		buf:  make([]byte, 1),
+		chg:  make([]byte, 256),
 	}, nil
 }
 
 func (r *cfhReader) Read(b []byte) (int, error) {
-	n := len(b)
-	if n > cfhMaxDataSize {
+	if len(b) > cfhMaxDataSize {
 		return 0, errors.New("read with too large buffer")
 	}
+	if r.err != nil {
+		return 0, r.err
+	}
+	n, err := r.read(b)
+	if err != nil {
+		r.err = err
+	}
+	return n, err
+}
+
+func (r *cfhReader) read(b []byte) (int, error) {
 	// read remaining data
 	if r.data.Len() != 0 {
 		return r.data.Read(b)
 	}
 	// read command
-	_, err := io.ReadFull(r.r, r.buf[:1])
+	_, err := io.ReadFull(r.r, r.buf)
 	if err != nil {
 		return 0, err
 	}
-	switch r.buf[0] {
+	switch cmd := r.buf[0]; cmd {
 	case cfhCMDAddDict:
 		err = r.addDict()
 	case cfhCMDData:
@@ -376,7 +391,7 @@ func (r *cfhReader) Read(b []byte) (int, error) {
 	case cfhCMDPrev:
 		err = r.prevData()
 	default:
-		return 0, errors.New("invalid decompress command")
+		return 0, fmt.Errorf("invalid decompress command: %d", cmd)
 	}
 	if err != nil {
 		return 0, err
@@ -386,7 +401,7 @@ func (r *cfhReader) Read(b []byte) (int, error) {
 
 func (r *cfhReader) addDict() error {
 	// read dictionary size
-	_, err := io.ReadFull(r.r, r.buf[:1])
+	_, err := io.ReadFull(r.r, r.buf)
 	if err != nil {
 		return fmt.Errorf("failed to read dictionary size: %s", err)
 	}
@@ -402,31 +417,40 @@ func (r *cfhReader) addDict() error {
 		r.dict[i] = r.dict[i-1]
 	}
 	r.dict[0] = dict
-	// update other fields
-	r.updateLast(dict)
 	r.data.Write(dict)
+	// update status
+	r.updateLast(dict)
 	return nil
 }
 
 func (r *cfhReader) readData() error {
 	// read dictionary index
-	_, err := io.ReadFull(r.r, r.buf[:1])
+	_, err := io.ReadFull(r.r, r.buf)
 	if err != nil {
-		return 0, err
+		return fmt.Errorf("failed to read dictionary index: %s", err)
 	}
+	idx := int(r.buf[0])
+	// read the number of changed data
+	_, err = io.ReadFull(r.r, r.buf)
+	if err != nil {
+		return fmt.Errorf("failed to read the number of changed data: %s", err)
+	}
+	// read changed data
 	num := int(r.buf[0])
-	for i := 0; i < num; i++ {
-		_, err = io.ReadFull(r.r, r.buf)
-		if err != nil {
-			return 0, err
-		}
-		r.dict[r.buf[0]] = r.buf[1]
+	_, err = io.ReadFull(r.r, r.chg[:num*2])
+	if err != nil {
+		return fmt.Errorf("failed to read changed data: %s", err)
 	}
-	copy(b, r.dict)
-
+	// extract data and update dictionary
+	dict := r.dict[idx]
+	for i := 0; i < num; i += 2 {
+		dict[r.chg[i]] = r.chg[i+1]
+	}
+	r.data.Write(dict)
+	// update status
 	r.moveDict(idx)
-
-	return len(b), nil
+	r.updateLast(dict)
+	return nil
 }
 
 func (r *cfhReader) lastData() {
@@ -435,13 +459,16 @@ func (r *cfhReader) lastData() {
 
 func (r *cfhReader) prevData() error {
 	// read dictionary index
-	_, err := io.ReadFull(r.r, r.buf[:1])
+	_, err := io.ReadFull(r.r, r.buf)
 	if err != nil {
 		return fmt.Errorf("failed to read dictionary index: %s", err)
 	}
 	idx := int(r.buf[0])
-	r.data.Write(r.dict[idx])
+	dict := r.dict[idx]
+	r.data.Write(dict)
+	// update status
 	r.moveDict(idx)
+	r.updateLast(dict)
 	return nil
 }
 
