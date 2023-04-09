@@ -53,7 +53,7 @@ import (
 // +---------+------------------+
 // |  byte   |      uint8       |
 // +---------+------------------+
-const cfhMaxDataSize = 255
+const cfhMaxDataSize = 256
 
 const (
 	cfhCMDAddDict = 1 + iota
@@ -71,14 +71,21 @@ type cfhWriter struct {
 }
 
 func newCFHWriter(w io.Writer) io.Writer {
-	return newCFHWriterWithSize(w, 256)
+	w, err := newCFHWriterWithSize(w, 256)
+	if err != nil {
+		panic(err)
+	}
+	return w
 }
 
-func newCFHWriterWithSize(w io.Writer, size uint8) io.Writer {
+func newCFHWriterWithSize(w io.Writer, size int) (io.Writer, error) {
+	if size > 256 {
+		return nil, errors.New("dictionary size cannot greater than 256")
+	}
 	return &cfhWriter{
 		w:    w,
 		dict: make([][]byte, size),
-	}
+	}, nil
 }
 
 func (w *cfhWriter) Write(b []byte) (int, error) {
@@ -307,21 +314,41 @@ func (w *cfhWriter) updateLast(frame []byte) {
 
 type cfhReader struct {
 	r    io.Reader
-	dict []byte
+	dict [][]byte
 	buf  []byte
+	last bytes.Buffer
+	data bytes.Buffer
 }
 
 func newCFHReader(r io.Reader) io.Reader {
-	return &cfhReader{
-		r:   r,
-		buf: make([]byte, 2),
+	r, err := newCFHReaderWithSize(r, 256)
+	if err != nil {
+		panic(err)
 	}
+	return r
+}
+
+func newCFHReaderWithSize(r io.Reader, size int) (io.Reader, error) {
+	if size > 256 {
+		return nil, errors.New("dictionary size cannot greater than 256")
+	}
+	return &cfhReader{
+		r:    r,
+		dict: make([][]byte, size),
+		buf:  make([]byte, 2),
+	}, nil
 }
 
 func (r *cfhReader) Read(b []byte) (int, error) {
-	if len(b) > cfhMaxDataSize {
+	n := len(b)
+	if n > cfhMaxDataSize {
 		return 0, errors.New("read with too large buffer")
 	}
+	// read remaining data
+	if r.data.Len() != 0 {
+		return r.data.Read(b)
+	}
+
 	if r.dict == nil {
 		size := make([]byte, 1)
 		_, err := io.ReadFull(r.r, size)
