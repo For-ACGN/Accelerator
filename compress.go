@@ -69,6 +69,7 @@ type cfhWriter struct {
 	last bytes.Buffer
 	chg  bytes.Buffer
 	buf  bytes.Buffer
+	err  error
 }
 
 func newCFHWriter(w io.Writer) io.Writer {
@@ -90,6 +91,17 @@ func newCFHWriterWithSize(w io.Writer, size int) (io.Writer, error) {
 }
 
 func (w *cfhWriter) Write(b []byte) (int, error) {
+	if w.err != nil {
+		return 0, w.err
+	}
+	n, err := w.write(b)
+	if err != nil {
+		w.err = err
+	}
+	return n, err
+}
+
+func (w *cfhWriter) write(b []byte) (int, error) {
 	n := len(b)
 	if n > cfhMaxDataSize {
 		return 0, errors.New("write too large data")
@@ -107,8 +119,6 @@ func (w *cfhWriter) Write(b []byte) (int, error) {
 	// search the dictionary
 	idx := w.searchDict(b)
 	if idx == -1 {
-		w.addDict(b)
-		w.updateLast(b)
 		w.buf.WriteByte(cfhCMDAddDict)
 		w.buf.WriteByte(byte(n))
 		w.buf.Write(b)
@@ -116,6 +126,8 @@ func (w *cfhWriter) Write(b []byte) (int, error) {
 		if err != nil {
 			return 0, err
 		}
+		w.addDict(b)
+		w.updateLast(b)
 		return n, nil
 	}
 	// compare the new data with the dictionary
@@ -139,14 +151,14 @@ func (w *cfhWriter) Write(b []byte) (int, error) {
 		w.buf.Write(w.chg.Bytes())
 		w.chg.Reset()
 	}
-	// move the dictionary to the top
-	w.moveDict(idx)
-	w.updateLast(b)
 	// write the actual changed data
 	_, err := w.w.Write(w.buf.Bytes())
 	if err != nil {
 		return 0, err
 	}
+	// move the dictionary to the top
+	w.moveDict(idx)
+	w.updateLast(b)
 	return n, nil
 }
 
@@ -336,7 +348,7 @@ func newCFHReaderWithSize(r io.Reader, size int) (io.Reader, error) {
 	return &cfhReader{
 		r:    r,
 		dict: make([][]byte, size),
-		buf:  make([]byte, 2),
+		buf:  make([]byte, 1),
 	}, nil
 }
 
@@ -357,35 +369,19 @@ func (r *cfhReader) Read(b []byte) (int, error) {
 	switch r.buf[0] {
 	case cfhCMDAddDict:
 		err = r.addDict()
-		if err != nil {
-			return 0, err
-		}
 	case cfhCMDData:
-
+		err = r.readData()
 	case cfhCMDLast:
-
+		r.lastData()
 	case cfhCMDPrev:
-
+		err = r.prevData()
 	default:
 		return 0, errors.New("invalid decompress command")
 	}
-	return r.data.Read(b)
-
-	// read changed data number
-	_, err := io.ReadFull(r.r, r.buf[:1])
 	if err != nil {
 		return 0, err
 	}
-	num := int(r.buf[0])
-	for i := 0; i < num; i++ {
-		_, err = io.ReadFull(r.r, r.buf)
-		if err != nil {
-			return 0, err
-		}
-		r.dict[r.buf[0]] = r.buf[1]
-	}
-	copy(b, r.dict)
-	return len(b), nil
+	return r.data.Read(b)
 }
 
 func (r *cfhReader) addDict() error {
@@ -412,16 +408,49 @@ func (r *cfhReader) addDict() error {
 	return nil
 }
 
-func (r *cfhReader) readData() {
+func (r *cfhReader) readData() error {
+	// read dictionary index
+	_, err := io.ReadFull(r.r, r.buf[:1])
+	if err != nil {
+		return 0, err
+	}
+	num := int(r.buf[0])
+	for i := 0; i < num; i++ {
+		_, err = io.ReadFull(r.r, r.buf)
+		if err != nil {
+			return 0, err
+		}
+		r.dict[r.buf[0]] = r.buf[1]
+	}
+	copy(b, r.dict)
 
+	r.moveDict(idx)
+
+	return len(b), nil
 }
 
 func (r *cfhReader) lastData() {
 	r.data.Write(r.last.Bytes())
 }
 
-func (r *cfhReader) prevData() {
+func (r *cfhReader) prevData() error {
+	// read dictionary index
+	_, err := io.ReadFull(r.r, r.buf[:1])
+	if err != nil {
+		return fmt.Errorf("failed to read dictionary index: %s", err)
+	}
+	idx := int(r.buf[0])
+	r.data.Write(r.dict[idx])
+	r.moveDict(idx)
+	return nil
+}
 
+func (r *cfhReader) moveDict(idx int) {
+	dict := r.dict[idx]
+	for i := idx; i > 0; i-- {
+		r.dict[i] = r.dict[i-1]
+	}
+	r.dict[0] = dict
 }
 
 func (r *cfhReader) updateLast(data []byte) {
