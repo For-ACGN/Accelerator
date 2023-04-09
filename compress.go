@@ -3,6 +3,7 @@ package accelerator
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -289,13 +290,13 @@ next:
 	return dictIdx
 }
 
-func (w *cfhWriter) addDict(frame []byte) {
+func (w *cfhWriter) addDict(data []byte) {
 	// remove the oldest dictionary
 	for i := len(w.dict) - 1; i > 0; i-- {
 		w.dict[i] = w.dict[i-1]
 	}
-	dict := make([]byte, len(frame))
-	copy(dict, frame)
+	dict := make([]byte, len(data))
+	copy(dict, data)
 	w.dict[0] = dict
 }
 
@@ -307,9 +308,9 @@ func (w *cfhWriter) moveDict(idx int) {
 	w.dict[0] = dict
 }
 
-func (w *cfhWriter) updateLast(frame []byte) {
+func (w *cfhWriter) updateLast(data []byte) {
 	w.last.Reset()
-	w.last.Write(frame)
+	w.last.Write(data)
 }
 
 type cfhReader struct {
@@ -348,21 +349,28 @@ func (r *cfhReader) Read(b []byte) (int, error) {
 	if r.data.Len() != 0 {
 		return r.data.Read(b)
 	}
-
-	if r.dict == nil {
-		size := make([]byte, 1)
-		_, err := io.ReadFull(r.r, size)
-		if err != nil {
-			return 0, err
-		}
-		r.dict = make([]byte, size[0])
-		_, err = io.ReadFull(r.r, r.dict)
-		if err != nil {
-			return 0, err
-		}
-		copy(b, r.dict)
-		return len(b), nil
+	// read command
+	_, err := io.ReadFull(r.r, r.buf[:1])
+	if err != nil {
+		return 0, err
 	}
+	switch r.buf[0] {
+	case cfhCMDAddDict:
+		err = r.addDict()
+		if err != nil {
+			return 0, err
+		}
+	case cfhCMDData:
+
+	case cfhCMDLast:
+
+	case cfhCMDPrev:
+
+	default:
+		return 0, errors.New("invalid decompress command")
+	}
+	return r.data.Read(b)
+
 	// read changed data number
 	_, err := io.ReadFull(r.r, r.buf[:1])
 	if err != nil {
@@ -378,4 +386,45 @@ func (r *cfhReader) Read(b []byte) (int, error) {
 	}
 	copy(b, r.dict)
 	return len(b), nil
+}
+
+func (r *cfhReader) addDict() error {
+	// read dictionary size
+	_, err := io.ReadFull(r.r, r.buf[:1])
+	if err != nil {
+		return fmt.Errorf("failed to read dictionary size: %s", err)
+	}
+	size := int(r.buf[0])
+	dict := make([]byte, size)
+	// read dictionary data
+	_, err = io.ReadFull(r.r, dict)
+	if err != nil {
+		return fmt.Errorf("failed to read dictionary data: %s", err)
+	}
+	// remove the oldest dictionary
+	for i := len(r.dict) - 1; i > 0; i-- {
+		r.dict[i] = r.dict[i-1]
+	}
+	r.dict[0] = dict
+	// update other fields
+	r.updateLast(dict)
+	r.data.Write(dict)
+	return nil
+}
+
+func (r *cfhReader) readData() {
+
+}
+
+func (r *cfhReader) lastData() {
+	r.data.Write(r.last.Bytes())
+}
+
+func (r *cfhReader) prevData() {
+
+}
+
+func (r *cfhReader) updateLast(data []byte) {
+	r.last.Reset()
+	r.last.Write(data)
 }
