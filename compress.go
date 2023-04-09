@@ -9,9 +9,11 @@ import (
 
 // cfhWriter and cfhReader are used to compress frame
 // header data like Ethernet, IPv4, IPv4, TCP and UDP.
-//
 // Usually, these data only change a small portion
 // throughout the entire context.
+//
+// When call Write method, the compressor will compress
+// data and write output to the under writer at once.
 //
 // 1. add new dictionary
 // The new dictionary will be the top.
@@ -118,7 +120,7 @@ func (w *cfhWriter) write(b []byte) (int, error) {
 		return n, nil
 	}
 	// search the dictionary
-	idx := w.searchDict(b)
+	idx := w.searchDictionary(b)
 	if idx == -1 {
 		w.buf.WriteByte(cfhCMDAddDict)
 		w.buf.WriteByte(byte(n))
@@ -127,7 +129,7 @@ func (w *cfhWriter) write(b []byte) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		w.addDict(b)
+		w.addDictionary(b)
 		w.updateLast(b)
 		return n, nil
 	}
@@ -158,12 +160,12 @@ func (w *cfhWriter) write(b []byte) (int, error) {
 		return 0, err
 	}
 	// move the dictionary to the top
-	w.moveDict(idx)
+	w.moveDictionary(idx)
 	w.updateLast(b)
 	return n, nil
 }
 
-func (w *cfhWriter) searchDict(frame []byte) int {
+func (w *cfhWriter) searchDictionary(frame []byte) int {
 	size := len(frame)
 	switch {
 	case size == 14+20+20:
@@ -303,7 +305,7 @@ next:
 	return dictIdx
 }
 
-func (w *cfhWriter) addDict(data []byte) {
+func (w *cfhWriter) addDictionary(data []byte) {
 	// remove the oldest dictionary
 	for i := len(w.dict) - 1; i > 0; i-- {
 		w.dict[i] = w.dict[i-1]
@@ -313,7 +315,7 @@ func (w *cfhWriter) addDict(data []byte) {
 	w.dict[0] = dict
 }
 
-func (w *cfhWriter) moveDict(idx int) {
+func (w *cfhWriter) moveDictionary(idx int) {
 	dict := w.dict[idx]
 	for i := idx; i > 0; i-- {
 		w.dict[i] = w.dict[i-1]
@@ -383,13 +385,13 @@ func (r *cfhReader) read(b []byte) (int, error) {
 	}
 	switch cmd := r.buf[0]; cmd {
 	case cfhCMDAddDict:
-		err = r.addDict()
+		err = r.addDictionary()
 	case cfhCMDData:
-		err = r.readData()
+		err = r.readChangedData()
 	case cfhCMDLast:
-		r.lastData()
+		r.reuseLastData()
 	case cfhCMDPrev:
-		err = r.prevData()
+		err = r.reusePreviousData()
 	default:
 		return 0, fmt.Errorf("invalid decompress command: %d", cmd)
 	}
@@ -399,7 +401,7 @@ func (r *cfhReader) read(b []byte) (int, error) {
 	return r.data.Read(b)
 }
 
-func (r *cfhReader) addDict() error {
+func (r *cfhReader) addDictionary() error {
 	// read dictionary size
 	_, err := io.ReadFull(r.r, r.buf)
 	if err != nil {
@@ -423,7 +425,7 @@ func (r *cfhReader) addDict() error {
 	return nil
 }
 
-func (r *cfhReader) readData() error {
+func (r *cfhReader) readChangedData() error {
 	// read dictionary index
 	_, err := io.ReadFull(r.r, r.buf)
 	if err != nil {
@@ -448,16 +450,16 @@ func (r *cfhReader) readData() error {
 	}
 	r.data.Write(dict)
 	// update status
-	r.moveDict(idx)
+	r.moveDictionary(idx)
 	r.updateLast(dict)
 	return nil
 }
 
-func (r *cfhReader) lastData() {
+func (r *cfhReader) reuseLastData() {
 	r.data.Write(r.last.Bytes())
 }
 
-func (r *cfhReader) prevData() error {
+func (r *cfhReader) reusePreviousData() error {
 	// read dictionary index
 	_, err := io.ReadFull(r.r, r.buf)
 	if err != nil {
@@ -467,12 +469,12 @@ func (r *cfhReader) prevData() error {
 	dict := r.dict[idx]
 	r.data.Write(dict)
 	// update status
-	r.moveDict(idx)
+	r.moveDictionary(idx)
 	r.updateLast(dict)
 	return nil
 }
 
-func (r *cfhReader) moveDict(idx int) {
+func (r *cfhReader) moveDictionary(idx int) {
 	dict := r.dict[idx]
 	for i := idx; i > 0; i-- {
 		r.dict[i] = r.dict[i-1]
