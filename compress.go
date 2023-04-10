@@ -165,19 +165,19 @@ func (w *cfhWriter) write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (w *cfhWriter) searchDictionary(frame []byte) int {
-	size := len(frame)
+func (w *cfhWriter) searchDictionary(data []byte) int {
+	size := len(data)
 	switch {
 	case size == 14+20+20:
-		return w.fastSearchDictEthernetIPv4TCP(frame)
+		return w.fastSearchDictEthernetIPv4TCP(data)
 	case size == 14+20+8:
-		return w.fastSearchDictEthernetIPv4UDP(frame)
+		return w.fastSearchDictEthernetIPv4UDP(data)
 	case size == 14+40+20:
-		return w.fastSearchDictEthernetIPv6TCP(frame)
+		return w.fastSearchDictEthernetIPv6TCP(data)
 	case size == 14+40+8:
-		return w.fastSearchDictEthernetIPv6UDP(frame)
+		return w.fastSearchDictEthernetIPv6UDP(data)
 	default:
-		return w.slowSearchDict(frame)
+		return w.slowSearchDict(data)
 	}
 }
 
@@ -273,23 +273,23 @@ func (w *cfhWriter) fastSearchDictEthernetIPv6UDP(frame []byte) int {
 	return -1
 }
 
-func (w *cfhWriter) slowSearchDict(frame []byte) int {
+func (w *cfhWriter) slowSearchDict(data []byte) int {
 	var (
 		dict []byte
 		diff int
 	)
 	minDiff := cfhMaxDataSize
-	maxDiff := len(frame) / 4
+	maxDiff := len(data) / 4
 	dictIdx := -1
 next:
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
-		if len(dict) != len(frame) {
+		if len(dict) != len(data) {
 			continue
 		}
 		diff = 0
 		for j := 0; j < len(dict); j++ {
-			if dict[j] == frame[j] {
+			if dict[j] == data[j] {
 				continue
 			}
 			diff++
@@ -316,6 +316,9 @@ func (w *cfhWriter) addDictionary(data []byte) {
 }
 
 func (w *cfhWriter) moveDictionary(idx int) {
+	if idx == 0 {
+		return
+	}
 	dict := w.dict[idx]
 	for i := idx; i > 0; i-- {
 		w.dict[i] = w.dict[i-1]
@@ -438,14 +441,17 @@ func (r *cfhReader) readChangedData() error {
 		return fmt.Errorf("failed to read the number of changed data: %s", err)
 	}
 	// read changed data
-	num := int(r.buf[0])
-	_, err = io.ReadFull(r.r, r.chg[:num*2])
+	total := int(r.buf[0] * 2)
+	if total > 256 {
+		return errors.New("read invalid changed data")
+	}
+	_, err = io.ReadFull(r.r, r.chg[:total])
 	if err != nil {
 		return fmt.Errorf("failed to read changed data: %s", err)
 	}
 	// extract data and update dictionary
 	dict := r.dict[idx]
-	for i := 0; i < num; i += 2 {
+	for i := 0; i < total; i += 2 {
 		dict[r.chg[i]] = r.chg[i+1]
 	}
 	r.data.Write(dict)
@@ -475,6 +481,9 @@ func (r *cfhReader) reusePreviousData() error {
 }
 
 func (r *cfhReader) moveDictionary(idx int) {
+	if idx == 0 {
+		return
+	}
 	dict := r.dict[idx]
 	for i := idx; i > 0; i-- {
 		r.dict[i] = r.dict[i-1]
