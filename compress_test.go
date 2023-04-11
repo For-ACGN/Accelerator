@@ -92,6 +92,16 @@ func testMustDecodeHex(s string) []byte {
 	return data
 }
 
+func TestCFHWriter(t *testing.T) {
+	t.Run("invalid dictionary size", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 4096))
+
+		w, err := newCFHWriterWithSize(output, 4096)
+		require.EqualError(t, err, "dictionary size cannot greater than 256")
+		require.Nil(t, w)
+	})
+}
+
 func TestCFHWriter_Write(t *testing.T) {
 	output := bytes.NewBuffer(make([]byte, 0, 4096))
 

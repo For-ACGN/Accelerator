@@ -76,10 +76,7 @@ type cfhWriter struct {
 }
 
 func newCFHWriter(w io.Writer) io.Writer {
-	w, err := newCFHWriterWithSize(w, 256)
-	if err != nil {
-		panic(err)
-	}
+	w, _ = newCFHWriterWithSize(w, 256)
 	return w
 }
 
