@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -90,9 +91,86 @@ func testMustDecodeHex(s string) []byte {
 	return data
 }
 
-func TestCFHWriter(t *testing.T) {
-	t.Run("common", func(t *testing.T) {
+func TestCFHWriter_Write(t *testing.T) {
+	output := bytes.NewBuffer(make([]byte, 0, 4096))
 
+	t.Run("write as same as the last", func(t *testing.T) {
+		w := newCFHWriter(output)
+		for i := 0; i < 100; i++ {
+			n, err := w.Write(testIPv4TCPFrame1)
+			require.NoError(t, err)
+			require.Equal(t, len(testIPv4TCPFrame1), n)
+		}
+
+		r := newCFHReader(output)
+		buf := make([]byte, len(testIPv4TCPFrame1))
+		for i := 0; i < 100; i++ {
+			n, err := r.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, len(testIPv4TCPFrame1), n)
+			require.Equal(t, testIPv4TCPFrame1, buf)
+		}
+	})
+
+	t.Run("write as same as the previous", func(t *testing.T) {
+		w := newCFHWriter(output)
+
+		n, err := w.Write(testIPv4TCPFrame1)
+		require.NoError(t, err)
+		require.Equal(t, len(testIPv4TCPFrame1), n)
+
+		n, err = w.Write(testIPv4TCPFrame2)
+		require.NoError(t, err)
+		require.Equal(t, len(testIPv4TCPFrame2), n)
+
+		n, err = w.Write(testIPv4TCPFrame1)
+		require.NoError(t, err)
+		require.Equal(t, len(testIPv4TCPFrame1), n)
+
+		r := newCFHReader(output)
+
+		buf := make([]byte, len(testIPv4TCPFrame1))
+		n, err = r.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, len(testIPv4TCPFrame1), n)
+		require.Equal(t, testIPv4TCPFrame1, buf)
+
+		buf = make([]byte, len(testIPv4TCPFrame2))
+		n, err = r.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, len(testIPv4TCPFrame2), n)
+		require.Equal(t, testIPv4TCPFrame2, buf)
+
+		buf = make([]byte, len(testIPv4TCPFrame1))
+		n, err = r.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, len(testIPv4TCPFrame1), n)
+		require.Equal(t, testIPv4TCPFrame1, buf)
+	})
+
+	t.Run("write too large data", func(t *testing.T) {
+		w := newCFHWriter(output)
+
+		data := bytes.Repeat([]byte{0}, cfhMaxDataSize+1)
+		n, err := w.Write(data)
+		require.EqualError(t, err, "write too large data")
+		require.Zero(t, n)
+	})
+
+	t.Run("write after appear error", func(t *testing.T) {
+		pr, pw := io.Pipe()
+		err := pr.Close()
+		require.NoError(t, err)
+
+		w := newCFHWriter(pw)
+
+		n, err := w.Write(testIPv4TCPFrame1)
+		require.Equal(t, err, io.ErrClosedPipe)
+		require.Zero(t, n)
+
+		n, err = w.Write(testIPv4TCPFrame1)
+		require.Equal(t, err, io.ErrClosedPipe)
+		require.Zero(t, n)
 	})
 }
 
