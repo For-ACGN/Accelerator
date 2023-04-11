@@ -2,6 +2,7 @@ package accelerator
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/hex"
 	"testing"
 
@@ -117,6 +118,32 @@ func TestCFHWriter_searchDictionary(t *testing.T) {
 	})
 
 	t.Run("slow", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 4096))
 
+		frames := testFrames
+		for i := 0; i < 4; i++ {
+			noise := make([]byte, 64)
+			_, err := rand.Read(noise)
+			require.NoError(t, err)
+			frames = append(frames, noise)
+		}
+
+		w := newCFHWriter(output)
+		for _, f := range frames {
+			nf := append(f, 0)
+			n, err := w.Write(nf)
+			require.NoError(t, err)
+			require.Equal(t, len(nf), n)
+		}
+
+		r := newCFHReader(output)
+		for _, f := range frames {
+			nf := append(f, 0)
+			buf := make([]byte, len(nf))
+			n, err := r.Read(buf)
+			require.NoError(t, err)
+			require.Equal(t, len(nf), n)
+			require.Equal(t, nf, buf)
+		}
 	})
 }
