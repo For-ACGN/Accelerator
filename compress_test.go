@@ -20,12 +20,12 @@ var (
 	testIPv4H4 = "450405c8575e40003711b63514983c5fc0a81f0a" // UDP
 
 	testIPv6H1 = "6043670805a0062b24108c016c2a103d000000afb00239ab24108a2aa084b4a02127e9cada1240f1" // TCP
-	testIPv6H2 = "6043670805a0062b24108c016c2a103d000000afb00239ab24108a2aa084b4a02127e9cada1240f2" // TCP
-	testIPv6H3 = "6043670805a0112b24108c016c2a103d000000afb00239ab24108a2aa084b4a02127e9cada1240f3" // UDP
-	testIPv6H4 = "6043670805a0112b24108c016c2a103d000000afb00239ab24108a2aa084b4a02127e9cada1240f4" // UDP
+	testIPv6H2 = "6043670805a0062b24108c016c2a103d000000afb00239ab24108a2aa084b4a02127e9cada1240f1" // TCP
+	testIPv6H3 = "6043670805a0112b24108c016c2a103d000000afb00239ab24108a2aa084b4a02127e9cada1240f1" // UDP
+	testIPv6H4 = "6043670805a0112b24108c016c2a103d000000afb00239ab24108a2aa084b4a02127e9cada1240f1" // UDP
 
 	testTCPH1 = "01bbebd71561ddfc151e1385501003d037390000"
-	testTCPH2 = "01bbebd71661ddfc151e1385501003d037390000"
+	testTCPH2 = "01bbebd81661ddfc151e1385501003d037390000"
 
 	testUDPH1 = "fb7b003500385f66"
 	testUDPH2 = "fb7b003600385f66"
@@ -68,41 +68,17 @@ var (
 )
 
 var testFrames = [][]byte{
-	testIPv4TCPFrame1,
-	testIPv4TCPFrame2,
-	testIPv4TCPFrame3,
-	testIPv4TCPFrame4,
-	testIPv4TCPFrame5,
-	testIPv4TCPFrame6,
-	testIPv4TCPFrame7,
-	testIPv4TCPFrame8,
+	testIPv4TCPFrame1, testIPv4TCPFrame2, testIPv4TCPFrame3, testIPv4TCPFrame4,
+	testIPv4TCPFrame5, testIPv4TCPFrame6, testIPv4TCPFrame7, testIPv4TCPFrame8,
 
-	testIPv4UDPFrame1,
-	testIPv4UDPFrame2,
-	testIPv4UDPFrame3,
-	testIPv4UDPFrame4,
-	testIPv4UDPFrame5,
-	testIPv4UDPFrame6,
-	testIPv4UDPFrame7,
-	testIPv4UDPFrame8,
+	testIPv4UDPFrame1, testIPv4UDPFrame2, testIPv4UDPFrame3, testIPv4UDPFrame4,
+	testIPv4UDPFrame5, testIPv4UDPFrame6, testIPv4UDPFrame7, testIPv4UDPFrame8,
 
-	testIPv6TCPFrame1,
-	testIPv6TCPFrame2,
-	testIPv6TCPFrame3,
-	testIPv6TCPFrame4,
-	testIPv6TCPFrame5,
-	testIPv6TCPFrame6,
-	testIPv6TCPFrame7,
-	testIPv6TCPFrame8,
+	testIPv6TCPFrame1, testIPv6TCPFrame2, testIPv6TCPFrame3, testIPv6TCPFrame4,
+	testIPv6TCPFrame5, testIPv6TCPFrame6, testIPv6TCPFrame7, testIPv6TCPFrame8,
 
-	testIPv6UDPFrame1,
-	testIPv6UDPFrame2,
-	testIPv6UDPFrame3,
-	testIPv6UDPFrame4,
-	testIPv6UDPFrame5,
-	testIPv6UDPFrame6,
-	testIPv6UDPFrame7,
-	testIPv6UDPFrame8,
+	testIPv6UDPFrame1, testIPv6UDPFrame2, testIPv6UDPFrame3, testIPv6UDPFrame4,
+	testIPv6UDPFrame5, testIPv6UDPFrame6, testIPv6UDPFrame7, testIPv6UDPFrame8,
 }
 
 func testMustDecodeHex(s string) []byte {
