@@ -340,10 +340,7 @@ type cfhReader struct {
 }
 
 func newCFHReader(r io.Reader) io.Reader {
-	r, err := newCFHReaderWithSize(r, 256)
-	if err != nil {
-		panic(err)
-	}
+	r, _ = newCFHReaderWithSize(r, 256)
 	return r
 }
 

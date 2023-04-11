@@ -94,7 +94,7 @@ func testMustDecodeHex(s string) []byte {
 
 func TestCFHWriter(t *testing.T) {
 	t.Run("invalid dictionary size", func(t *testing.T) {
-		output := bytes.NewBuffer(make([]byte, 0, 4096))
+		output := bytes.NewBuffer(make([]byte, 0, 64))
 
 		w, err := newCFHWriterWithSize(output, 4096)
 		require.EqualError(t, err, "dictionary size cannot greater than 256")
@@ -176,11 +176,11 @@ func TestCFHWriter_Write(t *testing.T) {
 		w := newCFHWriter(pw)
 
 		n, err := w.Write(testIPv4TCPFrame1)
-		require.Equal(t, err, io.ErrClosedPipe)
+		require.Equal(t, io.ErrClosedPipe, err)
 		require.Zero(t, n)
 
 		n, err = w.Write(testIPv4TCPFrame1)
-		require.Equal(t, err, io.ErrClosedPipe)
+		require.Equal(t, io.ErrClosedPipe, err)
 		require.Zero(t, n)
 
 		err = pw.Close()
@@ -210,7 +210,7 @@ func TestCFHWriter_Write(t *testing.T) {
 		require.NoError(t, err)
 
 		n, err = w.Write(testIPv4TCPFrame1)
-		require.Equal(t, err, io.ErrClosedPipe)
+		require.Equal(t, io.ErrClosedPipe, err)
 		require.Zero(t, n)
 
 		err = pw.Close()
@@ -246,7 +246,7 @@ func TestCFHWriter_Write(t *testing.T) {
 		require.NoError(t, err)
 
 		n, err = w.Write(testIPv4TCPFrame1)
-		require.Equal(t, err, io.ErrClosedPipe)
+		require.Equal(t, io.ErrClosedPipe, err)
 		require.Zero(t, n)
 
 		err = pw.Close()
@@ -303,5 +303,67 @@ func TestCFHWriter_searchDictionary(t *testing.T) {
 			require.Equal(t, len(nf), n)
 			require.Equal(t, nf, buf)
 		}
+	})
+}
+
+func TestCFHReader(t *testing.T) {
+	t.Run("invalid dictionary size", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		r, err := newCFHReaderWithSize(output, 4096)
+		require.EqualError(t, err, "dictionary size cannot greater than 256")
+		require.Nil(t, r)
+	})
+}
+
+func TestCFHReader_Read(t *testing.T) {
+	t.Run("read remaining data", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 128))
+
+		w := newCFHWriter(output)
+
+		n, err := w.Write(testIPv4TCPFrame1)
+		require.NoError(t, err)
+		require.Equal(t, len(testIPv4TCPFrame1), n)
+
+		r := newCFHReader(output)
+
+		buf1 := make([]byte, len(testIPv4TCPFrame1)-16)
+		n, err = r.Read(buf1)
+		require.NoError(t, err)
+		require.Equal(t, len(buf1), n)
+
+		buf2 := make([]byte, 16)
+		n, err = r.Read(buf2)
+		require.NoError(t, err)
+		require.Equal(t, len(buf2), n)
+
+		require.Equal(t, testIPv4TCPFrame1, append(buf1, buf2...))
+	})
+
+	t.Run("read with too large buffer", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		r := newCFHReader(output)
+
+		buf := make([]byte, 1024)
+		n, err := r.Read(buf)
+		require.EqualError(t, err, "read with too large buffer")
+		require.Zero(t, n)
+	})
+
+	t.Run("read after appear error", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		r := newCFHReader(output)
+
+		buf := make([]byte, 256)
+		n, err := r.Read(buf)
+		require.Equal(t, io.EOF, err)
+		require.Zero(t, n)
+
+		n, err = r.Read(buf)
+		require.Equal(t, io.EOF, err)
+		require.Zero(t, n)
 	})
 }
