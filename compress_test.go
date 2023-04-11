@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"io"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -171,6 +172,75 @@ func TestCFHWriter_Write(t *testing.T) {
 		n, err = w.Write(testIPv4TCPFrame1)
 		require.Equal(t, err, io.ErrClosedPipe)
 		require.Zero(t, n)
+
+		err = pw.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("failed to write last", func(t *testing.T) {
+		pr, pw := io.Pipe()
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			buf := make([]byte, 1024)
+			_, err := pr.Read(buf)
+			require.NoError(t, err)
+		}()
+
+		w := newCFHWriter(pw)
+
+		n, err := w.Write(testIPv4TCPFrame1)
+		require.NoError(t, err)
+		require.Equal(t, len(testIPv4TCPFrame1), n)
+
+		wg.Wait()
+
+		err = pr.Close()
+		require.NoError(t, err)
+
+		n, err = w.Write(testIPv4TCPFrame1)
+		require.Equal(t, err, io.ErrClosedPipe)
+		require.Zero(t, n)
+
+		err = pw.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("failed to write changed data", func(t *testing.T) {
+		pr, pw := io.Pipe()
+		wg := sync.WaitGroup{}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			buf := make([]byte, 1024)
+			_, err := pr.Read(buf)
+			require.NoError(t, err)
+			_, err = pr.Read(buf)
+			require.NoError(t, err)
+		}()
+
+		w := newCFHWriter(pw)
+
+		n, err := w.Write(testIPv4TCPFrame1)
+		require.NoError(t, err)
+		require.Equal(t, len(testIPv4TCPFrame1), n)
+
+		n, err = w.Write(testIPv4TCPFrame2)
+		require.NoError(t, err)
+		require.Equal(t, len(testIPv4TCPFrame2), n)
+
+		wg.Wait()
+
+		err = pr.Close()
+		require.NoError(t, err)
+
+		n, err = w.Write(testIPv4TCPFrame1)
+		require.Equal(t, err, io.ErrClosedPipe)
+		require.Zero(t, n)
+
+		err = pw.Close()
+		require.NoError(t, err)
 	})
 }
 
