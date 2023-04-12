@@ -81,6 +81,9 @@ func newCFHWriter(w io.Writer) io.Writer {
 }
 
 func newCFHWriterWithSize(w io.Writer, size int) (io.Writer, error) {
+	if size < 1 {
+		return nil, errors.New("dictionary size cannot less than 1")
+	}
 	if size > 256 {
 		return nil, errors.New("dictionary size cannot greater than 256")
 	}
@@ -91,7 +94,11 @@ func newCFHWriterWithSize(w io.Writer, size int) (io.Writer, error) {
 }
 
 func (w *cfhWriter) Write(b []byte) (int, error) {
-	if len(b) > cfhMaxDataSize {
+	l := len(b)
+	if l < 1 {
+		return 0, nil
+	}
+	if l > cfhMaxDataSize {
 		return 0, errors.New("write too large data")
 	}
 	if w.err != nil {
@@ -345,6 +352,9 @@ func newCFHReader(r io.Reader) io.Reader {
 }
 
 func newCFHReaderWithSize(r io.Reader, size int) (io.Reader, error) {
+	if size < 1 {
+		return nil, errors.New("dictionary size cannot less than 1")
+	}
 	if size > 256 {
 		return nil, errors.New("dictionary size cannot greater than 256")
 	}
@@ -357,7 +367,11 @@ func newCFHReaderWithSize(r io.Reader, size int) (io.Reader, error) {
 }
 
 func (r *cfhReader) Read(b []byte) (int, error) {
-	if len(b) > cfhMaxDataSize {
+	l := len(b)
+	if l < 1 {
+		return 0, nil
+	}
+	if l > cfhMaxDataSize {
 		return 0, errors.New("read with too large buffer")
 	}
 	if r.err != nil {

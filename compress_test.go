@@ -92,8 +92,16 @@ func testMustDecodeHex(s string) []byte {
 	return data
 }
 
-func TestCFHWriter(t *testing.T) {
-	t.Run("invalid dictionary size", func(t *testing.T) {
+func TestNewCFHWriter(t *testing.T) {
+	t.Run("too small dictionary size", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		w, err := newCFHWriterWithSize(output, 0)
+		require.EqualError(t, err, "dictionary size cannot less than 1")
+		require.Nil(t, w)
+	})
+
+	t.Run("too large dictionary size", func(t *testing.T) {
 		output := bytes.NewBuffer(make([]byte, 0, 64))
 
 		w, err := newCFHWriterWithSize(output, 4096)
@@ -157,6 +165,14 @@ func TestCFHWriter_Write(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, len(testIPv4TCPFrame1), n)
 		require.Equal(t, testIPv4TCPFrame1, buf)
+	})
+
+	t.Run("write empty data", func(t *testing.T) {
+		w := newCFHWriter(output)
+
+		n, err := w.Write(nil)
+		require.NoError(t, err)
+		require.Zero(t, n)
 	})
 
 	t.Run("write too large data", func(t *testing.T) {
@@ -306,8 +322,16 @@ func TestCFHWriter_searchDictionary(t *testing.T) {
 	})
 }
 
-func TestCFHReader(t *testing.T) {
-	t.Run("invalid dictionary size", func(t *testing.T) {
+func TestNewCFHReader(t *testing.T) {
+	t.Run("too small dictionary size", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		r, err := newCFHReaderWithSize(output, 0)
+		require.EqualError(t, err, "dictionary size cannot less than 1")
+		require.Nil(t, r)
+	})
+
+	t.Run("too large dictionary size", func(t *testing.T) {
 		output := bytes.NewBuffer(make([]byte, 0, 64))
 
 		r, err := newCFHReaderWithSize(output, 4096)
@@ -339,6 +363,15 @@ func TestCFHReader_Read(t *testing.T) {
 		require.Equal(t, len(buf2), n)
 
 		require.Equal(t, testIPv4TCPFrame1, append(buf1, buf2...))
+	})
+
+	t.Run("read empty buffer", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 128))
+		r := newCFHReader(output)
+
+		n, err := r.Read(nil)
+		require.NoError(t, err)
+		require.Zero(t, n)
 	})
 
 	t.Run("failed to read decompress command", func(t *testing.T) {
