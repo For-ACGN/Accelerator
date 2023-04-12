@@ -65,6 +65,13 @@ const (
 	cfhCMDPrev
 )
 
+const (
+	ethernetIPv4TCPFrameSize = 14 + 20 + 20
+	ethernetIPv4UDPFrameSize = 14 + 20 + 8
+	ethernetIPv6TCPFrameSize = 14 + 40 + 20
+	ethernetIPv6UDPFrameSize = 14 + 40 + 8
+)
+
 // cfhWriter is used to compress frame header data.
 type cfhWriter struct {
 	w    io.Writer
@@ -172,13 +179,13 @@ func (w *cfhWriter) write(b []byte) (int, error) {
 func (w *cfhWriter) searchDictionary(data []byte) int {
 	size := len(data)
 	switch {
-	case size == 14+20+20:
+	case size == ethernetIPv4TCPFrameSize:
 		return w.fastSearchDictEthernetIPv4TCP(data)
-	case size == 14+20+8:
+	case size == ethernetIPv4UDPFrameSize:
 		return w.fastSearchDictEthernetIPv4UDP(data)
-	case size == 14+40+20:
+	case size == ethernetIPv6TCPFrameSize:
 		return w.fastSearchDictEthernetIPv6TCP(data)
-	case size == 14+40+8:
+	case size == ethernetIPv6UDPFrameSize:
 		return w.fastSearchDictEthernetIPv6UDP(data)
 	default:
 		return w.slowSearchDict(data)

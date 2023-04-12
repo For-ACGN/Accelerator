@@ -3,8 +3,8 @@ package accelerator
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -581,34 +581,59 @@ func TestCFHReader_Read(t *testing.T) {
 }
 
 func TestCFHWriter_Fuzz(t *testing.T) {
-	output := bytes.NewBuffer(make([]byte, 0, 32*1024*1024))
+	output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 
-	frames := make([][]byte, 256*1024)
+	frames := make([][]byte, 512*1024)
+	typ := make([]byte, 1)
+	idx := make([]byte, 2)
 	for i := 0; i < len(frames); i++ {
 		// select frame length
-		typ := make([]byte, 1)
 		_, err := rand.Read(typ)
 		require.NoError(t, err)
 		switch typ[0] % 5 {
 		case 0: // IPv4 + TCP
-			f := make([]byte, 14+20+20)
-			_, err = rand.Read(f)
-			require.NoError(t, err)
+			f := make([]byte, ethernetIPv4TCPFrameSize)
+			copy(f, testIPv4TCPFrame1)
+			// random change data
+			for j := 0; j < 3; j++ {
+				_, err = rand.Read(idx)
+				require.NoError(t, err)
+				index := binary.BigEndian.Uint16(idx) % ethernetIPv4TCPFrameSize
+				f[index] = idx[1]
+			}
 			frames[i] = f
 		case 1: // IPv4 + UDP
-			f := make([]byte, 14+20+8)
-			_, err = rand.Read(f)
-			require.NoError(t, err)
+			f := make([]byte, ethernetIPv4UDPFrameSize)
+			copy(f, testIPv4UDPFrame1)
+			// random change data
+			for j := 0; j < 2; j++ {
+				_, err = rand.Read(idx)
+				require.NoError(t, err)
+				index := binary.BigEndian.Uint16(idx) % ethernetIPv4UDPFrameSize
+				f[index] = idx[1]
+			}
 			frames[i] = f
 		case 2: // IPv6 + TCP
-			f := make([]byte, 14+40+20)
-			_, err = rand.Read(f)
-			require.NoError(t, err)
+			f := make([]byte, ethernetIPv6TCPFrameSize)
+			copy(f, testIPv6TCPFrame1)
+			// random change data
+			for j := 0; j < 2; j++ {
+				_, err = rand.Read(idx)
+				require.NoError(t, err)
+				index := binary.BigEndian.Uint16(idx) % ethernetIPv6TCPFrameSize
+				f[index] = idx[1]
+			}
 			frames[i] = f
 		case 3: // IPv6 + UDP
-			f := make([]byte, 14+40+8)
-			_, err = rand.Read(f)
-			require.NoError(t, err)
+			f := make([]byte, ethernetIPv6UDPFrameSize)
+			copy(f, testIPv6UDPFrame1)
+			// random change data
+			for j := 0; j < 1; j++ {
+				_, err = rand.Read(idx)
+				require.NoError(t, err)
+				index := binary.BigEndian.Uint16(idx) % ethernetIPv6UDPFrameSize
+				f[index] = idx[1]
+			}
 			frames[i] = f
 		case 4: // random length
 			sizeBuf := make([]byte, 1)
@@ -624,8 +649,6 @@ func TestCFHWriter_Fuzz(t *testing.T) {
 			frames[i] = f
 		}
 	}
-
-	fmt.Println(output.Len())
 
 	w := newCFHWriter(output)
 	for _, f := range frames {
