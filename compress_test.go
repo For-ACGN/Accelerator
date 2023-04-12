@@ -684,9 +684,9 @@ func TestCFHReader_Fuzz(t *testing.T) {
 
 func BenchmarkCFHWriter_Write(b *testing.B) {
 	b.Run("Ethernet IPv4 TCP", benchmarkCFHWriterWriteEthernetIPv4TCP)
-	// b.Run("Ethernet IPv4 UDP", benchmarkCFHWriterWriteEthernetIPv4UDP)
-	// b.Run("Ethernet IPv6 TCP", benchmarkCFHWriterWriteEthernetIPv6TCP)
-	// b.Run("Ethernet IPv6 UDP", benchmarkCFHWriterWriteEthernetIPv6UDP)
+	b.Run("Ethernet IPv4 UDP", benchmarkCFHWriterWriteEthernetIPv4UDP)
+	b.Run("Ethernet IPv6 TCP", benchmarkCFHWriterWriteEthernetIPv6TCP)
+	b.Run("Ethernet IPv6 UDP", benchmarkCFHWriterWriteEthernetIPv6UDP)
 }
 
 func benchmarkCFHWriterWriteEthernetIPv4TCP(b *testing.B) {
@@ -708,40 +708,56 @@ func benchmarkCFHWriterWriteEthernetIPv4TCP(b *testing.B) {
 
 		// data that change frequently
 		f[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
-		f[18] = byte(i) + 2 // IPv4 ID [byte 1]
-		f[19] = byte(i) + 3 // IPv4 ID [byte 2]
-		f[24] = byte(i) + 4 // IPv4 checksum [byte 1]
-		f[25] = byte(i) + 5 // IPv4 checksum [byte 2]
+		f[19] = byte(i) + 2 // IPv4 ID [byte 2]
+		f[25] = byte(i) + 3 // IPv4 checksum [byte 2]
 
-		f[41] = byte(i) + 6 // TCP Sequence [byte 4]
-		f[45] = byte(i) + 7 // TCP acknowledgment [byte 4]
-		f[50] = byte(i) + 8 // TCP checksum [byte 1]
-		f[51] = byte(i) + 9 // TCP checksum [byte 2]
+		f[41] = byte(i) + 4 // TCP Sequence [byte 4]
+		f[45] = byte(i) + 5 // TCP acknowledgment [byte 4]
+		f[50] = byte(i) + 6 // TCP checksum [byte 1]
+		f[51] = byte(i) + 7 // TCP checksum [byte 2]
 	}
 
 	b.StopTimer()
 }
 
 func benchmarkCFHWriterWriteEthernetIPv4UDP(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
+	w := newCFHWriter(output)
 
+	f := make([]byte, len(testIPv4UDPFrame1))
+	copy(f, testIPv4UDPFrame1)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	var err error
+	for i := 0; i < b.N; i++ {
+		_, err = w.Write(f)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		// data that change frequently
+		f[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+		f[19] = byte(i) + 2 // IPv4 ID [byte 2]
+		f[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+
+		f[39] = byte(i) + 4 // UDP length [byte 4]
+		f[40] = byte(i) + 5 // UDP checksum [byte 1]
+		f[41] = byte(i) + 6 // UDP checksum [byte 2]
 	}
+
+	b.StopTimer()
 }
 
 func benchmarkCFHWriterWriteEthernetIPv6TCP(b *testing.B) {
-	for i := 0; i < b.N; i++ {
 
-	}
 }
 
 func benchmarkCFHWriterWriteEthernetIPv6UDP(b *testing.B) {
-	for i := 0; i < b.N; i++ {
 
-	}
 }
 
 func BenchmarkCFHReader_Read(b *testing.B) {
-	for i := 0; i < b.N; i++ {
 
-	}
 }
