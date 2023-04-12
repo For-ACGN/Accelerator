@@ -1165,7 +1165,106 @@ func benchmarkCFHReaderReadEthernetIPv4UDP(b *testing.B) {
 }
 
 func benchmarkCFHReaderReadEthernetIPv6TCP(b *testing.B) {
+	b.Run("single dictionary", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
+		w := newCFHWriter(output)
 
+		f := make([]byte, len(testIPv6TCPFrame1))
+		copy(f, testIPv6TCPFrame1)
+
+		var err error
+		for i := 0; i < 1024; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+
+			f[61] = byte(i) + 2 // TCP Sequence [byte 4]
+			f[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
+			f[70] = byte(i) + 4 // TCP checksum [byte 1]
+			f[71] = byte(i) + 5 // TCP checksum [byte 2]
+		}
+
+		reader := bytes.NewReader(output.Bytes())
+
+		r := newCFHReader(reader)
+		buf := make([]byte, len(testIPv6TCPFrame1))
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			_, err = r.Read(buf)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			if reader.Len() != 0 {
+				continue
+			}
+			_, err = reader.Seek(0, io.SeekStart)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		b.StopTimer()
+	})
+
+	b.Run("multi dictionaries", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
+		w := newCFHWriter(output)
+
+		f := make([]byte, len(testIPv6TCPFrame1))
+		copy(f, testIPv6TCPFrame1)
+
+		var err error
+		for i := 0; i < 1024; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+
+			f[61] = byte(i) + 2 // TCP Sequence [byte 4]
+			f[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
+			f[70] = byte(i) + 4 // TCP checksum [byte 1]
+			f[71] = byte(i) + 5 // TCP checksum [byte 2]
+
+			// change destination port for create more dictionaries
+			f[54] = byte(i) + 6
+		}
+
+		reader := bytes.NewReader(output.Bytes())
+
+		r := newCFHReader(reader)
+		buf := make([]byte, len(testIPv6TCPFrame1))
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			_, err = r.Read(buf)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			if reader.Len() != 0 {
+				continue
+			}
+			_, err = reader.Seek(0, io.SeekStart)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		b.StopTimer()
+	})
 }
 
 func benchmarkCFHReaderReadEthernetIPv6UDP(b *testing.B) {
