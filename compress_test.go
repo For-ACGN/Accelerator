@@ -1268,5 +1268,102 @@ func benchmarkCFHReaderReadEthernetIPv6TCP(b *testing.B) {
 }
 
 func benchmarkCFHReaderReadEthernetIPv6UDP(b *testing.B) {
+	b.Run("single dictionary", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
+		w := newCFHWriter(output)
 
+		f := make([]byte, len(testIPv6UDPFrame1))
+		copy(f, testIPv6UDPFrame1)
+
+		var err error
+		for i := 0; i < 1024; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+
+			f[59] = byte(i) + 2 // UDP length [byte 4]
+			f[60] = byte(i) + 3 // UDP checksum [byte 1]
+			f[61] = byte(i) + 4 // UDP checksum [byte 2]
+		}
+
+		reader := bytes.NewReader(output.Bytes())
+
+		r := newCFHReader(reader)
+		buf := make([]byte, len(testIPv6UDPFrame1))
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			_, err = r.Read(buf)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			if reader.Len() != 0 {
+				continue
+			}
+			_, err = reader.Seek(0, io.SeekStart)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		b.StopTimer()
+	})
+
+	b.Run("multi dictionaries", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
+		w := newCFHWriter(output)
+
+		f := make([]byte, len(testIPv6UDPFrame1))
+		copy(f, testIPv6UDPFrame1)
+
+		var err error
+		for i := 0; i < 1024; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+
+			f[59] = byte(i) + 2 // UDP length [byte 4]
+			f[60] = byte(i) + 3 // UDP checksum [byte 1]
+			f[61] = byte(i) + 4 // UDP checksum [byte 2]
+
+			// change destination port for create more dictionaries
+			f[54] = byte(i) + 5
+		}
+
+		reader := bytes.NewReader(output.Bytes())
+
+		r := newCFHReader(reader)
+		buf := make([]byte, len(testIPv6UDPFrame1))
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			_, err = r.Read(buf)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			if reader.Len() != 0 {
+				continue
+			}
+			_, err = reader.Seek(0, io.SeekStart)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		b.StopTimer()
+	})
 }
