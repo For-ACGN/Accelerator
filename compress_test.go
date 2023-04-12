@@ -757,99 +757,192 @@ func benchmarkCFHWriterWriteEthernetIPv4TCP(b *testing.B) {
 }
 
 func benchmarkCFHWriterWriteEthernetIPv4UDP(b *testing.B) {
-	output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
-	w := newCFHWriter(output)
+	b.Run("single dictionary", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
+		w := newCFHWriter(output)
 
-	f := make([]byte, len(testIPv4UDPFrame1))
-	copy(f, testIPv4UDPFrame1)
+		f := make([]byte, len(testIPv4UDPFrame1))
+		copy(f, testIPv4UDPFrame1)
 
-	b.ReportAllocs()
-	b.ResetTimer()
+		b.ReportAllocs()
+		b.ResetTimer()
 
-	var err error
-	for i := 0; i < b.N; i++ {
-		_, err = w.Write(f)
-		if err != nil {
-			b.Fatal(err)
+		var err error
+		for i := 0; i < b.N; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			f[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			f[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+
+			f[39] = byte(i) + 4 // UDP length [byte 4]
+			f[40] = byte(i) + 5 // UDP checksum [byte 1]
+			f[41] = byte(i) + 6 // UDP checksum [byte 2]
 		}
 
-		// data that change frequently
-		f[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
-		f[19] = byte(i) + 2 // IPv4 ID [byte 2]
-		f[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+		b.StopTimer()
+	})
 
-		f[39] = byte(i) + 4 // UDP length [byte 4]
-		f[40] = byte(i) + 5 // UDP checksum [byte 1]
-		f[41] = byte(i) + 6 // UDP checksum [byte 2]
+	b.Run("multi dictionaries", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
+		w := newCFHWriter(output)
 
-		// change destination port for create more dictionaries
-		f[34] = byte(i) + 7
-	}
+		f := make([]byte, len(testIPv4UDPFrame1))
+		copy(f, testIPv4UDPFrame1)
 
-	b.StopTimer()
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		var err error
+		for i := 0; i < b.N; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			f[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			f[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+
+			f[39] = byte(i) + 4 // UDP length [byte 4]
+			f[40] = byte(i) + 5 // UDP checksum [byte 1]
+			f[41] = byte(i) + 6 // UDP checksum [byte 2]
+
+			// change destination port for create more dictionaries
+			f[34] = byte(i) + 7
+		}
+
+		b.StopTimer()
+	})
 }
 
 func benchmarkCFHWriterWriteEthernetIPv6TCP(b *testing.B) {
-	output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
-	w := newCFHWriter(output)
+	b.Run("single dictionary", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
+		w := newCFHWriter(output)
 
-	f := make([]byte, len(testIPv6TCPFrame1))
-	copy(f, testIPv6TCPFrame1)
+		f := make([]byte, len(testIPv6TCPFrame1))
+		copy(f, testIPv6TCPFrame1)
 
-	b.ReportAllocs()
-	b.ResetTimer()
+		b.ReportAllocs()
+		b.ResetTimer()
 
-	var err error
-	for i := 0; i < b.N; i++ {
-		_, err = w.Write(f)
-		if err != nil {
-			b.Fatal(err)
+		var err error
+		for i := 0; i < b.N; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+
+			f[61] = byte(i) + 2 // TCP Sequence [byte 4]
+			f[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
+			f[70] = byte(i) + 4 // TCP checksum [byte 1]
+			f[71] = byte(i) + 5 // TCP checksum [byte 2]
 		}
 
-		// data that change frequently
-		f[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+		b.StopTimer()
+	})
 
-		f[61] = byte(i) + 2 // TCP Sequence [byte 4]
-		f[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
-		f[70] = byte(i) + 4 // TCP checksum [byte 1]
-		f[71] = byte(i) + 5 // TCP checksum [byte 2]
+	b.Run("multi dictionaries", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
+		w := newCFHWriter(output)
 
-		// change destination port for create more dictionaries
-		f[54] = byte(i) + 6
-	}
+		f := make([]byte, len(testIPv6TCPFrame1))
+		copy(f, testIPv6TCPFrame1)
 
-	b.StopTimer()
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		var err error
+		for i := 0; i < b.N; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+
+			f[61] = byte(i) + 2 // TCP Sequence [byte 4]
+			f[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
+			f[70] = byte(i) + 4 // TCP checksum [byte 1]
+			f[71] = byte(i) + 5 // TCP checksum [byte 2]
+
+			// change destination port for create more dictionaries
+			f[54] = byte(i) + 6
+		}
+
+		b.StopTimer()
+	})
 }
 
 func benchmarkCFHWriterWriteEthernetIPv6UDP(b *testing.B) {
-	output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
-	w := newCFHWriter(output)
+	b.Run("single dictionary", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
+		w := newCFHWriter(output)
 
-	f := make([]byte, len(testIPv6UDPFrame1))
-	copy(f, testIPv6UDPFrame1)
+		f := make([]byte, len(testIPv6UDPFrame1))
+		copy(f, testIPv6UDPFrame1)
 
-	b.ReportAllocs()
-	b.ResetTimer()
+		b.ReportAllocs()
+		b.ResetTimer()
 
-	var err error
-	for i := 0; i < b.N; i++ {
-		_, err = w.Write(f)
-		if err != nil {
-			b.Fatal(err)
+		var err error
+		for i := 0; i < b.N; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+
+			f[59] = byte(i) + 2 // UDP length [byte 4]
+			f[60] = byte(i) + 3 // UDP checksum [byte 1]
+			f[61] = byte(i) + 4 // UDP checksum [byte 2]
 		}
 
-		// data that change frequently
-		f[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+		b.StopTimer()
+	})
 
-		f[59] = byte(i) + 2 // UDP length [byte 4]
-		f[60] = byte(i) + 3 // UDP checksum [byte 1]
-		f[61] = byte(i) + 4 // UDP checksum [byte 2]
+	b.Run("multi dictionaries", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
+		w := newCFHWriter(output)
 
-		// change destination port for create more dictionaries
-		f[54] = byte(i) + 5
-	}
+		f := make([]byte, len(testIPv6UDPFrame1))
+		copy(f, testIPv6UDPFrame1)
 
-	b.StopTimer()
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		var err error
+		for i := 0; i < b.N; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+
+			f[59] = byte(i) + 2 // UDP length [byte 4]
+			f[60] = byte(i) + 3 // UDP checksum [byte 1]
+			f[61] = byte(i) + 4 // UDP checksum [byte 2]
+
+			// change destination port for create more dictionaries
+			f[54] = byte(i) + 5
+		}
+
+		b.StopTimer()
+	})
 }
 
 func BenchmarkCFHReader_Read(b *testing.B) {
