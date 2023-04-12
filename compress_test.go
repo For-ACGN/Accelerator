@@ -645,5 +645,16 @@ func TestCFHWriter_Fuzz(t *testing.T) {
 }
 
 func TestCFHReader_Fuzz(t *testing.T) {
+	data := make([]byte, 128)
+	reader := bytes.NewReader(data)
+	buf := make([]byte, 256)
+	for i := 0; i < 1024*1024; i++ {
+		_, err := rand.Read(data)
+		require.NoError(t, err)
+		_, err = reader.Seek(0, io.SeekStart)
+		require.NoError(t, err)
 
+		r := newCFHReader(reader)
+		_, _ = r.Read(buf)
+	}
 }
