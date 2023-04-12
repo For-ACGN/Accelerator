@@ -374,6 +374,32 @@ func TestCFHReader_Read(t *testing.T) {
 		require.Zero(t, n)
 	})
 
+	t.Run("read with too large buffer", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		r := newCFHReader(output)
+
+		buf := make([]byte, 1024)
+		n, err := r.Read(buf)
+		require.EqualError(t, err, "read with too large buffer")
+		require.Zero(t, n)
+	})
+
+	t.Run("read after appear error", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		r := newCFHReader(output)
+
+		buf := make([]byte, 256)
+		n, err := r.Read(buf)
+		require.EqualError(t, err, "failed to read decompress command: EOF")
+		require.Zero(t, n)
+
+		n, err = r.Read(buf)
+		require.EqualError(t, err, "failed to read decompress command: EOF")
+		require.Zero(t, n)
+	})
+
 	t.Run("failed to read decompress command", func(t *testing.T) {
 		output := bytes.NewBuffer(make([]byte, 0, 64))
 
@@ -435,29 +461,15 @@ func TestCFHReader_Read(t *testing.T) {
 		require.Zero(t, n)
 	})
 
-	t.Run("read with too large buffer", func(t *testing.T) {
+	t.Run("failed to read dictionary index", func(t *testing.T) {
 		output := bytes.NewBuffer(make([]byte, 0, 64))
-
-		r := newCFHReader(output)
-
-		buf := make([]byte, 1024)
-		n, err := r.Read(buf)
-		require.EqualError(t, err, "read with too large buffer")
-		require.Zero(t, n)
-	})
-
-	t.Run("read after appear error", func(t *testing.T) {
-		output := bytes.NewBuffer(make([]byte, 0, 64))
+		output.WriteByte(cfhCMDData)
 
 		r := newCFHReader(output)
 
 		buf := make([]byte, 256)
 		n, err := r.Read(buf)
-		require.EqualError(t, err, "failed to read decompress command: EOF")
-		require.Zero(t, n)
-
-		n, err = r.Read(buf)
-		require.EqualError(t, err, "failed to read decompress command: EOF")
+		require.EqualError(t, err, "failed to read dictionary index: EOF")
 		require.Zero(t, n)
 	})
 }

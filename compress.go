@@ -446,6 +446,10 @@ func (r *cfhReader) readChangedData() error {
 		return fmt.Errorf("failed to read dictionary index: %s", err)
 	}
 	idx := int(r.buf[0])
+	dict := r.dict[idx]
+	if len(dict) < 1 {
+		return fmt.Errorf("read invalid dictionary index: %d", idx)
+	}
 	// read the number of changed data
 	_, err = io.ReadFull(r.r, r.buf)
 	if err != nil {
@@ -461,9 +465,14 @@ func (r *cfhReader) readChangedData() error {
 		return fmt.Errorf("failed to read changed data: %s", err)
 	}
 	// extract data and update dictionary
-	dict := r.dict[idx]
+	var dataIdx byte
+	maxIdx := byte(len(dict) - 1)
 	for i := 0; i < total; i += 2 {
-		dict[r.chg[i]] = r.chg[i+1]
+		dataIdx = r.chg[i]
+		if dataIdx > maxIdx {
+			return fmt.Errorf("invalid changed data index: %d", dataIdx)
+		}
+		dict[dataIdx] = r.chg[i+1]
 	}
 	r.data.Write(dict)
 	// update status
