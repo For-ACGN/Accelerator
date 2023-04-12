@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"sync"
 	"testing"
@@ -577,4 +578,72 @@ func TestCFHReader_Read(t *testing.T) {
 			require.Zero(t, n)
 		})
 	})
+}
+
+func TestCFHWriter_Fuzz(t *testing.T) {
+	output := bytes.NewBuffer(make([]byte, 0, 32*1024*1024))
+
+	frames := make([][]byte, 256*1024)
+	for i := 0; i < len(frames); i++ {
+		// select frame length
+		typ := make([]byte, 1)
+		_, err := rand.Read(typ)
+		require.NoError(t, err)
+		switch typ[0] % 5 {
+		case 0: // IPv4 + TCP
+			f := make([]byte, 14+20+20)
+			_, err = rand.Read(f)
+			require.NoError(t, err)
+			frames[i] = f
+		case 1: // IPv4 + UDP
+			f := make([]byte, 14+20+8)
+			_, err = rand.Read(f)
+			require.NoError(t, err)
+			frames[i] = f
+		case 2: // IPv6 + TCP
+			f := make([]byte, 14+40+20)
+			_, err = rand.Read(f)
+			require.NoError(t, err)
+			frames[i] = f
+		case 3: // IPv6 + UDP
+			f := make([]byte, 14+40+8)
+			_, err = rand.Read(f)
+			require.NoError(t, err)
+			frames[i] = f
+		case 4: // random length
+			sizeBuf := make([]byte, 1)
+			var size byte
+			for size < 16 {
+				_, err = rand.Read(sizeBuf)
+				require.NoError(t, err)
+				size = sizeBuf[0]
+			}
+			f := make([]byte, size)
+			_, err = rand.Read(f)
+			require.NoError(t, err)
+			frames[i] = f
+		}
+	}
+
+	fmt.Println(output.Len())
+
+	w := newCFHWriter(output)
+	for _, f := range frames {
+		n, err := w.Write(f)
+		require.NoError(t, err)
+		require.Equal(t, len(f), n)
+	}
+
+	r := newCFHReader(output)
+	for _, f := range frames {
+		buf := make([]byte, len(f))
+		n, err := r.Read(buf)
+		require.NoError(t, err)
+		require.Equal(t, len(f), n)
+		require.Equal(t, f, buf)
+	}
+}
+
+func TestCFHReader_Fuzz(t *testing.T) {
+
 }
