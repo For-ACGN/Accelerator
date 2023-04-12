@@ -439,7 +439,7 @@ func TestCFHReader_Read(t *testing.T) {
 		t.Run("read empty dictionary", func(t *testing.T) {
 			output := bytes.NewBuffer(make([]byte, 0, 64))
 			output.WriteByte(cfhCMDAddDict)
-			output.WriteByte(0)
+			output.WriteByte(0) // dictionary size
 
 			r := newCFHReader(output)
 
@@ -452,7 +452,7 @@ func TestCFHReader_Read(t *testing.T) {
 		t.Run("failed to read dictionary data", func(t *testing.T) {
 			output := bytes.NewBuffer(make([]byte, 0, 64))
 			output.WriteByte(cfhCMDAddDict)
-			output.WriteByte(1)
+			output.WriteByte(1) // dictionary size
 
 			r := newCFHReader(output)
 
@@ -476,5 +476,78 @@ func TestCFHReader_Read(t *testing.T) {
 			require.Zero(t, n)
 		})
 
+		t.Run("read invalid dictionary index", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDData)
+			output.WriteByte(0) // dictionary index
+
+			r := newCFHReader(output)
+
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "read invalid dictionary index: 0")
+			require.Zero(t, n)
+		})
+
+		t.Run("failed to read the number of changed data", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDData)
+			output.WriteByte(0) // dictionary index
+
+			r := newCFHReader(output)
+			r.(*cfhReader).dict[0] = []byte{1, 2, 3, 4}
+
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "failed to read the number of changed data: EOF")
+			require.Zero(t, n)
+		})
+
+		t.Run("read invalid changed data", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDData)
+			output.WriteByte(0) // dictionary index
+			output.WriteByte(5) // the number of changed data
+
+			r := newCFHReader(output)
+			r.(*cfhReader).dict[0] = []byte{1, 2, 3, 4}
+
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "read invalid changed data size: 5")
+			require.Zero(t, n)
+		})
+
+		t.Run("failed to read changed data", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDData)
+			output.WriteByte(0) // dictionary index
+			output.WriteByte(2) // the number of changed data
+
+			r := newCFHReader(output)
+			r.(*cfhReader).dict[0] = []byte{1, 2, 3, 4}
+
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "failed to read changed data: EOF")
+			require.Zero(t, n)
+		})
+
+		t.Run("invalid changed data index", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDData)
+			output.WriteByte(0)   // dictionary index
+			output.WriteByte(1)   // the number of changed data
+			output.WriteByte(4)   // changed data index
+			output.WriteByte(123) // changed data
+
+			r := newCFHReader(output)
+			r.(*cfhReader).dict[0] = []byte{1, 2, 3, 4}
+
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "invalid changed data index: 4")
+			require.Zero(t, n)
+		})
 	})
 }

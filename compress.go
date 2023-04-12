@@ -456,18 +456,18 @@ func (r *cfhReader) readChangedData() error {
 		return fmt.Errorf("failed to read the number of changed data: %s", err)
 	}
 	// read changed data
-	total := int(r.buf[0] * 2)
-	if total > 256 {
-		return errors.New("read invalid changed data")
+	size := int(r.buf[0] * 2)
+	if size > len(dict)*2 {
+		return fmt.Errorf("read invalid changed data size: %d", size)
 	}
-	_, err = io.ReadFull(r.r, r.chg[:total])
+	_, err = io.ReadFull(r.r, r.chg[:size])
 	if err != nil {
 		return fmt.Errorf("failed to read changed data: %s", err)
 	}
 	// extract data and update dictionary
 	var dataIdx byte
 	maxIdx := byte(len(dict) - 1)
-	for i := 0; i < total; i += 2 {
+	for i := 0; i < size; i += 2 {
 		dataIdx = r.chg[i]
 		if dataIdx > maxIdx {
 			return fmt.Errorf("invalid changed data index: %d", dataIdx)
