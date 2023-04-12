@@ -992,11 +992,12 @@ func benchmarkCFHReaderReadEthernetIPv4TCP(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if reader.Len() == 0 {
-				_, err = reader.Seek(0, io.SeekStart)
-				if err != nil {
-					b.Fatal(err)
-				}
+			if reader.Len() != 0 {
+				continue
+			}
+			_, err = reader.Seek(0, io.SeekStart)
+			if err != nil {
+				b.Fatal(err)
 			}
 		}
 
@@ -1045,11 +1046,12 @@ func benchmarkCFHReaderReadEthernetIPv4TCP(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			if reader.Len() == 0 {
-				_, err = reader.Seek(0, io.SeekStart)
-				if err != nil {
-					b.Fatal(err)
-				}
+			if reader.Len() != 0 {
+				continue
+			}
+			_, err = reader.Seek(0, io.SeekStart)
+			if err != nil {
+				b.Fatal(err)
 			}
 		}
 
@@ -1058,7 +1060,108 @@ func benchmarkCFHReaderReadEthernetIPv4TCP(b *testing.B) {
 }
 
 func benchmarkCFHReaderReadEthernetIPv4UDP(b *testing.B) {
+	b.Run("single dictionary", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
+		w := newCFHWriter(output)
 
+		f := make([]byte, len(testIPv4UDPFrame1))
+		copy(f, testIPv4UDPFrame1)
+
+		var err error
+		for i := 0; i < 1024; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			f[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			f[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+
+			f[39] = byte(i) + 4 // UDP length [byte 4]
+			f[40] = byte(i) + 5 // UDP checksum [byte 1]
+			f[41] = byte(i) + 6 // UDP checksum [byte 2]
+		}
+
+		reader := bytes.NewReader(output.Bytes())
+
+		r := newCFHReader(reader)
+		buf := make([]byte, len(testIPv4UDPFrame1))
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			_, err = r.Read(buf)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			if reader.Len() != 0 {
+				continue
+			}
+			_, err = reader.Seek(0, io.SeekStart)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		b.StopTimer()
+	})
+
+	b.Run("multi dictionaries", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
+		w := newCFHWriter(output)
+
+		f := make([]byte, len(testIPv4UDPFrame1))
+		copy(f, testIPv4UDPFrame1)
+
+		var err error
+		for i := 0; i < 1024; i++ {
+			_, err = w.Write(f)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// data that change frequently
+			f[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			f[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			f[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+
+			f[39] = byte(i) + 4 // UDP length [byte 4]
+			f[40] = byte(i) + 5 // UDP checksum [byte 1]
+			f[41] = byte(i) + 6 // UDP checksum [byte 2]
+
+			// change destination port for create more dictionaries
+			f[34] = byte(i) + 7
+		}
+
+		reader := bytes.NewReader(output.Bytes())
+
+		r := newCFHReader(reader)
+		buf := make([]byte, len(testIPv4UDPFrame1))
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			_, err = r.Read(buf)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			if reader.Len() != 0 {
+				continue
+			}
+			_, err = reader.Seek(0, io.SeekStart)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		b.StopTimer()
+	})
 }
 
 func benchmarkCFHReaderReadEthernetIPv6TCP(b *testing.B) {
