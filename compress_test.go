@@ -341,6 +341,67 @@ func TestCFHReader_Read(t *testing.T) {
 		require.Equal(t, testIPv4TCPFrame1, append(buf1, buf2...))
 	})
 
+	t.Run("failed to read decompress command", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		r := newCFHReader(output)
+
+		buf := make([]byte, 256)
+		n, err := r.Read(buf)
+		require.EqualError(t, err, "failed to read decompress command: EOF")
+		require.Zero(t, n)
+	})
+
+	t.Run("invalid decompress command", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+		output.WriteByte(0)
+
+		r := newCFHReader(output)
+
+		buf := make([]byte, 256)
+		n, err := r.Read(buf)
+		require.EqualError(t, err, "invalid decompress command: 0")
+		require.Zero(t, n)
+	})
+
+	t.Run("failed to read dictionary size", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+		output.WriteByte(cfhCMDAddDict)
+
+		r := newCFHReader(output)
+
+		buf := make([]byte, 256)
+		n, err := r.Read(buf)
+		require.EqualError(t, err, "failed to read dictionary size: EOF")
+		require.Zero(t, n)
+	})
+
+	t.Run("read empty dictionary", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+		output.WriteByte(cfhCMDAddDict)
+		output.WriteByte(0)
+
+		r := newCFHReader(output)
+
+		buf := make([]byte, 256)
+		n, err := r.Read(buf)
+		require.EqualError(t, err, "read empty dictionary")
+		require.Zero(t, n)
+	})
+
+	t.Run("failed to read dictionary data", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+		output.WriteByte(cfhCMDAddDict)
+		output.WriteByte(1)
+
+		r := newCFHReader(output)
+
+		buf := make([]byte, 256)
+		n, err := r.Read(buf)
+		require.EqualError(t, err, "failed to read dictionary data: EOF")
+		require.Zero(t, n)
+	})
+
 	t.Run("read with too large buffer", func(t *testing.T) {
 		output := bytes.NewBuffer(make([]byte, 0, 64))
 
@@ -359,11 +420,11 @@ func TestCFHReader_Read(t *testing.T) {
 
 		buf := make([]byte, 256)
 		n, err := r.Read(buf)
-		require.Equal(t, io.EOF, err)
+		require.EqualError(t, err, "failed to read decompress command: EOF")
 		require.Zero(t, n)
 
 		n, err = r.Read(buf)
-		require.Equal(t, io.EOF, err)
+		require.EqualError(t, err, "failed to read decompress command: EOF")
 		require.Zero(t, n)
 	})
 }

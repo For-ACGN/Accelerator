@@ -378,7 +378,7 @@ func (r *cfhReader) read(b []byte) (int, error) {
 	// read command
 	_, err := io.ReadFull(r.r, r.buf)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("failed to read decompress command: %s", err)
 	}
 	switch cmd := r.buf[0]; cmd {
 	case cfhCMDAddDict:
@@ -405,8 +405,11 @@ func (r *cfhReader) addDictionary() error {
 		return fmt.Errorf("failed to read dictionary size: %s", err)
 	}
 	size := int(r.buf[0])
-	dict := make([]byte, size)
+	if size < 1 {
+		return errors.New("read empty dictionary")
+	}
 	// read dictionary data
+	dict := make([]byte, size)
 	_, err = io.ReadFull(r.r, dict)
 	if err != nil {
 		return fmt.Errorf("failed to read dictionary data: %s", err)
