@@ -493,6 +493,9 @@ func (r *cfhReader) reusePreviousData() error {
 	}
 	idx := int(r.buf[0])
 	dict := r.dict[idx]
+	if len(dict) < 1 {
+		return fmt.Errorf("read invalid dictionary index: %d", idx)
+	}
 	r.data.Write(dict)
 	// update status
 	r.moveDictionary(idx)

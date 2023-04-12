@@ -423,53 +423,58 @@ func TestCFHReader_Read(t *testing.T) {
 		require.Zero(t, n)
 	})
 
-	t.Run("failed to read dictionary size", func(t *testing.T) {
-		output := bytes.NewBuffer(make([]byte, 0, 64))
-		output.WriteByte(cfhCMDAddDict)
+	t.Run("add dictionary", func(t *testing.T) {
+		t.Run("failed to read dictionary size", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDAddDict)
 
-		r := newCFHReader(output)
+			r := newCFHReader(output)
 
-		buf := make([]byte, 256)
-		n, err := r.Read(buf)
-		require.EqualError(t, err, "failed to read dictionary size: EOF")
-		require.Zero(t, n)
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "failed to read dictionary size: EOF")
+			require.Zero(t, n)
+		})
+
+		t.Run("read empty dictionary", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDAddDict)
+			output.WriteByte(0)
+
+			r := newCFHReader(output)
+
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "read empty dictionary")
+			require.Zero(t, n)
+		})
+
+		t.Run("failed to read dictionary data", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDAddDict)
+			output.WriteByte(1)
+
+			r := newCFHReader(output)
+
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "failed to read dictionary data: EOF")
+			require.Zero(t, n)
+		})
 	})
 
-	t.Run("read empty dictionary", func(t *testing.T) {
-		output := bytes.NewBuffer(make([]byte, 0, 64))
-		output.WriteByte(cfhCMDAddDict)
-		output.WriteByte(0)
+	t.Run("read changed data", func(t *testing.T) {
+		t.Run("failed to read dictionary index", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDData)
 
-		r := newCFHReader(output)
+			r := newCFHReader(output)
 
-		buf := make([]byte, 256)
-		n, err := r.Read(buf)
-		require.EqualError(t, err, "read empty dictionary")
-		require.Zero(t, n)
-	})
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "failed to read dictionary index: EOF")
+			require.Zero(t, n)
+		})
 
-	t.Run("failed to read dictionary data", func(t *testing.T) {
-		output := bytes.NewBuffer(make([]byte, 0, 64))
-		output.WriteByte(cfhCMDAddDict)
-		output.WriteByte(1)
-
-		r := newCFHReader(output)
-
-		buf := make([]byte, 256)
-		n, err := r.Read(buf)
-		require.EqualError(t, err, "failed to read dictionary data: EOF")
-		require.Zero(t, n)
-	})
-
-	t.Run("failed to read dictionary index", func(t *testing.T) {
-		output := bytes.NewBuffer(make([]byte, 0, 64))
-		output.WriteByte(cfhCMDData)
-
-		r := newCFHReader(output)
-
-		buf := make([]byte, 256)
-		n, err := r.Read(buf)
-		require.EqualError(t, err, "failed to read dictionary index: EOF")
-		require.Zero(t, n)
 	})
 }
