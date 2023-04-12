@@ -458,7 +458,7 @@ func (r *cfhReader) readChangedData() error {
 	// read changed data
 	size := int(r.buf[0] * 2)
 	if size > len(dict)*2 {
-		return fmt.Errorf("read invalid changed data size: %d", size)
+		return fmt.Errorf("read invalid changed data size: %d", size/2)
 	}
 	_, err = io.ReadFull(r.r, r.chg[:size])
 	if err != nil {

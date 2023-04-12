@@ -550,4 +550,31 @@ func TestCFHReader_Read(t *testing.T) {
 			require.Zero(t, n)
 		})
 	})
+
+	t.Run("reuse previous data", func(t *testing.T) {
+		t.Run("failed to read dictionary index", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDPrev)
+
+			r := newCFHReader(output)
+
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "failed to read dictionary index: EOF")
+			require.Zero(t, n)
+		})
+
+		t.Run("read invalid dictionary index", func(t *testing.T) {
+			output := bytes.NewBuffer(make([]byte, 0, 64))
+			output.WriteByte(cfhCMDPrev)
+			output.WriteByte(0) // dictionary index
+
+			r := newCFHReader(output)
+
+			buf := make([]byte, 256)
+			n, err := r.Read(buf)
+			require.EqualError(t, err, "read invalid dictionary index: 0")
+			require.Zero(t, n)
+		})
+	})
 }
