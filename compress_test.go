@@ -592,8 +592,9 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 			testIPv4TCPFrame7,
 			testIPv4TCPFrame8,
 		} {
-			prefer := isFrameHeaderPreferBeCompressed(f)
+			size, prefer := isFrameHeaderPreferBeCompressed(f)
 			require.True(t, prefer)
+			require.Equal(t, ethernetIPv4TCPHeaderSize, size)
 		}
 	})
 
@@ -608,8 +609,9 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 			testIPv4UDPFrame7,
 			testIPv4UDPFrame8,
 		} {
-			prefer := isFrameHeaderPreferBeCompressed(f)
+			size, prefer := isFrameHeaderPreferBeCompressed(f)
 			require.True(t, prefer)
+			require.Equal(t, ethernetIPv4UDPHeaderSize, size)
 		}
 	})
 
@@ -624,8 +626,9 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 			testIPv6TCPFrame7,
 			testIPv6TCPFrame8,
 		} {
-			prefer := isFrameHeaderPreferBeCompressed(f)
+			size, prefer := isFrameHeaderPreferBeCompressed(f)
 			require.True(t, prefer)
+			require.Equal(t, ethernetIPv6TCPHeaderSize, size)
 		}
 	})
 
@@ -640,9 +643,14 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 			testIPv6UDPFrame7,
 			testIPv6UDPFrame8,
 		} {
-			prefer := isFrameHeaderPreferBeCompressed(f)
+			size, prefer := isFrameHeaderPreferBeCompressed(f)
 			require.True(t, prefer)
+			require.Equal(t, ethernetIPv6UDPHeaderSize, size)
 		}
+	})
+
+	t.Run("too small frame", func(t *testing.T) {
+
 	})
 }
 

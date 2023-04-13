@@ -529,48 +529,53 @@ func (r *cfhReader) updateLast(data []byte) {
 
 // isFrameHeaderPreferBeCompressed is used to check
 // frame header can be compressed by fast mode.
-func isFrameHeaderPreferBeCompressed(frame []byte) bool {
+// If frame header is preferred be compressed, it
+// will return the header size that be compressed.
+func isFrameHeaderPreferBeCompressed(frame []byte) (int, bool) {
 	if len(frame) < ethernetIPv4UDPHeaderSize {
-		return false
+		return 0, false
 	}
 	switch binary.BigEndian.Uint16(frame[12:14]) {
 	case 0x0800: // IPv4
 		// check version is 4 and header length is 20
 		if frame[14] != 0x45 {
-			return false
+			return 0, false
 		}
 		switch frame[23] {
 		case 0x06: // TCP
 			if len(frame) < 47 {
-				return false
+				return 0, false
 			}
 			// check header length is 20
 			if frame[46]>>4 != 0x05 {
-				return false
+				return 0, false
 			}
+			return ethernetIPv4TCPHeaderSize, true
 		case 0x11: // UDP
 			// fixed header length
+			return ethernetIPv4UDPHeaderSize, true
 		default:
-			return false
+			return 0, false
 		}
 	case 0x86DD: // IPv6
 		// fixed header length
 		switch frame[20] {
 		case 0x06: // TCP
 			if len(frame) < 67 {
-				return false
+				return 0, false
 			}
 			// check header length is 20
 			if frame[66]>>4 != 0x05 {
-				return false
+				return 0, false
 			}
+			return ethernetIPv6TCPHeaderSize, true
 		case 0x11: // UDP
 			// fixed header length
+			return ethernetIPv6UDPHeaderSize, true
 		default:
-			return false
+			return 0, false
 		}
 	default:
-		return false
+		return 0, false
 	}
-	return true
 }
