@@ -67,10 +67,10 @@ const (
 )
 
 const (
-	ethernetIPv4TCPHeaderSize = 14 + 20 + 20
-	ethernetIPv4UDPHeaderSize = 14 + 20 + 8
-	ethernetIPv6TCPHeaderSize = 14 + 40 + 20
-	ethernetIPv6UDPHeaderSize = 14 + 40 + 8
+	cfhEthernetIPv4TCPSize = 14 + 20 + 20
+	cfhEthernetIPv4UDPSize = 14 + 20 + 8
+	cfhEthernetIPv6TCPSize = 14 + 40 + 20
+	cfhEthernetIPv6UDPSize = 14 + 40 + 8
 )
 
 // cfhWriter is used to compress frame header data.
@@ -180,13 +180,13 @@ func (w *cfhWriter) write(b []byte) (int, error) {
 func (w *cfhWriter) searchDictionary(data []byte) int {
 	size := len(data)
 	switch {
-	case size == ethernetIPv4TCPHeaderSize:
+	case size == cfhEthernetIPv4TCPSize:
 		return w.fastSearchDictEthernetIPv4TCP(data)
-	case size == ethernetIPv4UDPHeaderSize:
+	case size == cfhEthernetIPv4UDPSize:
 		return w.fastSearchDictEthernetIPv4UDP(data)
-	case size == ethernetIPv6TCPHeaderSize:
+	case size == cfhEthernetIPv6TCPSize:
 		return w.fastSearchDictEthernetIPv6TCP(data)
-	case size == ethernetIPv6UDPHeaderSize:
+	case size == cfhEthernetIPv6UDPSize:
 		return w.fastSearchDictEthernetIPv6UDP(data)
 	default:
 		return w.slowSearchDict(data)
@@ -531,8 +531,9 @@ func (r *cfhReader) updateLast(data []byte) {
 // frame header can be compressed by fast mode.
 // If frame header is preferred be compressed, it
 // will return the header size that be compressed.
+// It supports IPv4/IPv6 with TCP/UDP
 func isFrameHeaderPreferBeCompressed(frame []byte) (int, bool) {
-	if len(frame) < ethernetIPv4UDPHeaderSize {
+	if len(frame) < cfhEthernetIPv4UDPSize {
 		return 0, false
 	}
 	switch binary.BigEndian.Uint16(frame[12:14]) {
@@ -550,10 +551,10 @@ func isFrameHeaderPreferBeCompressed(frame []byte) (int, bool) {
 			if frame[46]>>4 != 0x05 {
 				return 0, false
 			}
-			return ethernetIPv4TCPHeaderSize, true
+			return cfhEthernetIPv4TCPSize, true
 		case 0x11: // UDP
 			// fixed header length
-			return ethernetIPv4UDPHeaderSize, true
+			return cfhEthernetIPv4UDPSize, true
 		default:
 			return 0, false
 		}
@@ -568,10 +569,10 @@ func isFrameHeaderPreferBeCompressed(frame []byte) (int, bool) {
 			if frame[66]>>4 != 0x05 {
 				return 0, false
 			}
-			return ethernetIPv6TCPHeaderSize, true
+			return cfhEthernetIPv6TCPSize, true
 		case 0x11: // UDP
 			// fixed header length
-			return ethernetIPv6UDPHeaderSize, true
+			return cfhEthernetIPv6UDPSize, true
 		default:
 			return 0, false
 		}

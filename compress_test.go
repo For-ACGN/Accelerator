@@ -594,7 +594,7 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 		} {
 			size, prefer := isFrameHeaderPreferBeCompressed(f)
 			require.True(t, prefer)
-			require.Equal(t, ethernetIPv4TCPHeaderSize, size)
+			require.Equal(t, cfhEthernetIPv4TCPSize, size)
 		}
 	})
 
@@ -611,7 +611,7 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 		} {
 			size, prefer := isFrameHeaderPreferBeCompressed(f)
 			require.True(t, prefer)
-			require.Equal(t, ethernetIPv4UDPHeaderSize, size)
+			require.Equal(t, cfhEthernetIPv4UDPSize, size)
 		}
 	})
 
@@ -628,7 +628,7 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 		} {
 			size, prefer := isFrameHeaderPreferBeCompressed(f)
 			require.True(t, prefer)
-			require.Equal(t, ethernetIPv6TCPHeaderSize, size)
+			require.Equal(t, cfhEthernetIPv6TCPSize, size)
 		}
 	})
 
@@ -645,7 +645,7 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 		} {
 			size, prefer := isFrameHeaderPreferBeCompressed(f)
 			require.True(t, prefer)
-			require.Equal(t, ethernetIPv6UDPHeaderSize, size)
+			require.Equal(t, cfhEthernetIPv6UDPSize, size)
 		}
 	})
 
@@ -666,46 +666,46 @@ func TestCFHWriter_Fuzz(t *testing.T) {
 		require.NoError(t, err)
 		switch typ[0] % 5 {
 		case 0: // IPv4 + TCP
-			f := make([]byte, ethernetIPv4TCPHeaderSize)
+			f := make([]byte, cfhEthernetIPv4TCPSize)
 			copy(f, testIPv4TCPFrame1)
 			// random change data
 			for j := 0; j < 3; j++ {
 				_, err = rand.Read(idx)
 				require.NoError(t, err)
-				index := binary.BigEndian.Uint16(idx) % ethernetIPv4TCPHeaderSize
+				index := binary.BigEndian.Uint16(idx) % cfhEthernetIPv4TCPSize
 				f[index] = idx[1]
 			}
 			frames[i] = f
 		case 1: // IPv4 + UDP
-			f := make([]byte, ethernetIPv4UDPHeaderSize)
+			f := make([]byte, cfhEthernetIPv4UDPSize)
 			copy(f, testIPv4UDPFrame1)
 			// random change data
 			for j := 0; j < 2; j++ {
 				_, err = rand.Read(idx)
 				require.NoError(t, err)
-				index := binary.BigEndian.Uint16(idx) % ethernetIPv4UDPHeaderSize
+				index := binary.BigEndian.Uint16(idx) % cfhEthernetIPv4UDPSize
 				f[index] = idx[1]
 			}
 			frames[i] = f
 		case 2: // IPv6 + TCP
-			f := make([]byte, ethernetIPv6TCPHeaderSize)
+			f := make([]byte, cfhEthernetIPv6TCPSize)
 			copy(f, testIPv6TCPFrame1)
 			// random change data
 			for j := 0; j < 2; j++ {
 				_, err = rand.Read(idx)
 				require.NoError(t, err)
-				index := binary.BigEndian.Uint16(idx) % ethernetIPv6TCPHeaderSize
+				index := binary.BigEndian.Uint16(idx) % cfhEthernetIPv6TCPSize
 				f[index] = idx[1]
 			}
 			frames[i] = f
 		case 3: // IPv6 + UDP
-			f := make([]byte, ethernetIPv6UDPHeaderSize)
+			f := make([]byte, cfhEthernetIPv6UDPSize)
 			copy(f, testIPv6UDPFrame1)
 			// random change data
 			for j := 0; j < 1; j++ {
 				_, err = rand.Read(idx)
 				require.NoError(t, err)
-				index := binary.BigEndian.Uint16(idx) % ethernetIPv6UDPHeaderSize
+				index := binary.BigEndian.Uint16(idx) % cfhEthernetIPv6UDPSize
 				f[index] = idx[1]
 			}
 			frames[i] = f
