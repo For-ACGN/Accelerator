@@ -73,6 +73,12 @@ const (
 	cfhEthernetIPv6UDPSize = 14 + 40 + 8
 )
 
+// for select dictionary faster in slowSearchDict.
+const (
+	cfhMinDiffDiv = 10
+	cfhMaxDiffDiv = 4
+)
+
 // cfhWriter is used to compress frame header data.
 type cfhWriter struct {
 	w    io.Writer
@@ -290,8 +296,8 @@ func (w *cfhWriter) slowSearchDict(data []byte) int {
 		dict []byte
 		diff int
 	)
-	minDiff := len(data) / 10
-	maxDiff := len(data) / 4
+	minDiff := len(data) / cfhMinDiffDiv
+	maxDiff := len(data) / cfhMaxDiffDiv
 	curDiff := cfhMaxDataSize
 	dictIdx := -1
 next:
@@ -316,7 +322,7 @@ next:
 		if diff <= minDiff {
 			return i
 		}
-		// update current minimum diff
+		// update current minimum difference
 		if diff < curDiff {
 			curDiff = diff
 			dictIdx = i

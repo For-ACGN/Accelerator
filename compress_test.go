@@ -149,7 +149,7 @@ func testGenerateFrames(t *testing.T) [][]byte {
 		case 4: // random length
 			sizeBuf := make([]byte, 1)
 			var size byte
-			for size < 16 {
+			for size < 32 {
 				_, err = rand.Read(sizeBuf)
 				require.NoError(t, err)
 				size = sizeBuf[0]
@@ -157,7 +157,22 @@ func testGenerateFrames(t *testing.T) [][]byte {
 			frame := make([]byte, size)
 			_, err = rand.Read(frame)
 			require.NoError(t, err)
+
+			// append similar frame
+			sFrame1 := make([]byte, size)
+			copy(sFrame1, frame)
+			for j := 0; j < len(frame)/cfhMinDiffDiv+2; j++ {
+				sFrame1[j+10]++
+			}
+			sFrame2 := make([]byte, size)
+			copy(sFrame2, frame)
+			for j := 0; j < len(frame)/cfhMinDiffDiv+3; j++ {
+				sFrame2[j+10]++
+			}
 			frames[i] = frame
+			frames[i+1] = sFrame1
+			frames[i+2] = sFrame2
+			i += 2
 		}
 	}
 	return frames
@@ -366,12 +381,28 @@ func TestCFHWriter_searchDictionary(t *testing.T) {
 		output := bytes.NewBuffer(make([]byte, 0, 4096))
 
 		frames := testFrames
-		for i := 0; i < 4; i++ {
+		for i := 0; i < 16; i++ {
 			noise := make([]byte, 64)
 			_, err := rand.Read(noise)
 			require.NoError(t, err)
 			frames = append(frames, noise)
 		}
+
+		// append similar frames
+		frame := make([]byte, 64)
+		_, err := rand.Read(frame)
+		require.NoError(t, err)
+		sFrame1 := make([]byte, 64)
+		copy(sFrame1, frame)
+		for i := 0; i < len(frame)/cfhMinDiffDiv+2; i++ {
+			sFrame1[i+10]++
+		}
+		sFrame2 := make([]byte, 64)
+		copy(sFrame2, frame)
+		for i := 0; i < len(frame)/cfhMinDiffDiv+3; i++ {
+			sFrame2[i+10]++
+		}
+		frames = append(frames, frame, sFrame1, sFrame2)
 
 		w := newCFHWriter(output)
 		for _, frame := range frames {
