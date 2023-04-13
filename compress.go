@@ -290,8 +290,9 @@ func (w *cfhWriter) slowSearchDict(data []byte) int {
 		dict []byte
 		diff int
 	)
-	minDiff := cfhMaxDataSize
+	minDiff := len(data) / 10
 	maxDiff := len(data) / 4
+	curDiff := cfhMaxDataSize
 	dictIdx := -1
 next:
 	for i := 0; i < len(w.dict); i++ {
@@ -299,18 +300,25 @@ next:
 		if len(dict) != len(data) {
 			continue
 		}
+		// compare difference
 		diff = 0
 		for j := 0; j < len(dict); j++ {
 			if dict[j] == data[j] {
 				continue
 			}
 			diff++
+			// if change a lot, skip current dictionary
 			if diff > maxDiff {
 				continue next
 			}
 		}
-		if diff < minDiff {
-			minDiff = diff
+		// if change a little, select current dictionary
+		if diff <= minDiff {
+			return i
+		}
+		// update current minimum diff
+		if diff < curDiff {
+			curDiff = diff
 			dictIdx = i
 		}
 	}
