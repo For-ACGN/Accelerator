@@ -544,7 +544,7 @@ func isFrameHeaderPreferBeCompressed(frame []byte) (int, bool) {
 		}
 		switch frame[23] {
 		case 0x06: // TCP
-			if len(frame) < 47 {
+			if len(frame) < cfhEthernetIPv4TCPSize {
 				return 0, false
 			}
 			// check header length is 20
@@ -562,7 +562,7 @@ func isFrameHeaderPreferBeCompressed(frame []byte) (int, bool) {
 		// fixed header length
 		switch frame[20] {
 		case 0x06: // TCP
-			if len(frame) < 67 {
+			if len(frame) < cfhEthernetIPv6TCPSize {
 				return 0, false
 			}
 			// check header length is 20
@@ -571,6 +571,9 @@ func isFrameHeaderPreferBeCompressed(frame []byte) (int, bool) {
 			}
 			return cfhEthernetIPv6TCPSize, true
 		case 0x11: // UDP
+			if len(frame) < cfhEthernetIPv6UDPSize {
+				return 0, false
+			}
 			// fixed header length
 			return cfhEthernetIPv6UDPSize, true
 		default:

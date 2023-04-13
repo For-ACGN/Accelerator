@@ -656,11 +656,61 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 	})
 
 	t.Run("other network layer", func(t *testing.T) {
-		frame := make([]byte, 128)
+		frame := make([]byte, len(testIPv4TCPFrame1))
+		copy(frame, testIPv4TCPFrame1)
+		frame[12] = 0xFF // next layer type
+		frame[13] = 0xFF // next layer type
 
 		size, prefer := isFrameHeaderPreferBeCompressed(frame)
 		require.False(t, prefer)
 		require.Zero(t, size)
+	})
+
+	t.Run("IPv4", func(t *testing.T) {
+		t.Run("with options", func(t *testing.T) {
+			frame := make([]byte, len(testIPv4TCPFrame1))
+			copy(frame, testIPv4TCPFrame1)
+			frame[14] = 0x46 // header length is not 20
+
+			size, prefer := isFrameHeaderPreferBeCompressed(frame)
+			require.False(t, prefer)
+			require.Zero(t, size)
+		})
+
+		t.Run("other transport layer", func(t *testing.T) {
+			frame := make([]byte, len(testIPv4TCPFrame1))
+			copy(frame, testIPv4TCPFrame1)
+			frame[23] = 0xFF
+
+			size, prefer := isFrameHeaderPreferBeCompressed(frame)
+			require.False(t, prefer)
+			require.Zero(t, size)
+		})
+
+		t.Run("TCP", func(t *testing.T) {
+			t.Run("invalid frame size", func(t *testing.T) {
+				frame := make([]byte, len(testIPv4TCPFrame1)-1)
+				copy(frame, testIPv4TCPFrame1)
+
+				size, prefer := isFrameHeaderPreferBeCompressed(frame)
+				require.False(t, prefer)
+				require.Zero(t, size)
+			})
+
+			t.Run("with options", func(t *testing.T) {
+				frame := make([]byte, len(testIPv4TCPFrame1))
+				copy(frame, testIPv4TCPFrame1)
+				frame[46] = 0xFF
+
+				size, prefer := isFrameHeaderPreferBeCompressed(frame)
+				require.False(t, prefer)
+				require.Zero(t, size)
+			})
+		})
+	})
+
+	t.Run("IPv6", func(t *testing.T) {
+
 	})
 }
 
