@@ -527,9 +527,9 @@ func (r *cfhReader) updateLast(data []byte) {
 	r.last.Write(data)
 }
 
-// canFrameHeaderBeCompressed is used to check frame
-// header can be compressed by fast mode.
-func canFrameHeaderBeCompressed(frame []byte) bool {
+// isFrameHeaderPreferBeCompressed is used to check
+// frame header can be compressed by fast mode.
+func isFrameHeaderPreferBeCompressed(frame []byte) bool {
 	if len(frame) < ethernetIPv4UDPHeaderSize {
 		return false
 	}

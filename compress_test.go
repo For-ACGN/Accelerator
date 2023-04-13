@@ -580,6 +580,72 @@ func TestCFHReader_Read(t *testing.T) {
 	})
 }
 
+func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
+	t.Run("Ethernet IPv4 TCP", func(t *testing.T) {
+		for _, f := range [][]byte{
+			testIPv4TCPFrame1,
+			testIPv4TCPFrame2,
+			testIPv4TCPFrame3,
+			testIPv4TCPFrame4,
+			testIPv4TCPFrame5,
+			testIPv4TCPFrame6,
+			testIPv4TCPFrame7,
+			testIPv4TCPFrame8,
+		} {
+			prefer := isFrameHeaderPreferBeCompressed(f)
+			require.True(t, prefer)
+		}
+	})
+
+	t.Run("Ethernet IPv4 UDP", func(t *testing.T) {
+		for _, f := range [][]byte{
+			testIPv4UDPFrame1,
+			testIPv4UDPFrame2,
+			testIPv4UDPFrame3,
+			testIPv4UDPFrame4,
+			testIPv4UDPFrame5,
+			testIPv4UDPFrame6,
+			testIPv4UDPFrame7,
+			testIPv4UDPFrame8,
+		} {
+			prefer := isFrameHeaderPreferBeCompressed(f)
+			require.True(t, prefer)
+		}
+	})
+
+	t.Run("Ethernet IPv6 TCP", func(t *testing.T) {
+		for _, f := range [][]byte{
+			testIPv6TCPFrame1,
+			testIPv6TCPFrame2,
+			testIPv6TCPFrame3,
+			testIPv6TCPFrame4,
+			testIPv6TCPFrame5,
+			testIPv6TCPFrame6,
+			testIPv6TCPFrame7,
+			testIPv6TCPFrame8,
+		} {
+			prefer := isFrameHeaderPreferBeCompressed(f)
+			require.True(t, prefer)
+		}
+	})
+
+	t.Run("Ethernet IPv6 UDP", func(t *testing.T) {
+		for _, f := range [][]byte{
+			testIPv6UDPFrame1,
+			testIPv6UDPFrame2,
+			testIPv6UDPFrame3,
+			testIPv6UDPFrame4,
+			testIPv6UDPFrame5,
+			testIPv6UDPFrame6,
+			testIPv6UDPFrame7,
+			testIPv6UDPFrame8,
+		} {
+			prefer := isFrameHeaderPreferBeCompressed(f)
+			require.True(t, prefer)
+		}
+	})
+}
+
 func TestCFHWriter_Fuzz(t *testing.T) {
 	output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 
