@@ -710,7 +710,47 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 	})
 
 	t.Run("IPv6", func(t *testing.T) {
+		t.Run("other transport layer", func(t *testing.T) {
+			frame := make([]byte, len(testIPv6TCPFrame1))
+			copy(frame, testIPv6TCPFrame1)
+			frame[20] = 0xFF
 
+			size, prefer := isFrameHeaderPreferBeCompressed(frame)
+			require.False(t, prefer)
+			require.Zero(t, size)
+		})
+
+		t.Run("TCP", func(t *testing.T) {
+			t.Run("invalid frame size", func(t *testing.T) {
+				frame := make([]byte, len(testIPv6TCPFrame1)-1)
+				copy(frame, testIPv6TCPFrame1)
+
+				size, prefer := isFrameHeaderPreferBeCompressed(frame)
+				require.False(t, prefer)
+				require.Zero(t, size)
+			})
+
+			t.Run("with options", func(t *testing.T) {
+				frame := make([]byte, len(testIPv6TCPFrame1))
+				copy(frame, testIPv6TCPFrame1)
+				frame[66] = 0xFF
+
+				size, prefer := isFrameHeaderPreferBeCompressed(frame)
+				require.False(t, prefer)
+				require.Zero(t, size)
+			})
+		})
+
+		t.Run("UDP", func(t *testing.T) {
+			t.Run("invalid frame size", func(t *testing.T) {
+				frame := make([]byte, len(testIPv6UDPFrame1)-1)
+				copy(frame, testIPv6UDPFrame1)
+
+				size, prefer := isFrameHeaderPreferBeCompressed(frame)
+				require.False(t, prefer)
+				require.Zero(t, size)
+			})
+		})
 	})
 }
 
