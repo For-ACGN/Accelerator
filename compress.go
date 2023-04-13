@@ -66,10 +66,10 @@ const (
 )
 
 const (
-	ethernetIPv4TCPFrameSize = 14 + 20 + 20
-	ethernetIPv4UDPFrameSize = 14 + 20 + 8
-	ethernetIPv6TCPFrameSize = 14 + 40 + 20
-	ethernetIPv6UDPFrameSize = 14 + 40 + 8
+	ethernetIPv4TCPHeaderSize = 14 + 20 + 20
+	ethernetIPv4UDPHeaderSize = 14 + 20 + 8
+	ethernetIPv6TCPHeaderSize = 14 + 40 + 20
+	ethernetIPv6UDPHeaderSize = 14 + 40 + 8
 )
 
 // cfhWriter is used to compress frame header data.
@@ -179,35 +179,35 @@ func (w *cfhWriter) write(b []byte) (int, error) {
 func (w *cfhWriter) searchDictionary(data []byte) int {
 	size := len(data)
 	switch {
-	case size == ethernetIPv4TCPFrameSize:
+	case size == ethernetIPv4TCPHeaderSize:
 		return w.fastSearchDictEthernetIPv4TCP(data)
-	case size == ethernetIPv4UDPFrameSize:
+	case size == ethernetIPv4UDPHeaderSize:
 		return w.fastSearchDictEthernetIPv4UDP(data)
-	case size == ethernetIPv6TCPFrameSize:
+	case size == ethernetIPv6TCPHeaderSize:
 		return w.fastSearchDictEthernetIPv6TCP(data)
-	case size == ethernetIPv6UDPFrameSize:
+	case size == ethernetIPv6UDPHeaderSize:
 		return w.fastSearchDictEthernetIPv6UDP(data)
 	default:
 		return w.slowSearchDict(data)
 	}
 }
 
-func (w *cfhWriter) fastSearchDictEthernetIPv4TCP(frame []byte) int {
+func (w *cfhWriter) fastSearchDictEthernetIPv4TCP(header []byte) int {
 	const offset = 14 + (20 - 4*2)
 	var dict []byte
-	frameP1 := frame[:6+6]
-	frameP2 := frame[offset : offset+4+4+2+2]
+	headerP1 := header[:6+6]
+	headerP2 := header[offset : offset+4+4+2+2]
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
-		if len(dict) != len(frame) {
+		if len(dict) != len(header) {
 			continue
 		}
 		// Ethernet dst/src address
-		if !bytes.Equal(dict[:6+6], frameP1) {
+		if !bytes.Equal(dict[:6+6], headerP1) {
 			continue
 		}
 		// IPv4 src/dst address, TCP/UDP src/dst port
-		if !bytes.Equal(dict[offset:offset+4+4+2+2], frameP2) {
+		if !bytes.Equal(dict[offset:offset+4+4+2+2], headerP2) {
 			continue
 		}
 		return i
@@ -215,22 +215,22 @@ func (w *cfhWriter) fastSearchDictEthernetIPv4TCP(frame []byte) int {
 	return -1
 }
 
-func (w *cfhWriter) fastSearchDictEthernetIPv4UDP(frame []byte) int {
+func (w *cfhWriter) fastSearchDictEthernetIPv4UDP(header []byte) int {
 	const offset = 14 + (20 - 4*2)
 	var dict []byte
-	frameP1 := frame[:6+6]
-	frameP2 := frame[offset : offset+4+4+2+2]
+	headerP1 := header[:6+6]
+	headerP2 := header[offset : offset+4+4+2+2]
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
-		if len(dict) != len(frame) {
+		if len(dict) != len(header) {
 			continue
 		}
 		// Ethernet dst/src address
-		if !bytes.Equal(dict[:6+6], frameP1) {
+		if !bytes.Equal(dict[:6+6], headerP1) {
 			continue
 		}
 		// IPv4 src/dst address, UDP src/dst port
-		if !bytes.Equal(dict[offset:offset+4+4+2+2], frameP2) {
+		if !bytes.Equal(dict[offset:offset+4+4+2+2], headerP2) {
 			continue
 		}
 		return i
@@ -238,22 +238,22 @@ func (w *cfhWriter) fastSearchDictEthernetIPv4UDP(frame []byte) int {
 	return -1
 }
 
-func (w *cfhWriter) fastSearchDictEthernetIPv6TCP(frame []byte) int {
+func (w *cfhWriter) fastSearchDictEthernetIPv6TCP(header []byte) int {
 	const offset = 14 + (40 - 16*2)
 	var dict []byte
-	frameP1 := frame[:6+6]
-	frameP2 := frame[offset : offset+16+16+2+2]
+	headerP1 := header[:6+6]
+	headerP2 := header[offset : offset+16+16+2+2]
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
-		if len(dict) != len(frame) {
+		if len(dict) != len(header) {
 			continue
 		}
 		// Ethernet dst/src address
-		if !bytes.Equal(dict[:6+6], frameP1) {
+		if !bytes.Equal(dict[:6+6], headerP1) {
 			continue
 		}
 		// IPv6 src/dst address, TCP/UDP src/dst port
-		if !bytes.Equal(dict[offset:offset+16+16+2+2], frameP2) {
+		if !bytes.Equal(dict[offset:offset+16+16+2+2], headerP2) {
 			continue
 		}
 		return i
@@ -261,22 +261,22 @@ func (w *cfhWriter) fastSearchDictEthernetIPv6TCP(frame []byte) int {
 	return -1
 }
 
-func (w *cfhWriter) fastSearchDictEthernetIPv6UDP(frame []byte) int {
+func (w *cfhWriter) fastSearchDictEthernetIPv6UDP(header []byte) int {
 	const offset = 14 + (40 - 16*2)
 	var dict []byte
-	frameP1 := frame[:6+6]
-	frameP2 := frame[offset : offset+16+16+2+2]
+	headerP1 := header[:6+6]
+	headerP2 := header[offset : offset+16+16+2+2]
 	for i := 0; i < len(w.dict); i++ {
 		dict = w.dict[i]
-		if len(dict) != len(frame) {
+		if len(dict) != len(header) {
 			continue
 		}
 		// Ethernet dst/src address
-		if !bytes.Equal(dict[:6+6], frameP1) {
+		if !bytes.Equal(dict[:6+6], headerP1) {
 			continue
 		}
 		// IPv6 src/dst address, UDP src/dst port
-		if !bytes.Equal(dict[offset:offset+16+16+2+2], frameP2) {
+		if !bytes.Equal(dict[offset:offset+16+16+2+2], headerP2) {
 			continue
 		}
 		return i
