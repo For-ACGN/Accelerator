@@ -2,6 +2,7 @@ package accelerator
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -524,4 +525,52 @@ func (r *cfhReader) moveDictionary(idx int) {
 func (r *cfhReader) updateLast(data []byte) {
 	r.last.Reset()
 	r.last.Write(data)
+}
+
+// canFrameHeaderBeCompressed is used to check frame
+// header can be compressed by fast mode.
+func canFrameHeaderBeCompressed(frame []byte) bool {
+	if len(frame) < ethernetIPv4UDPHeaderSize {
+		return false
+	}
+	switch binary.BigEndian.Uint16(frame[12:14]) {
+	case 0x0800: // IPv4
+		// check version is 4 and header length is 20
+		if frame[14] != 0x45 {
+			return false
+		}
+		switch frame[23] {
+		case 0x06: // TCP
+			if len(frame) < 47 {
+				return false
+			}
+			// check header length is 20
+			if frame[46]>>4 != 0x05 {
+				return false
+			}
+		case 0x11: // UDP
+			// fixed header length
+		default:
+			return false
+		}
+	case 0x86DD: // IPv6
+		// fixed header length
+		switch frame[20] {
+		case 0x06: // TCP
+			if len(frame) < 67 {
+				return false
+			}
+			// check header length is 20
+			if frame[66]>>4 != 0x05 {
+				return false
+			}
+		case 0x11: // UDP
+			// fixed header length
+		default:
+			return false
+		}
+	default:
+		return false
+	}
+	return true
 }
