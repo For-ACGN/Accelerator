@@ -34,55 +34,55 @@ var (
 	testUDPH1 = "fb7b003500385f66"
 	testUDPH2 = "fb7b003600385f66"
 
-	testIPv4TCPFrame1 = testMustDecodeHex(testEthernet1 + testIPv4H1 + testTCPH1)
-	testIPv4TCPFrame2 = testMustDecodeHex(testEthernet1 + testIPv4H1 + testTCPH2)
-	testIPv4TCPFrame3 = testMustDecodeHex(testEthernet1 + testIPv4H2 + testTCPH1)
-	testIPv4TCPFrame4 = testMustDecodeHex(testEthernet1 + testIPv4H2 + testTCPH2)
-	testIPv4TCPFrame5 = testMustDecodeHex(testEthernet2 + testIPv4H1 + testTCPH1)
-	testIPv4TCPFrame6 = testMustDecodeHex(testEthernet2 + testIPv4H1 + testTCPH2)
-	testIPv4TCPFrame7 = testMustDecodeHex(testEthernet2 + testIPv4H2 + testTCPH1)
-	testIPv4TCPFrame8 = testMustDecodeHex(testEthernet2 + testIPv4H2 + testTCPH2)
+	testIPv4TCPFrameHeader1 = testMustDecodeHex(testEthernet1 + testIPv4H1 + testTCPH1)
+	testIPv4TCPFrameHeader2 = testMustDecodeHex(testEthernet1 + testIPv4H1 + testTCPH2)
+	testIPv4TCPFrameHeader3 = testMustDecodeHex(testEthernet1 + testIPv4H2 + testTCPH1)
+	testIPv4TCPFrameHeader4 = testMustDecodeHex(testEthernet1 + testIPv4H2 + testTCPH2)
+	testIPv4TCPFrameHeader5 = testMustDecodeHex(testEthernet2 + testIPv4H1 + testTCPH1)
+	testIPv4TCPFrameHeader6 = testMustDecodeHex(testEthernet2 + testIPv4H1 + testTCPH2)
+	testIPv4TCPFrameHeader7 = testMustDecodeHex(testEthernet2 + testIPv4H2 + testTCPH1)
+	testIPv4TCPFrameHeader8 = testMustDecodeHex(testEthernet2 + testIPv4H2 + testTCPH2)
 
-	testIPv4UDPFrame1 = testMustDecodeHex(testEthernet1 + testIPv4H3 + testUDPH1)
-	testIPv4UDPFrame2 = testMustDecodeHex(testEthernet1 + testIPv4H3 + testUDPH2)
-	testIPv4UDPFrame3 = testMustDecodeHex(testEthernet1 + testIPv4H4 + testUDPH1)
-	testIPv4UDPFrame4 = testMustDecodeHex(testEthernet1 + testIPv4H4 + testUDPH2)
-	testIPv4UDPFrame5 = testMustDecodeHex(testEthernet2 + testIPv4H3 + testUDPH1)
-	testIPv4UDPFrame6 = testMustDecodeHex(testEthernet2 + testIPv4H3 + testUDPH2)
-	testIPv4UDPFrame7 = testMustDecodeHex(testEthernet2 + testIPv4H4 + testUDPH1)
-	testIPv4UDPFrame8 = testMustDecodeHex(testEthernet2 + testIPv4H4 + testUDPH2)
+	testIPv4UDPFrameHeader1 = testMustDecodeHex(testEthernet1 + testIPv4H3 + testUDPH1)
+	testIPv4UDPFrameHeader2 = testMustDecodeHex(testEthernet1 + testIPv4H3 + testUDPH2)
+	testIPv4UDPFrameHeader3 = testMustDecodeHex(testEthernet1 + testIPv4H4 + testUDPH1)
+	testIPv4UDPFrameHeader4 = testMustDecodeHex(testEthernet1 + testIPv4H4 + testUDPH2)
+	testIPv4UDPFrameHeader5 = testMustDecodeHex(testEthernet2 + testIPv4H3 + testUDPH1)
+	testIPv4UDPFrameHeader6 = testMustDecodeHex(testEthernet2 + testIPv4H3 + testUDPH2)
+	testIPv4UDPFrameHeader7 = testMustDecodeHex(testEthernet2 + testIPv4H4 + testUDPH1)
+	testIPv4UDPFrameHeader8 = testMustDecodeHex(testEthernet2 + testIPv4H4 + testUDPH2)
 
-	testIPv6TCPFrame1 = testMustDecodeHex(testEthernet3 + testIPv6H1 + testTCPH1)
-	testIPv6TCPFrame2 = testMustDecodeHex(testEthernet3 + testIPv6H1 + testTCPH2)
-	testIPv6TCPFrame3 = testMustDecodeHex(testEthernet3 + testIPv6H2 + testTCPH1)
-	testIPv6TCPFrame4 = testMustDecodeHex(testEthernet3 + testIPv6H2 + testTCPH2)
-	testIPv6TCPFrame5 = testMustDecodeHex(testEthernet4 + testIPv6H1 + testTCPH1)
-	testIPv6TCPFrame6 = testMustDecodeHex(testEthernet4 + testIPv6H1 + testTCPH2)
-	testIPv6TCPFrame7 = testMustDecodeHex(testEthernet4 + testIPv6H2 + testTCPH1)
-	testIPv6TCPFrame8 = testMustDecodeHex(testEthernet4 + testIPv6H2 + testTCPH2)
+	testIPv6TCPFrameHeader1 = testMustDecodeHex(testEthernet3 + testIPv6H1 + testTCPH1)
+	testIPv6TCPFrameHeader2 = testMustDecodeHex(testEthernet3 + testIPv6H1 + testTCPH2)
+	testIPv6TCPFrameHeader3 = testMustDecodeHex(testEthernet3 + testIPv6H2 + testTCPH1)
+	testIPv6TCPFrameHeader4 = testMustDecodeHex(testEthernet3 + testIPv6H2 + testTCPH2)
+	testIPv6TCPFrameHeader5 = testMustDecodeHex(testEthernet4 + testIPv6H1 + testTCPH1)
+	testIPv6TCPFrameHeader6 = testMustDecodeHex(testEthernet4 + testIPv6H1 + testTCPH2)
+	testIPv6TCPFrameHeader7 = testMustDecodeHex(testEthernet4 + testIPv6H2 + testTCPH1)
+	testIPv6TCPFrameHeader8 = testMustDecodeHex(testEthernet4 + testIPv6H2 + testTCPH2)
 
-	testIPv6UDPFrame1 = testMustDecodeHex(testEthernet3 + testIPv6H3 + testUDPH1)
-	testIPv6UDPFrame2 = testMustDecodeHex(testEthernet3 + testIPv6H3 + testUDPH2)
-	testIPv6UDPFrame3 = testMustDecodeHex(testEthernet3 + testIPv6H4 + testUDPH1)
-	testIPv6UDPFrame4 = testMustDecodeHex(testEthernet3 + testIPv6H4 + testUDPH2)
-	testIPv6UDPFrame5 = testMustDecodeHex(testEthernet4 + testIPv6H3 + testUDPH1)
-	testIPv6UDPFrame6 = testMustDecodeHex(testEthernet4 + testIPv6H3 + testUDPH2)
-	testIPv6UDPFrame7 = testMustDecodeHex(testEthernet4 + testIPv6H4 + testUDPH1)
-	testIPv6UDPFrame8 = testMustDecodeHex(testEthernet4 + testIPv6H4 + testUDPH2)
+	testIPv6UDPFrameHeader1 = testMustDecodeHex(testEthernet3 + testIPv6H3 + testUDPH1)
+	testIPv6UDPFrameHeader2 = testMustDecodeHex(testEthernet3 + testIPv6H3 + testUDPH2)
+	testIPv6UDPFrameHeader3 = testMustDecodeHex(testEthernet3 + testIPv6H4 + testUDPH1)
+	testIPv6UDPFrameHeader4 = testMustDecodeHex(testEthernet3 + testIPv6H4 + testUDPH2)
+	testIPv6UDPFrameHeader5 = testMustDecodeHex(testEthernet4 + testIPv6H3 + testUDPH1)
+	testIPv6UDPFrameHeader6 = testMustDecodeHex(testEthernet4 + testIPv6H3 + testUDPH2)
+	testIPv6UDPFrameHeader7 = testMustDecodeHex(testEthernet4 + testIPv6H4 + testUDPH1)
+	testIPv6UDPFrameHeader8 = testMustDecodeHex(testEthernet4 + testIPv6H4 + testUDPH2)
 )
 
-var testFrames = [][]byte{
-	testIPv4TCPFrame1, testIPv4TCPFrame2, testIPv4TCPFrame3, testIPv4TCPFrame4,
-	testIPv4TCPFrame5, testIPv4TCPFrame6, testIPv4TCPFrame7, testIPv4TCPFrame8,
+var testFrameHeaders = [][]byte{
+	testIPv4TCPFrameHeader1, testIPv4TCPFrameHeader2, testIPv4TCPFrameHeader3, testIPv4TCPFrameHeader4,
+	testIPv4TCPFrameHeader5, testIPv4TCPFrameHeader6, testIPv4TCPFrameHeader7, testIPv4TCPFrameHeader8,
 
-	testIPv4UDPFrame1, testIPv4UDPFrame2, testIPv4UDPFrame3, testIPv4UDPFrame4,
-	testIPv4UDPFrame5, testIPv4UDPFrame6, testIPv4UDPFrame7, testIPv4UDPFrame8,
+	testIPv4UDPFrameHeader1, testIPv4UDPFrameHeader2, testIPv4UDPFrameHeader3, testIPv4UDPFrameHeader4,
+	testIPv4UDPFrameHeader5, testIPv4UDPFrameHeader6, testIPv4UDPFrameHeader7, testIPv4UDPFrameHeader8,
 
-	testIPv6TCPFrame1, testIPv6TCPFrame2, testIPv6TCPFrame3, testIPv6TCPFrame4,
-	testIPv6TCPFrame5, testIPv6TCPFrame6, testIPv6TCPFrame7, testIPv6TCPFrame8,
+	testIPv6TCPFrameHeader1, testIPv6TCPFrameHeader2, testIPv6TCPFrameHeader3, testIPv6TCPFrameHeader4,
+	testIPv6TCPFrameHeader5, testIPv6TCPFrameHeader6, testIPv6TCPFrameHeader7, testIPv6TCPFrameHeader8,
 
-	testIPv6UDPFrame1, testIPv6UDPFrame2, testIPv6UDPFrame3, testIPv6UDPFrame4,
-	testIPv6UDPFrame5, testIPv6UDPFrame6, testIPv6UDPFrame7, testIPv6UDPFrame8,
+	testIPv6UDPFrameHeader1, testIPv6UDPFrameHeader2, testIPv6UDPFrameHeader3, testIPv6UDPFrameHeader4,
+	testIPv6UDPFrameHeader5, testIPv6UDPFrameHeader6, testIPv6UDPFrameHeader7, testIPv6UDPFrameHeader8,
 }
 
 func testMustDecodeHex(s string) []byte {
@@ -93,59 +93,59 @@ func testMustDecodeHex(s string) []byte {
 	return data
 }
 
-func testGenerateFrames(t *testing.T) [][]byte {
-	frames := make([][]byte, 512*1024)
+func testGenerateFrameHeaders(t *testing.T) [][]byte {
+	headers := make([][]byte, 512*1024)
 	typ := make([]byte, 1)
 	idx := make([]byte, 2)
-	for i := 0; i < len(frames); i++ {
+	for i := 0; i < len(headers); i++ {
 		// select frame length
 		_, err := rand.Read(typ)
 		require.NoError(t, err)
 		switch typ[0] % 5 {
 		case 0: // IPv4 + TCP
-			frame := make([]byte, cfhEthernetIPv4TCPSize)
-			copy(frame, testIPv4TCPFrame1)
+			header := make([]byte, cfhEthernetIPv4TCPSize)
+			copy(header, testIPv4TCPFrameHeader1)
 			// random change data
 			for j := 0; j < 3; j++ {
 				_, err = rand.Read(idx)
 				require.NoError(t, err)
 				index := binary.BigEndian.Uint16(idx) % cfhEthernetIPv4TCPSize
-				frame[index] = idx[1]
+				header[index] = idx[1]
 			}
-			frames[i] = frame
+			headers[i] = header
 		case 1: // IPv4 + UDP
-			frame := make([]byte, cfhEthernetIPv4UDPSize)
-			copy(frame, testIPv4UDPFrame1)
+			header := make([]byte, cfhEthernetIPv4UDPSize)
+			copy(header, testIPv4UDPFrameHeader1)
 			// random change data
 			for j := 0; j < 2; j++ {
 				_, err = rand.Read(idx)
 				require.NoError(t, err)
 				index := binary.BigEndian.Uint16(idx) % cfhEthernetIPv4UDPSize
-				frame[index] = idx[1]
+				header[index] = idx[1]
 			}
-			frames[i] = frame
+			headers[i] = header
 		case 2: // IPv6 + TCP
-			frame := make([]byte, cfhEthernetIPv6TCPSize)
-			copy(frame, testIPv6TCPFrame1)
+			header := make([]byte, cfhEthernetIPv6TCPSize)
+			copy(header, testIPv6TCPFrameHeader1)
 			// random change data
 			for j := 0; j < 2; j++ {
 				_, err = rand.Read(idx)
 				require.NoError(t, err)
 				index := binary.BigEndian.Uint16(idx) % cfhEthernetIPv6TCPSize
-				frame[index] = idx[1]
+				header[index] = idx[1]
 			}
-			frames[i] = frame
+			headers[i] = header
 		case 3: // IPv6 + UDP
-			frame := make([]byte, cfhEthernetIPv6UDPSize)
-			copy(frame, testIPv6UDPFrame1)
+			header := make([]byte, cfhEthernetIPv6UDPSize)
+			copy(header, testIPv6UDPFrameHeader1)
 			// random change data
 			for j := 0; j < 1; j++ {
 				_, err = rand.Read(idx)
 				require.NoError(t, err)
 				index := binary.BigEndian.Uint16(idx) % cfhEthernetIPv6UDPSize
-				frame[index] = idx[1]
+				header[index] = idx[1]
 			}
-			frames[i] = frame
+			headers[i] = header
 		case 4: // random length
 			sizeBuf := make([]byte, 1)
 			var size byte
@@ -154,28 +154,28 @@ func testGenerateFrames(t *testing.T) [][]byte {
 				require.NoError(t, err)
 				size = sizeBuf[0]
 			}
-			frame := make([]byte, size)
-			_, err = rand.Read(frame)
+			header := make([]byte, size)
+			_, err = rand.Read(header)
 			require.NoError(t, err)
 
-			// append similar frame
-			sFrame1 := make([]byte, size)
-			copy(sFrame1, frame)
-			for j := 0; j < len(frame)/cfhMinDiffDiv+2; j++ {
-				sFrame1[j+10]++
+			// append similar frame headers
+			sHeader1 := make([]byte, size)
+			copy(sHeader1, header)
+			for j := 0; j < len(header)/cfhMinDiffDiv+2; j++ {
+				sHeader1[j+10]++
 			}
-			sFrame2 := make([]byte, size)
-			copy(sFrame2, frame)
-			for j := 0; j < len(frame)/cfhMinDiffDiv+3; j++ {
-				sFrame2[j+10]++
+			sHeader2 := make([]byte, size)
+			copy(sHeader2, header)
+			for j := 0; j < len(header)/cfhMinDiffDiv+3; j++ {
+				sHeader2[j+10]++
 			}
-			frames[i] = frame
-			frames[i+1] = sFrame1
-			frames[i+2] = sFrame2
+			headers[i] = header
+			headers[i+1] = sHeader1
+			headers[i+2] = sHeader2
 			i += 2
 		}
 	}
-	return frames
+	return headers
 }
 
 func TestNewCFHWriter(t *testing.T) {
@@ -202,55 +202,55 @@ func TestCFHWriter_Write(t *testing.T) {
 	t.Run("write as same as the last", func(t *testing.T) {
 		w := newCFHWriter(output)
 		for i := 0; i < 100; i++ {
-			n, err := w.Write(testIPv4TCPFrame1)
+			n, err := w.Write(testIPv4TCPFrameHeader1)
 			require.NoError(t, err)
-			require.Equal(t, len(testIPv4TCPFrame1), n)
+			require.Equal(t, len(testIPv4TCPFrameHeader1), n)
 		}
 
 		r := newCFHReader(output)
-		buf := make([]byte, len(testIPv4TCPFrame1))
+		buf := make([]byte, len(testIPv4TCPFrameHeader1))
 		for i := 0; i < 100; i++ {
 			n, err := r.Read(buf)
 			require.NoError(t, err)
-			require.Equal(t, len(testIPv4TCPFrame1), n)
-			require.Equal(t, testIPv4TCPFrame1, buf)
+			require.Equal(t, len(testIPv4TCPFrameHeader1), n)
+			require.Equal(t, testIPv4TCPFrameHeader1, buf)
 		}
 	})
 
 	t.Run("write as same as the previous", func(t *testing.T) {
 		w := newCFHWriter(output)
 
-		n, err := w.Write(testIPv4TCPFrame1)
+		n, err := w.Write(testIPv4TCPFrameHeader1)
 		require.NoError(t, err)
-		require.Equal(t, len(testIPv4TCPFrame1), n)
+		require.Equal(t, len(testIPv4TCPFrameHeader1), n)
 
-		n, err = w.Write(testIPv4TCPFrame2)
+		n, err = w.Write(testIPv4TCPFrameHeader2)
 		require.NoError(t, err)
-		require.Equal(t, len(testIPv4TCPFrame2), n)
+		require.Equal(t, len(testIPv4TCPFrameHeader2), n)
 
-		n, err = w.Write(testIPv4TCPFrame1)
+		n, err = w.Write(testIPv4TCPFrameHeader1)
 		require.NoError(t, err)
-		require.Equal(t, len(testIPv4TCPFrame1), n)
+		require.Equal(t, len(testIPv4TCPFrameHeader1), n)
 
 		r := newCFHReader(output)
 
-		buf := make([]byte, len(testIPv4TCPFrame1))
+		buf := make([]byte, len(testIPv4TCPFrameHeader1))
 		n, err = r.Read(buf)
 		require.NoError(t, err)
-		require.Equal(t, len(testIPv4TCPFrame1), n)
-		require.Equal(t, testIPv4TCPFrame1, buf)
+		require.Equal(t, len(testIPv4TCPFrameHeader1), n)
+		require.Equal(t, testIPv4TCPFrameHeader1, buf)
 
-		buf = make([]byte, len(testIPv4TCPFrame2))
+		buf = make([]byte, len(testIPv4TCPFrameHeader2))
 		n, err = r.Read(buf)
 		require.NoError(t, err)
-		require.Equal(t, len(testIPv4TCPFrame2), n)
-		require.Equal(t, testIPv4TCPFrame2, buf)
+		require.Equal(t, len(testIPv4TCPFrameHeader2), n)
+		require.Equal(t, testIPv4TCPFrameHeader2, buf)
 
-		buf = make([]byte, len(testIPv4TCPFrame1))
+		buf = make([]byte, len(testIPv4TCPFrameHeader1))
 		n, err = r.Read(buf)
 		require.NoError(t, err)
-		require.Equal(t, len(testIPv4TCPFrame1), n)
-		require.Equal(t, testIPv4TCPFrame1, buf)
+		require.Equal(t, len(testIPv4TCPFrameHeader1), n)
+		require.Equal(t, testIPv4TCPFrameHeader1, buf)
 	})
 
 	t.Run("write empty data", func(t *testing.T) {
@@ -277,11 +277,11 @@ func TestCFHWriter_Write(t *testing.T) {
 
 		w := newCFHWriter(pw)
 
-		n, err := w.Write(testIPv4TCPFrame1)
+		n, err := w.Write(testIPv4TCPFrameHeader1)
 		require.Equal(t, io.ErrClosedPipe, err)
 		require.Zero(t, n)
 
-		n, err = w.Write(testIPv4TCPFrame1)
+		n, err = w.Write(testIPv4TCPFrameHeader1)
 		require.Equal(t, io.ErrClosedPipe, err)
 		require.Zero(t, n)
 
@@ -302,16 +302,16 @@ func TestCFHWriter_Write(t *testing.T) {
 
 		w := newCFHWriter(pw)
 
-		n, err := w.Write(testIPv4TCPFrame1)
+		n, err := w.Write(testIPv4TCPFrameHeader1)
 		require.NoError(t, err)
-		require.Equal(t, len(testIPv4TCPFrame1), n)
+		require.Equal(t, len(testIPv4TCPFrameHeader1), n)
 
 		wg.Wait()
 
 		err = pr.Close()
 		require.NoError(t, err)
 
-		n, err = w.Write(testIPv4TCPFrame1)
+		n, err = w.Write(testIPv4TCPFrameHeader1)
 		require.Equal(t, io.ErrClosedPipe, err)
 		require.Zero(t, n)
 
@@ -334,20 +334,20 @@ func TestCFHWriter_Write(t *testing.T) {
 
 		w := newCFHWriter(pw)
 
-		n, err := w.Write(testIPv4TCPFrame1)
+		n, err := w.Write(testIPv4TCPFrameHeader1)
 		require.NoError(t, err)
-		require.Equal(t, len(testIPv4TCPFrame1), n)
+		require.Equal(t, len(testIPv4TCPFrameHeader1), n)
 
-		n, err = w.Write(testIPv4TCPFrame2)
+		n, err = w.Write(testIPv4TCPFrameHeader2)
 		require.NoError(t, err)
-		require.Equal(t, len(testIPv4TCPFrame2), n)
+		require.Equal(t, len(testIPv4TCPFrameHeader2), n)
 
 		wg.Wait()
 
 		err = pr.Close()
 		require.NoError(t, err)
 
-		n, err = w.Write(testIPv4TCPFrame1)
+		n, err = w.Write(testIPv4TCPFrameHeader1)
 		require.Equal(t, io.ErrClosedPipe, err)
 		require.Zero(t, n)
 
@@ -361,65 +361,65 @@ func TestCFHWriter_searchDictionary(t *testing.T) {
 		output := bytes.NewBuffer(make([]byte, 0, 4096))
 
 		w := newCFHWriter(output)
-		for _, frame := range testFrames {
-			n, err := w.Write(frame)
+		for _, header := range testFrameHeaders {
+			n, err := w.Write(header)
 			require.NoError(t, err)
-			require.Equal(t, len(frame), n)
+			require.Equal(t, len(header), n)
 		}
 
 		r := newCFHReader(output)
-		for _, frame := range testFrames {
-			buf := make([]byte, len(frame))
+		for _, header := range testFrameHeaders {
+			buf := make([]byte, len(header))
 			n, err := r.Read(buf)
 			require.NoError(t, err)
-			require.Equal(t, len(frame), n)
-			require.Equal(t, frame, buf)
+			require.Equal(t, len(header), n)
+			require.Equal(t, header, buf)
 		}
 	})
 
 	t.Run("slow", func(t *testing.T) {
 		output := bytes.NewBuffer(make([]byte, 0, 4096))
 
-		frames := testFrames
+		headers := testFrameHeaders
 		for i := 0; i < 16; i++ {
 			noise := make([]byte, 64)
 			_, err := rand.Read(noise)
 			require.NoError(t, err)
-			frames = append(frames, noise)
+			headers = append(headers, noise)
 		}
 
-		// append similar frames
-		frame := make([]byte, 64)
-		_, err := rand.Read(frame)
+		// append similar frame headers
+		header := make([]byte, 64)
+		_, err := rand.Read(header)
 		require.NoError(t, err)
-		sFrame1 := make([]byte, 64)
-		copy(sFrame1, frame)
-		for i := 0; i < len(frame)/cfhMinDiffDiv+2; i++ {
-			sFrame1[i+10]++
+		sHeader1 := make([]byte, 64)
+		copy(sHeader1, header)
+		for i := 0; i < len(header)/cfhMinDiffDiv+2; i++ {
+			sHeader1[i+10]++
 		}
-		sFrame2 := make([]byte, 64)
-		copy(sFrame2, frame)
-		for i := 0; i < len(frame)/cfhMinDiffDiv+3; i++ {
-			sFrame2[i+10]++
+		sHeader2 := make([]byte, 64)
+		copy(sHeader2, header)
+		for i := 0; i < len(header)/cfhMinDiffDiv+3; i++ {
+			sHeader2[i+10]++
 		}
-		frames = append(frames, frame, sFrame1, sFrame2)
+		headers = append(headers, header, sHeader1, sHeader2)
 
 		w := newCFHWriter(output)
-		for _, frame := range frames {
-			f := append(frame, 0)
-			n, err := w.Write(f)
+		for _, h := range headers {
+			nh := append(h, 0)
+			n, err := w.Write(nh)
 			require.NoError(t, err)
-			require.Equal(t, len(f), n)
+			require.Equal(t, len(nh), n)
 		}
 
 		r := newCFHReader(output)
-		for _, frame := range frames {
-			f := append(frame, 0)
-			buf := make([]byte, len(f))
+		for _, h := range headers {
+			nh := append(h, 0)
+			buf := make([]byte, len(nh))
 			n, err := r.Read(buf)
 			require.NoError(t, err)
-			require.Equal(t, len(f), n)
-			require.Equal(t, f, buf)
+			require.Equal(t, len(nh), n)
+			require.Equal(t, nh, buf)
 		}
 	})
 }
@@ -448,13 +448,13 @@ func TestCFHReader_Read(t *testing.T) {
 
 		w := newCFHWriter(output)
 
-		n, err := w.Write(testIPv4TCPFrame1)
+		n, err := w.Write(testIPv4TCPFrameHeader1)
 		require.NoError(t, err)
-		require.Equal(t, len(testIPv4TCPFrame1), n)
+		require.Equal(t, len(testIPv4TCPFrameHeader1), n)
 
 		r := newCFHReader(output)
 
-		buf1 := make([]byte, len(testIPv4TCPFrame1)-16)
+		buf1 := make([]byte, len(testIPv4TCPFrameHeader1)-16)
 		n, err = r.Read(buf1)
 		require.NoError(t, err)
 		require.Equal(t, len(buf1), n)
@@ -464,7 +464,7 @@ func TestCFHReader_Read(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, len(buf2), n)
 
-		require.Equal(t, testIPv4TCPFrame1, append(buf1, buf2...))
+		require.Equal(t, testIPv4TCPFrameHeader1, append(buf1, buf2...))
 	})
 
 	t.Run("read empty buffer", func(t *testing.T) {
@@ -683,68 +683,68 @@ func TestCFHReader_Read(t *testing.T) {
 
 func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 	t.Run("Ethernet IPv4 TCP", func(t *testing.T) {
-		for _, frame := range [][]byte{
-			testIPv4TCPFrame1,
-			testIPv4TCPFrame2,
-			testIPv4TCPFrame3,
-			testIPv4TCPFrame4,
-			testIPv4TCPFrame5,
-			testIPv4TCPFrame6,
-			testIPv4TCPFrame7,
-			testIPv4TCPFrame8,
+		for _, header := range [][]byte{
+			testIPv4TCPFrameHeader1,
+			testIPv4TCPFrameHeader2,
+			testIPv4TCPFrameHeader3,
+			testIPv4TCPFrameHeader4,
+			testIPv4TCPFrameHeader5,
+			testIPv4TCPFrameHeader6,
+			testIPv4TCPFrameHeader7,
+			testIPv4TCPFrameHeader8,
 		} {
-			size, prefer := isFrameHeaderPreferBeCompressed(frame)
+			size, prefer := isFrameHeaderPreferBeCompressed(header)
 			require.True(t, prefer)
 			require.Equal(t, cfhEthernetIPv4TCPSize, size)
 		}
 	})
 
 	t.Run("Ethernet IPv4 UDP", func(t *testing.T) {
-		for _, frame := range [][]byte{
-			testIPv4UDPFrame1,
-			testIPv4UDPFrame2,
-			testIPv4UDPFrame3,
-			testIPv4UDPFrame4,
-			testIPv4UDPFrame5,
-			testIPv4UDPFrame6,
-			testIPv4UDPFrame7,
-			testIPv4UDPFrame8,
+		for _, header := range [][]byte{
+			testIPv4UDPFrameHeader1,
+			testIPv4UDPFrameHeader2,
+			testIPv4UDPFrameHeader3,
+			testIPv4UDPFrameHeader4,
+			testIPv4UDPFrameHeader5,
+			testIPv4UDPFrameHeader6,
+			testIPv4UDPFrameHeader7,
+			testIPv4UDPFrameHeader8,
 		} {
-			size, prefer := isFrameHeaderPreferBeCompressed(frame)
+			size, prefer := isFrameHeaderPreferBeCompressed(header)
 			require.True(t, prefer)
 			require.Equal(t, cfhEthernetIPv4UDPSize, size)
 		}
 	})
 
 	t.Run("Ethernet IPv6 TCP", func(t *testing.T) {
-		for _, frame := range [][]byte{
-			testIPv6TCPFrame1,
-			testIPv6TCPFrame2,
-			testIPv6TCPFrame3,
-			testIPv6TCPFrame4,
-			testIPv6TCPFrame5,
-			testIPv6TCPFrame6,
-			testIPv6TCPFrame7,
-			testIPv6TCPFrame8,
+		for _, header := range [][]byte{
+			testIPv6TCPFrameHeader1,
+			testIPv6TCPFrameHeader2,
+			testIPv6TCPFrameHeader3,
+			testIPv6TCPFrameHeader4,
+			testIPv6TCPFrameHeader5,
+			testIPv6TCPFrameHeader6,
+			testIPv6TCPFrameHeader7,
+			testIPv6TCPFrameHeader8,
 		} {
-			size, prefer := isFrameHeaderPreferBeCompressed(frame)
+			size, prefer := isFrameHeaderPreferBeCompressed(header)
 			require.True(t, prefer)
 			require.Equal(t, cfhEthernetIPv6TCPSize, size)
 		}
 	})
 
 	t.Run("Ethernet IPv6 UDP", func(t *testing.T) {
-		for _, frame := range [][]byte{
-			testIPv6UDPFrame1,
-			testIPv6UDPFrame2,
-			testIPv6UDPFrame3,
-			testIPv6UDPFrame4,
-			testIPv6UDPFrame5,
-			testIPv6UDPFrame6,
-			testIPv6UDPFrame7,
-			testIPv6UDPFrame8,
+		for _, header := range [][]byte{
+			testIPv6UDPFrameHeader1,
+			testIPv6UDPFrameHeader2,
+			testIPv6UDPFrameHeader3,
+			testIPv6UDPFrameHeader4,
+			testIPv6UDPFrameHeader5,
+			testIPv6UDPFrameHeader6,
+			testIPv6UDPFrameHeader7,
+			testIPv6UDPFrameHeader8,
 		} {
-			size, prefer := isFrameHeaderPreferBeCompressed(frame)
+			size, prefer := isFrameHeaderPreferBeCompressed(header)
 			require.True(t, prefer)
 			require.Equal(t, cfhEthernetIPv6UDPSize, size)
 		}
@@ -757,53 +757,53 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 	})
 
 	t.Run("other network layer", func(t *testing.T) {
-		frame := make([]byte, len(testIPv4TCPFrame1))
-		copy(frame, testIPv4TCPFrame1)
-		frame[12] = 0xFF // next layer type
-		frame[13] = 0xFF // next layer type
+		header := make([]byte, len(testIPv4TCPFrameHeader1))
+		copy(header, testIPv4TCPFrameHeader1)
+		header[12] = 0xFF // next layer type
+		header[13] = 0xFF // next layer type
 
-		size, prefer := isFrameHeaderPreferBeCompressed(frame)
+		size, prefer := isFrameHeaderPreferBeCompressed(header)
 		require.False(t, prefer)
 		require.Zero(t, size)
 	})
 
 	t.Run("IPv4", func(t *testing.T) {
 		t.Run("with options", func(t *testing.T) {
-			frame := make([]byte, len(testIPv4TCPFrame1))
-			copy(frame, testIPv4TCPFrame1)
-			frame[14] = 0x46 // header length is not 20
+			header := make([]byte, len(testIPv4TCPFrameHeader1))
+			copy(header, testIPv4TCPFrameHeader1)
+			header[14] = 0x46 // header length is not 20
 
-			size, prefer := isFrameHeaderPreferBeCompressed(frame)
+			size, prefer := isFrameHeaderPreferBeCompressed(header)
 			require.False(t, prefer)
 			require.Zero(t, size)
 		})
 
 		t.Run("other transport layer", func(t *testing.T) {
-			frame := make([]byte, len(testIPv4TCPFrame1))
-			copy(frame, testIPv4TCPFrame1)
-			frame[23] = 0xFF
+			header := make([]byte, len(testIPv4TCPFrameHeader1))
+			copy(header, testIPv4TCPFrameHeader1)
+			header[23] = 0xFF
 
-			size, prefer := isFrameHeaderPreferBeCompressed(frame)
+			size, prefer := isFrameHeaderPreferBeCompressed(header)
 			require.False(t, prefer)
 			require.Zero(t, size)
 		})
 
 		t.Run("TCP", func(t *testing.T) {
 			t.Run("invalid frame size", func(t *testing.T) {
-				frame := make([]byte, len(testIPv4TCPFrame1)-1)
-				copy(frame, testIPv4TCPFrame1)
+				header := make([]byte, len(testIPv4TCPFrameHeader1)-1)
+				copy(header, testIPv4TCPFrameHeader1)
 
-				size, prefer := isFrameHeaderPreferBeCompressed(frame)
+				size, prefer := isFrameHeaderPreferBeCompressed(header)
 				require.False(t, prefer)
 				require.Zero(t, size)
 			})
 
 			t.Run("with options", func(t *testing.T) {
-				frame := make([]byte, len(testIPv4TCPFrame1))
-				copy(frame, testIPv4TCPFrame1)
-				frame[46] = 0xFF
+				header := make([]byte, len(testIPv4TCPFrameHeader1))
+				copy(header, testIPv4TCPFrameHeader1)
+				header[46] = 0xFF
 
-				size, prefer := isFrameHeaderPreferBeCompressed(frame)
+				size, prefer := isFrameHeaderPreferBeCompressed(header)
 				require.False(t, prefer)
 				require.Zero(t, size)
 			})
@@ -812,31 +812,31 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 
 	t.Run("IPv6", func(t *testing.T) {
 		t.Run("other transport layer", func(t *testing.T) {
-			frame := make([]byte, len(testIPv6TCPFrame1))
-			copy(frame, testIPv6TCPFrame1)
-			frame[20] = 0xFF
+			header := make([]byte, len(testIPv6TCPFrameHeader1))
+			copy(header, testIPv6TCPFrameHeader1)
+			header[20] = 0xFF
 
-			size, prefer := isFrameHeaderPreferBeCompressed(frame)
+			size, prefer := isFrameHeaderPreferBeCompressed(header)
 			require.False(t, prefer)
 			require.Zero(t, size)
 		})
 
 		t.Run("TCP", func(t *testing.T) {
 			t.Run("invalid frame size", func(t *testing.T) {
-				frame := make([]byte, len(testIPv6TCPFrame1)-1)
-				copy(frame, testIPv6TCPFrame1)
+				header := make([]byte, len(testIPv6TCPFrameHeader1)-1)
+				copy(header, testIPv6TCPFrameHeader1)
 
-				size, prefer := isFrameHeaderPreferBeCompressed(frame)
+				size, prefer := isFrameHeaderPreferBeCompressed(header)
 				require.False(t, prefer)
 				require.Zero(t, size)
 			})
 
 			t.Run("with options", func(t *testing.T) {
-				frame := make([]byte, len(testIPv6TCPFrame1))
-				copy(frame, testIPv6TCPFrame1)
-				frame[66] = 0xFF
+				header := make([]byte, len(testIPv6TCPFrameHeader1))
+				copy(header, testIPv6TCPFrameHeader1)
+				header[66] = 0xFF
 
-				size, prefer := isFrameHeaderPreferBeCompressed(frame)
+				size, prefer := isFrameHeaderPreferBeCompressed(header)
 				require.False(t, prefer)
 				require.Zero(t, size)
 			})
@@ -844,10 +844,10 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 
 		t.Run("UDP", func(t *testing.T) {
 			t.Run("invalid frame size", func(t *testing.T) {
-				frame := make([]byte, len(testIPv6UDPFrame1)-1)
-				copy(frame, testIPv6UDPFrame1)
+				header := make([]byte, len(testIPv6UDPFrameHeader1)-1)
+				copy(header, testIPv6UDPFrameHeader1)
 
-				size, prefer := isFrameHeaderPreferBeCompressed(frame)
+				size, prefer := isFrameHeaderPreferBeCompressed(header)
 				require.False(t, prefer)
 				require.Zero(t, size)
 			})
@@ -857,22 +857,22 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 
 func TestCFHWriter_Fuzz(t *testing.T) {
 	output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
-	frames := testGenerateFrames(t)
+	headers := testGenerateFrameHeaders(t)
 
 	w := newCFHWriter(output)
-	for _, frame := range frames {
-		n, err := w.Write(frame)
+	for _, header := range headers {
+		n, err := w.Write(header)
 		require.NoError(t, err)
-		require.Equal(t, len(frame), n)
+		require.Equal(t, len(header), n)
 	}
 
 	r := newCFHReader(output)
-	for _, frame := range frames {
-		buf := make([]byte, len(frame))
+	for _, header := range headers {
+		buf := make([]byte, len(header))
 		n, err := r.Read(buf)
 		require.NoError(t, err)
-		require.Equal(t, len(frame), n)
-		require.Equal(t, frame, buf)
+		require.Equal(t, len(header), n)
+		require.Equal(t, header, buf)
 	}
 }
 
@@ -892,9 +892,10 @@ func TestCFHReader_Fuzz(t *testing.T) {
 }
 
 func TestIsFrameHeaderPreferBeCompressed_Fuzz(t *testing.T) {
-	frames := testGenerateFrames(t)
-	for _, frame := range frames {
-		size, prefer := isFrameHeaderPreferBeCompressed(frame)
+	headers := testGenerateFrameHeaders(t)
+	for _, header := range headers {
+		f := append(header, 0)
+		size, prefer := isFrameHeaderPreferBeCompressed(f)
 		if !prefer {
 			continue
 		}
@@ -922,28 +923,28 @@ func benchmarkCFHWriterWriteEthernetIPv4TCP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv4TCPFrame1))
-		copy(frame, testIPv4TCPFrame1)
+		header := make([]byte, len(testIPv4TCPFrameHeader1))
+		copy(header, testIPv4TCPFrameHeader1)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		var err error
 		for i := 0; i < b.N; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
-			frame[19] = byte(i) + 2 // IPv4 ID [byte 2]
-			frame[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+			header[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			header[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			header[25] = byte(i) + 3 // IPv4 checksum [byte 2]
 
-			frame[41] = byte(i) + 4 // TCP Sequence [byte 4]
-			frame[45] = byte(i) + 5 // TCP acknowledgment [byte 4]
-			frame[50] = byte(i) + 6 // TCP checksum [byte 1]
-			frame[51] = byte(i) + 7 // TCP checksum [byte 2]
+			header[41] = byte(i) + 4 // TCP Sequence [byte 4]
+			header[45] = byte(i) + 5 // TCP acknowledgment [byte 4]
+			header[50] = byte(i) + 6 // TCP checksum [byte 1]
+			header[51] = byte(i) + 7 // TCP checksum [byte 2]
 		}
 
 		b.StopTimer()
@@ -953,31 +954,31 @@ func benchmarkCFHWriterWriteEthernetIPv4TCP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv4TCPFrame1))
-		copy(frame, testIPv4TCPFrame1)
+		header := make([]byte, len(testIPv4TCPFrameHeader1))
+		copy(header, testIPv4TCPFrameHeader1)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		var err error
 		for i := 0; i < b.N; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
-			frame[19] = byte(i) + 2 // IPv4 ID [byte 2]
-			frame[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+			header[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			header[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			header[25] = byte(i) + 3 // IPv4 checksum [byte 2]
 
-			frame[41] = byte(i) + 4 // TCP Sequence [byte 4]
-			frame[45] = byte(i) + 5 // TCP acknowledgment [byte 4]
-			frame[50] = byte(i) + 6 // TCP checksum [byte 1]
-			frame[51] = byte(i) + 7 // TCP checksum [byte 2]
+			header[41] = byte(i) + 4 // TCP Sequence [byte 4]
+			header[45] = byte(i) + 5 // TCP acknowledgment [byte 4]
+			header[50] = byte(i) + 6 // TCP checksum [byte 1]
+			header[51] = byte(i) + 7 // TCP checksum [byte 2]
 
 			// change destination port for create more dictionaries
-			frame[34] = byte(i) + 8
+			header[34] = byte(i) + 8
 		}
 
 		b.StopTimer()
@@ -989,27 +990,27 @@ func benchmarkCFHWriterWriteEthernetIPv4UDP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv4UDPFrame1))
-		copy(frame, testIPv4UDPFrame1)
+		header := make([]byte, len(testIPv4UDPFrameHeader1))
+		copy(header, testIPv4UDPFrameHeader1)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		var err error
 		for i := 0; i < b.N; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
-			frame[19] = byte(i) + 2 // IPv4 ID [byte 2]
-			frame[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+			header[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			header[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			header[25] = byte(i) + 3 // IPv4 checksum [byte 2]
 
-			frame[39] = byte(i) + 4 // UDP length [byte 4]
-			frame[40] = byte(i) + 5 // UDP checksum [byte 1]
-			frame[41] = byte(i) + 6 // UDP checksum [byte 2]
+			header[39] = byte(i) + 4 // UDP length [byte 4]
+			header[40] = byte(i) + 5 // UDP checksum [byte 1]
+			header[41] = byte(i) + 6 // UDP checksum [byte 2]
 		}
 
 		b.StopTimer()
@@ -1019,30 +1020,30 @@ func benchmarkCFHWriterWriteEthernetIPv4UDP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv4UDPFrame1))
-		copy(frame, testIPv4UDPFrame1)
+		header := make([]byte, len(testIPv4UDPFrameHeader1))
+		copy(header, testIPv4UDPFrameHeader1)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		var err error
 		for i := 0; i < b.N; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
-			frame[19] = byte(i) + 2 // IPv4 ID [byte 2]
-			frame[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+			header[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			header[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			header[25] = byte(i) + 3 // IPv4 checksum [byte 2]
 
-			frame[39] = byte(i) + 4 // UDP length [byte 4]
-			frame[40] = byte(i) + 5 // UDP checksum [byte 1]
-			frame[41] = byte(i) + 6 // UDP checksum [byte 2]
+			header[39] = byte(i) + 4 // UDP length [byte 4]
+			header[40] = byte(i) + 5 // UDP checksum [byte 1]
+			header[41] = byte(i) + 6 // UDP checksum [byte 2]
 
 			// change destination port for create more dictionaries
-			frame[34] = byte(i) + 7
+			header[34] = byte(i) + 7
 		}
 
 		b.StopTimer()
@@ -1054,26 +1055,26 @@ func benchmarkCFHWriterWriteEthernetIPv6TCP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv6TCPFrame1))
-		copy(frame, testIPv6TCPFrame1)
+		header := make([]byte, len(testIPv6TCPFrameHeader1))
+		copy(header, testIPv6TCPFrameHeader1)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		var err error
 		for i := 0; i < b.N; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+			header[19] = byte(i) + 1 // IPv6 payload length [byte 2]
 
-			frame[61] = byte(i) + 2 // TCP Sequence [byte 4]
-			frame[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
-			frame[70] = byte(i) + 4 // TCP checksum [byte 1]
-			frame[71] = byte(i) + 5 // TCP checksum [byte 2]
+			header[61] = byte(i) + 2 // TCP Sequence [byte 4]
+			header[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
+			header[70] = byte(i) + 4 // TCP checksum [byte 1]
+			header[71] = byte(i) + 5 // TCP checksum [byte 2]
 		}
 
 		b.StopTimer()
@@ -1083,29 +1084,29 @@ func benchmarkCFHWriterWriteEthernetIPv6TCP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv6TCPFrame1))
-		copy(frame, testIPv6TCPFrame1)
+		header := make([]byte, len(testIPv6TCPFrameHeader1))
+		copy(header, testIPv6TCPFrameHeader1)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		var err error
 		for i := 0; i < b.N; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+			header[19] = byte(i) + 1 // IPv6 payload length [byte 2]
 
-			frame[61] = byte(i) + 2 // TCP Sequence [byte 4]
-			frame[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
-			frame[70] = byte(i) + 4 // TCP checksum [byte 1]
-			frame[71] = byte(i) + 5 // TCP checksum [byte 2]
+			header[61] = byte(i) + 2 // TCP Sequence [byte 4]
+			header[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
+			header[70] = byte(i) + 4 // TCP checksum [byte 1]
+			header[71] = byte(i) + 5 // TCP checksum [byte 2]
 
 			// change destination port for create more dictionaries
-			frame[54] = byte(i) + 6
+			header[54] = byte(i) + 6
 		}
 
 		b.StopTimer()
@@ -1117,25 +1118,25 @@ func benchmarkCFHWriterWriteEthernetIPv6UDP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv6UDPFrame1))
-		copy(frame, testIPv6UDPFrame1)
+		header := make([]byte, len(testIPv6UDPFrameHeader1))
+		copy(header, testIPv6UDPFrameHeader1)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		var err error
 		for i := 0; i < b.N; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+			header[19] = byte(i) + 1 // IPv6 payload length [byte 2]
 
-			frame[59] = byte(i) + 2 // UDP length [byte 4]
-			frame[60] = byte(i) + 3 // UDP checksum [byte 1]
-			frame[61] = byte(i) + 4 // UDP checksum [byte 2]
+			header[59] = byte(i) + 2 // UDP length [byte 4]
+			header[60] = byte(i) + 3 // UDP checksum [byte 1]
+			header[61] = byte(i) + 4 // UDP checksum [byte 2]
 		}
 
 		b.StopTimer()
@@ -1145,28 +1146,28 @@ func benchmarkCFHWriterWriteEthernetIPv6UDP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv6UDPFrame1))
-		copy(frame, testIPv6UDPFrame1)
+		header := make([]byte, len(testIPv6UDPFrameHeader1))
+		copy(header, testIPv6UDPFrameHeader1)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		var err error
 		for i := 0; i < b.N; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+			header[19] = byte(i) + 1 // IPv6 payload length [byte 2]
 
-			frame[59] = byte(i) + 2 // UDP length [byte 4]
-			frame[60] = byte(i) + 3 // UDP checksum [byte 1]
-			frame[61] = byte(i) + 4 // UDP checksum [byte 2]
+			header[59] = byte(i) + 2 // UDP length [byte 4]
+			header[60] = byte(i) + 3 // UDP checksum [byte 1]
+			header[61] = byte(i) + 4 // UDP checksum [byte 2]
 
 			// change destination port for create more dictionaries
-			frame[54] = byte(i) + 5
+			header[54] = byte(i) + 5
 		}
 
 		b.StopTimer()
@@ -1178,22 +1179,22 @@ func benchmarkCFHWriterWriteCustomFrameHeader(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, 64)
-		copy(frame, testIPv4TCPFrame1)
+		header := make([]byte, 64)
+		copy(header, testIPv4TCPFrameHeader1)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		var err error
 		for i := 0; i < b.N; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// change a little
-			for j := 0; j < len(frame)/cfhMinDiffDiv-2; j++ {
-				frame[j] = byte(i) + 1
+			for j := 0; j < len(header)/cfhMinDiffDiv-2; j++ {
+				header[j] = byte(i) + 1
 			}
 		}
 
@@ -1204,22 +1205,22 @@ func benchmarkCFHWriterWriteCustomFrameHeader(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, 64)
-		copy(frame, testIPv4TCPFrame1)
+		header := make([]byte, 64)
+		copy(header, testIPv4TCPFrameHeader1)
 
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		var err error
 		for i := 0; i < b.N; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// change a lot
-			for j := 0; j < len(frame)/cfhMaxDiffDiv+2; j++ {
-				frame[j] = byte(i) + 1
+			for j := 0; j < len(header)/cfhMaxDiffDiv+2; j++ {
+				header[j] = byte(i) + 1
 			}
 		}
 
@@ -1240,31 +1241,31 @@ func benchmarkCFHReaderReadEthernetIPv4TCP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv4TCPFrame1))
-		copy(frame, testIPv4TCPFrame1)
+		header := make([]byte, len(testIPv4TCPFrameHeader1))
+		copy(header, testIPv4TCPFrameHeader1)
 
 		var err error
 		for i := 0; i < 1024; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
-			frame[19] = byte(i) + 2 // IPv4 ID [byte 2]
-			frame[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+			header[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			header[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			header[25] = byte(i) + 3 // IPv4 checksum [byte 2]
 
-			frame[41] = byte(i) + 4 // TCP Sequence [byte 4]
-			frame[45] = byte(i) + 5 // TCP acknowledgment [byte 4]
-			frame[50] = byte(i) + 6 // TCP checksum [byte 1]
-			frame[51] = byte(i) + 7 // TCP checksum [byte 2]
+			header[41] = byte(i) + 4 // TCP Sequence [byte 4]
+			header[45] = byte(i) + 5 // TCP acknowledgment [byte 4]
+			header[50] = byte(i) + 6 // TCP checksum [byte 1]
+			header[51] = byte(i) + 7 // TCP checksum [byte 2]
 		}
 
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(testIPv4TCPFrame1))
+		buf := make([]byte, len(testIPv4TCPFrameHeader1))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1291,34 +1292,34 @@ func benchmarkCFHReaderReadEthernetIPv4TCP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv4TCPFrame1))
-		copy(frame, testIPv4TCPFrame1)
+		header := make([]byte, len(testIPv4TCPFrameHeader1))
+		copy(header, testIPv4TCPFrameHeader1)
 
 		var err error
 		for i := 0; i < 1024; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
-			frame[19] = byte(i) + 2 // IPv4 ID [byte 2]
-			frame[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+			header[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			header[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			header[25] = byte(i) + 3 // IPv4 checksum [byte 2]
 
-			frame[41] = byte(i) + 4 // TCP Sequence [byte 4]
-			frame[45] = byte(i) + 5 // TCP acknowledgment [byte 4]
-			frame[50] = byte(i) + 6 // TCP checksum [byte 1]
-			frame[51] = byte(i) + 7 // TCP checksum [byte 2]
+			header[41] = byte(i) + 4 // TCP Sequence [byte 4]
+			header[45] = byte(i) + 5 // TCP acknowledgment [byte 4]
+			header[50] = byte(i) + 6 // TCP checksum [byte 1]
+			header[51] = byte(i) + 7 // TCP checksum [byte 2]
 
 			// change destination port for create more dictionaries
-			frame[34] = byte(i) + 8
+			header[34] = byte(i) + 8
 		}
 
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(testIPv4TCPFrame1))
+		buf := make([]byte, len(testIPv4TCPFrameHeader1))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1347,30 +1348,30 @@ func benchmarkCFHReaderReadEthernetIPv4UDP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv4UDPFrame1))
-		copy(frame, testIPv4UDPFrame1)
+		header := make([]byte, len(testIPv4UDPFrameHeader1))
+		copy(header, testIPv4UDPFrameHeader1)
 
 		var err error
 		for i := 0; i < 1024; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
-			frame[19] = byte(i) + 2 // IPv4 ID [byte 2]
-			frame[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+			header[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			header[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			header[25] = byte(i) + 3 // IPv4 checksum [byte 2]
 
-			frame[39] = byte(i) + 4 // UDP length [byte 4]
-			frame[40] = byte(i) + 5 // UDP checksum [byte 1]
-			frame[41] = byte(i) + 6 // UDP checksum [byte 2]
+			header[39] = byte(i) + 4 // UDP length [byte 4]
+			header[40] = byte(i) + 5 // UDP checksum [byte 1]
+			header[41] = byte(i) + 6 // UDP checksum [byte 2]
 		}
 
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(testIPv4UDPFrame1))
+		buf := make([]byte, len(testIPv4UDPFrameHeader1))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1397,33 +1398,33 @@ func benchmarkCFHReaderReadEthernetIPv4UDP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv4UDPFrame1))
-		copy(frame, testIPv4UDPFrame1)
+		header := make([]byte, len(testIPv4UDPFrameHeader1))
+		copy(header, testIPv4UDPFrameHeader1)
 
 		var err error
 		for i := 0; i < 1024; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
-			frame[19] = byte(i) + 2 // IPv4 ID [byte 2]
-			frame[25] = byte(i) + 3 // IPv4 checksum [byte 2]
+			header[17] = byte(i) + 1 // IPv4 Total Length [byte 2]
+			header[19] = byte(i) + 2 // IPv4 ID [byte 2]
+			header[25] = byte(i) + 3 // IPv4 checksum [byte 2]
 
-			frame[39] = byte(i) + 4 // UDP length [byte 4]
-			frame[40] = byte(i) + 5 // UDP checksum [byte 1]
-			frame[41] = byte(i) + 6 // UDP checksum [byte 2]
+			header[39] = byte(i) + 4 // UDP length [byte 4]
+			header[40] = byte(i) + 5 // UDP checksum [byte 1]
+			header[41] = byte(i) + 6 // UDP checksum [byte 2]
 
 			// change destination port for create more dictionaries
-			frame[34] = byte(i) + 7
+			header[34] = byte(i) + 7
 		}
 
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(testIPv4UDPFrame1))
+		buf := make([]byte, len(testIPv4UDPFrameHeader1))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1452,29 +1453,29 @@ func benchmarkCFHReaderReadEthernetIPv6TCP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv6TCPFrame1))
-		copy(frame, testIPv6TCPFrame1)
+		header := make([]byte, len(testIPv6TCPFrameHeader1))
+		copy(header, testIPv6TCPFrameHeader1)
 
 		var err error
 		for i := 0; i < 1024; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+			header[19] = byte(i) + 1 // IPv6 payload length [byte 2]
 
-			frame[61] = byte(i) + 2 // TCP Sequence [byte 4]
-			frame[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
-			frame[70] = byte(i) + 4 // TCP checksum [byte 1]
-			frame[71] = byte(i) + 5 // TCP checksum [byte 2]
+			header[61] = byte(i) + 2 // TCP Sequence [byte 4]
+			header[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
+			header[70] = byte(i) + 4 // TCP checksum [byte 1]
+			header[71] = byte(i) + 5 // TCP checksum [byte 2]
 		}
 
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(testIPv6TCPFrame1))
+		buf := make([]byte, len(testIPv6TCPFrameHeader1))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1501,32 +1502,32 @@ func benchmarkCFHReaderReadEthernetIPv6TCP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv6TCPFrame1))
-		copy(frame, testIPv6TCPFrame1)
+		header := make([]byte, len(testIPv6TCPFrameHeader1))
+		copy(header, testIPv6TCPFrameHeader1)
 
 		var err error
 		for i := 0; i < 1024; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+			header[19] = byte(i) + 1 // IPv6 payload length [byte 2]
 
-			frame[61] = byte(i) + 2 // TCP Sequence [byte 4]
-			frame[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
-			frame[70] = byte(i) + 4 // TCP checksum [byte 1]
-			frame[71] = byte(i) + 5 // TCP checksum [byte 2]
+			header[61] = byte(i) + 2 // TCP Sequence [byte 4]
+			header[65] = byte(i) + 3 // TCP acknowledgment [byte 4]
+			header[70] = byte(i) + 4 // TCP checksum [byte 1]
+			header[71] = byte(i) + 5 // TCP checksum [byte 2]
 
 			// change destination port for create more dictionaries
-			frame[54] = byte(i) + 6
+			header[54] = byte(i) + 6
 		}
 
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(testIPv6TCPFrame1))
+		buf := make([]byte, len(testIPv6TCPFrameHeader1))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1555,28 +1556,28 @@ func benchmarkCFHReaderReadEthernetIPv6UDP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv6UDPFrame1))
-		copy(frame, testIPv6UDPFrame1)
+		header := make([]byte, len(testIPv6UDPFrameHeader1))
+		copy(header, testIPv6UDPFrameHeader1)
 
 		var err error
 		for i := 0; i < 1024; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+			header[19] = byte(i) + 1 // IPv6 payload length [byte 2]
 
-			frame[59] = byte(i) + 2 // UDP length [byte 4]
-			frame[60] = byte(i) + 3 // UDP checksum [byte 1]
-			frame[61] = byte(i) + 4 // UDP checksum [byte 2]
+			header[59] = byte(i) + 2 // UDP length [byte 4]
+			header[60] = byte(i) + 3 // UDP checksum [byte 1]
+			header[61] = byte(i) + 4 // UDP checksum [byte 2]
 		}
 
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(testIPv6UDPFrame1))
+		buf := make([]byte, len(testIPv6UDPFrameHeader1))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1603,31 +1604,31 @@ func benchmarkCFHReaderReadEthernetIPv6UDP(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv6UDPFrame1))
-		copy(frame, testIPv6UDPFrame1)
+		header := make([]byte, len(testIPv6UDPFrameHeader1))
+		copy(header, testIPv6UDPFrameHeader1)
 
 		var err error
 		for i := 0; i < 1024; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// data that change frequently
-			frame[19] = byte(i) + 1 // IPv6 payload length [byte 2]
+			header[19] = byte(i) + 1 // IPv6 payload length [byte 2]
 
-			frame[59] = byte(i) + 2 // UDP length [byte 4]
-			frame[60] = byte(i) + 3 // UDP checksum [byte 1]
-			frame[61] = byte(i) + 4 // UDP checksum [byte 2]
+			header[59] = byte(i) + 2 // UDP length [byte 4]
+			header[60] = byte(i) + 3 // UDP checksum [byte 1]
+			header[61] = byte(i) + 4 // UDP checksum [byte 2]
 
 			// change destination port for create more dictionaries
-			frame[54] = byte(i) + 5
+			header[54] = byte(i) + 5
 		}
 
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(testIPv6UDPFrame1))
+		buf := make([]byte, len(testIPv6UDPFrameHeader1))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1656,26 +1657,26 @@ func benchmarkCFHReaderReadCustomFrameHeader(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, 64)
-		copy(frame, testIPv4TCPFrame1)
+		header := make([]byte, 64)
+		copy(header, testIPv4TCPFrameHeader1)
 
 		var err error
 		for i := 0; i < 1024; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// change a little
-			for j := 0; j < len(frame)/cfhMinDiffDiv-2; j++ {
-				frame[j] = byte(i) + 1
+			for j := 0; j < len(header)/cfhMinDiffDiv-2; j++ {
+				header[j] = byte(i) + 1
 			}
 		}
 
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(frame))
+		buf := make([]byte, len(header))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1702,26 +1703,26 @@ func benchmarkCFHReaderReadCustomFrameHeader(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, 64)
-		copy(frame, testIPv4TCPFrame1)
+		header := make([]byte, 64)
+		copy(header, testIPv4TCPFrameHeader1)
 
 		var err error
 		for i := 0; i < 1024; i++ {
-			_, err = w.Write(frame)
+			_, err = w.Write(header)
 			if err != nil {
 				b.Fatal(err)
 			}
 
 			// change a little
-			for j := 0; j < len(frame)/cfhMaxDiffDiv+2; j++ {
-				frame[j] = byte(i) + 1
+			for j := 0; j < len(header)/cfhMaxDiffDiv+2; j++ {
+				header[j] = byte(i) + 1
 			}
 		}
 
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(frame))
+		buf := make([]byte, len(header))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1753,14 +1754,14 @@ func BenchmarkIsFrameHeaderPreferBeCompressed(b *testing.B) {
 }
 
 func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv4TCP(b *testing.B) {
-	frame := make([]byte, len(testIPv4TCPFrame1)+16)
-	copy(frame, testIPv4TCPFrame1)
+	header := make([]byte, len(testIPv4TCPFrameHeader1)+16)
+	copy(header, testIPv4TCPFrameHeader1)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		size, prefer := isFrameHeaderPreferBeCompressed(frame)
+		size, prefer := isFrameHeaderPreferBeCompressed(header)
 		if !prefer {
 			b.Fatal("not prefer")
 		}
@@ -1773,14 +1774,14 @@ func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv4TCP(b *testing.B) {
 }
 
 func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv4UDP(b *testing.B) {
-	frame := make([]byte, len(testIPv4UDPFrame1)+16)
-	copy(frame, testIPv4UDPFrame1)
+	header := make([]byte, len(testIPv4UDPFrameHeader1)+16)
+	copy(header, testIPv4UDPFrameHeader1)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		size, prefer := isFrameHeaderPreferBeCompressed(frame)
+		size, prefer := isFrameHeaderPreferBeCompressed(header)
 		if !prefer {
 			b.Fatal("not prefer")
 		}
@@ -1793,14 +1794,14 @@ func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv4UDP(b *testing.B) {
 }
 
 func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv6TCP(b *testing.B) {
-	frame := make([]byte, len(testIPv6TCPFrame1)+16)
-	copy(frame, testIPv6TCPFrame1)
+	header := make([]byte, len(testIPv6TCPFrameHeader1)+16)
+	copy(header, testIPv6TCPFrameHeader1)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		size, prefer := isFrameHeaderPreferBeCompressed(frame)
+		size, prefer := isFrameHeaderPreferBeCompressed(header)
 		if !prefer {
 			b.Fatal("not prefer")
 		}
@@ -1813,14 +1814,14 @@ func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv6TCP(b *testing.B) {
 }
 
 func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv6UDP(b *testing.B) {
-	frame := make([]byte, len(testIPv6UDPFrame1)+16)
-	copy(frame, testIPv6UDPFrame1)
+	header := make([]byte, len(testIPv6UDPFrameHeader1)+16)
+	copy(header, testIPv6UDPFrameHeader1)
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		size, prefer := isFrameHeaderPreferBeCompressed(frame)
+		size, prefer := isFrameHeaderPreferBeCompressed(header)
 		if !prefer {
 			b.Fatal("not prefer")
 		}
