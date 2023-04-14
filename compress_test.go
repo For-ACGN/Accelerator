@@ -914,7 +914,7 @@ func BenchmarkCFHWriter_Write(b *testing.B) {
 	b.Run("Ethernet IPv4 UDP", benchmarkCFHWriterWriteEthernetIPv4UDP)
 	b.Run("Ethernet IPv6 TCP", benchmarkCFHWriterWriteEthernetIPv6TCP)
 	b.Run("Ethernet IPv6 UDP", benchmarkCFHWriterWriteEthernetIPv6UDP)
-	b.Run("Slow Search", benchmarkCFHWriterSlowSearch)
+	b.Run("Custom Frame Header", benchmarkCFHWriterWriteCustomFrameHeader)
 }
 
 func benchmarkCFHWriterWriteEthernetIPv4TCP(b *testing.B) {
@@ -1173,7 +1173,7 @@ func benchmarkCFHWriterWriteEthernetIPv6UDP(b *testing.B) {
 	})
 }
 
-func benchmarkCFHWriterSlowSearch(b *testing.B) {
+func benchmarkCFHWriterWriteCustomFrameHeader(b *testing.B) {
 	b.Run("single dictionary", func(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
 		w := newCFHWriter(output)
@@ -1191,16 +1191,10 @@ func benchmarkCFHWriterSlowSearch(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			// change 8 bytes
-			frame[11] = byte(i) + 1
-			frame[13] = byte(i) + 2
-			frame[25] = byte(i) + 3
-			frame[27] = byte(i) + 4
-
-			frame[39] = byte(i) + 5
-			frame[32] = byte(i) + 6
-			frame[44] = byte(i) + 7
-			frame[46] = byte(i) + 8
+			// change a little
+			for j := 0; j < len(frame)/cfhMinDiffDiv-2; j++ {
+				frame[j] = byte(i) + 1
+			}
 		}
 
 		b.StopTimer()
@@ -1223,16 +1217,10 @@ func benchmarkCFHWriterSlowSearch(b *testing.B) {
 				b.Fatal(err)
 			}
 
-			// change 8 bytes
-			frame[11] = byte(i) + 1
-			frame[13] = byte(i) + 2
-			frame[25] = byte(i) + 3
-			frame[27] = byte(i) + 4
-
-			frame[39] = byte(i) + 5
-			frame[32] = byte(i) + 6
-			frame[44] = byte(i) + 7
-			frame[46] = byte(i) + 8
+			// change a lot
+			for j := 0; j < len(frame)/cfhMinDiffDiv+2; j++ {
+				frame[j] = byte(i) + 1
+			}
 		}
 
 		b.StopTimer()
