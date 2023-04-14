@@ -1750,7 +1750,6 @@ func BenchmarkIsFrameHeaderPreferBeCompressed(b *testing.B) {
 	b.Run("Ethernet IPv4 UDP", benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv4UDP)
 	b.Run("Ethernet IPv6 TCP", benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv6TCP)
 	b.Run("Ethernet IPv6 UDP", benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv6UDP)
-	b.Run("Custom Frame Header", benchmarkIsFrameHeaderPreferBeCompressedCustomFrameHeader)
 }
 
 func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv4TCP(b *testing.B) {
@@ -1774,17 +1773,61 @@ func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv4TCP(b *testing.B) {
 }
 
 func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv4UDP(b *testing.B) {
+	frame := make([]byte, len(testIPv4UDPFrame1)+16)
+	copy(frame, testIPv4UDPFrame1)
 
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		size, prefer := isFrameHeaderPreferBeCompressed(frame)
+		if !prefer {
+			b.Fatal("not prefer")
+		}
+		if size != cfhEthernetIPv4UDPSize {
+			b.Fatal("invalid size")
+		}
+	}
+
+	b.StopTimer()
 }
 
 func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv6TCP(b *testing.B) {
+	frame := make([]byte, len(testIPv6TCPFrame1)+16)
+	copy(frame, testIPv6TCPFrame1)
 
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		size, prefer := isFrameHeaderPreferBeCompressed(frame)
+		if !prefer {
+			b.Fatal("not prefer")
+		}
+		if size != cfhEthernetIPv6TCPSize {
+			b.Fatal("invalid size")
+		}
+	}
+
+	b.StopTimer()
 }
 
 func benchmarkIsFrameHeaderPreferBeCompressedEthernetIPv6UDP(b *testing.B) {
+	frame := make([]byte, len(testIPv6UDPFrame1)+16)
+	copy(frame, testIPv6UDPFrame1)
 
-}
+	b.ReportAllocs()
+	b.ResetTimer()
 
-func benchmarkIsFrameHeaderPreferBeCompressedCustomFrameHeader(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		size, prefer := isFrameHeaderPreferBeCompressed(frame)
+		if !prefer {
+			b.Fatal("not prefer")
+		}
+		if size != cfhEthernetIPv6UDPSize {
+			b.Fatal("invalid size")
+		}
+	}
 
+	b.StopTimer()
 }
