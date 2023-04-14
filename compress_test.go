@@ -1218,7 +1218,7 @@ func benchmarkCFHWriterWriteCustomFrameHeader(b *testing.B) {
 			}
 
 			// change a lot
-			for j := 0; j < len(frame)/cfhMinDiffDiv+2; j++ {
+			for j := 0; j < len(frame)/cfhMaxDiffDiv+2; j++ {
 				frame[j] = byte(i) + 1
 			}
 		}
@@ -1653,10 +1653,10 @@ func benchmarkCFHReaderReadEthernetIPv6UDP(b *testing.B) {
 
 func benchmarkCFHReaderReadCustomFrameHeader(b *testing.B) {
 	b.Run("single dictionary", func(b *testing.B) {
-		output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
+		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, 64)
+		frame := make([]byte, len(testIPv4TCPFrame1))
 		copy(frame, testIPv4TCPFrame1)
 
 		var err error
@@ -1699,6 +1699,48 @@ func benchmarkCFHReaderReadCustomFrameHeader(b *testing.B) {
 	})
 
 	b.Run("multi dictionaries", func(b *testing.B) {
+		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
+		w := newCFHWriter(output)
 
+		frame := make([]byte, len(testIPv4TCPFrame1))
+		copy(frame, testIPv4TCPFrame1)
+
+		var err error
+		for i := 0; i < 1024; i++ {
+			_, err = w.Write(frame)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			// change a little
+			for j := 0; j < len(frame)/cfhMaxDiffDiv+2; j++ {
+				frame[j] = byte(i) + 1
+			}
+		}
+
+		reader := bytes.NewReader(output.Bytes())
+
+		r := newCFHReader(reader)
+		buf := make([]byte, len(testIPv4TCPFrame1))
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			_, err = r.Read(buf)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			if reader.Len() != 0 {
+				continue
+			}
+			_, err = reader.Seek(0, io.SeekStart)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+
+		b.StopTimer()
 	})
 }
