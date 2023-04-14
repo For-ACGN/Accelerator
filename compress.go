@@ -363,8 +363,9 @@ type cfhReader struct {
 	dict [][]byte
 	buf  []byte
 	chg  []byte
+	data []byte
 	last bytes.Buffer
-	data bytes.Buffer
+	rem  bytes.Buffer
 	err  error
 }
 
@@ -408,8 +409,8 @@ func (r *cfhReader) Read(b []byte) (int, error) {
 
 func (r *cfhReader) read(b []byte) (int, error) {
 	// read remaining data
-	if r.data.Len() != 0 {
-		return r.data.Read(b)
+	if r.rem.Len() != 0 {
+		return r.rem.Read(b)
 	}
 	// read command
 	_, err := io.ReadFull(r.r, r.buf)
@@ -431,7 +432,11 @@ func (r *cfhReader) read(b []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return r.data.Read(b)
+	n := copy(b, r.data)
+	if n < len(r.data) {
+		r.rem.Write(r.data[n:])
+	}
+	return n, nil
 }
 
 func (r *cfhReader) addDictionary() error {
@@ -455,8 +460,8 @@ func (r *cfhReader) addDictionary() error {
 		r.dict[i] = r.dict[i-1]
 	}
 	r.dict[0] = dict
-	r.data.Write(dict)
 	// update status
+	r.data = dict
 	r.updateLast(dict)
 	return nil
 }
@@ -496,15 +501,15 @@ func (r *cfhReader) readChangedData() error {
 		}
 		dict[dataIdx] = r.chg[i+1]
 	}
-	r.data.Write(dict)
 	// update status
+	r.data = dict
 	r.moveDictionary(idx)
 	r.updateLast(dict)
 	return nil
 }
 
 func (r *cfhReader) reuseLastData() {
-	r.data.Write(r.last.Bytes())
+	r.data = r.last.Bytes()
 }
 
 func (r *cfhReader) reusePreviousData() error {
@@ -518,8 +523,8 @@ func (r *cfhReader) reusePreviousData() error {
 	if len(dict) < 1 {
 		return fmt.Errorf("read invalid dictionary index: %d", idx)
 	}
-	r.data.Write(dict)
 	// update status
+	r.data = dict
 	r.moveDictionary(idx)
 	r.updateLast(dict)
 	return nil
