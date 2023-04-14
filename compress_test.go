@@ -1656,7 +1656,7 @@ func benchmarkCFHReaderReadCustomFrameHeader(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv4TCPFrame1))
+		frame := make([]byte, 64)
 		copy(frame, testIPv4TCPFrame1)
 
 		var err error
@@ -1675,7 +1675,7 @@ func benchmarkCFHReaderReadCustomFrameHeader(b *testing.B) {
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(testIPv4TCPFrame1))
+		buf := make([]byte, len(frame))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -1702,7 +1702,7 @@ func benchmarkCFHReaderReadCustomFrameHeader(b *testing.B) {
 		output := bytes.NewBuffer(make([]byte, 0, 1024*1024))
 		w := newCFHWriter(output)
 
-		frame := make([]byte, len(testIPv4TCPFrame1))
+		frame := make([]byte, 64)
 		copy(frame, testIPv4TCPFrame1)
 
 		var err error
@@ -1721,7 +1721,7 @@ func benchmarkCFHReaderReadCustomFrameHeader(b *testing.B) {
 		reader := bytes.NewReader(output.Bytes())
 
 		r := newCFHReader(reader)
-		buf := make([]byte, len(testIPv4TCPFrame1))
+		buf := make([]byte, len(frame))
 
 		b.ReportAllocs()
 		b.ResetTimer()
