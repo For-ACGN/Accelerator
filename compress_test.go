@@ -98,7 +98,7 @@ func testGenerateFrameHeaders(t *testing.T) [][]byte {
 	typ := make([]byte, 1)
 	idx := make([]byte, 2)
 	for i := 0; i < len(headers); i++ {
-		// select frame length
+		// select frame header type
 		_, err := rand.Read(typ)
 		require.NoError(t, err)
 		switch typ[0] % 5 {
@@ -157,7 +157,11 @@ func testGenerateFrameHeaders(t *testing.T) [][]byte {
 			header := make([]byte, size)
 			_, err = rand.Read(header)
 			require.NoError(t, err)
-
+			// at the end of the generated headers
+			if i > len(headers)-10 {
+				headers[i] = header
+				continue
+			}
 			// append similar frame headers
 			sHeader1 := make([]byte, size)
 			copy(sHeader1, header)
