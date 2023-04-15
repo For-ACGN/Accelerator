@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const minNATMapTimeout = time.Minute
+const minNATMapTimeout = 3 * time.Minute
 
 type port = [2]byte
 type icmpID = [2]byte
@@ -808,7 +808,7 @@ func (nat *nat) deleteICMPv6IDMap(li *icmpv6LI, ri icmpv6RI) {
 	delete(nat.icmpv6RL, ri)
 }
 
-// TODO prevent collide with static port map
+// TODO previous collide with static port map
 func (nat *nat) generateRandomIPv4TCPPort() uint16 {
 	return nat.generateRandomPort()
 }
@@ -884,8 +884,8 @@ func (nat *nat) clean() {
 
 func (nat *nat) cleanIPv4TCPPortMap() {
 	var (
-		prevent uint32
-		current uint32
+		previous uint32
+		current  uint32
 	)
 	now := time.Now()
 	nat.ipv4TCPRWM.Lock()
@@ -894,9 +894,9 @@ func (nat *nat) cleanIPv4TCPPortMap() {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
-		prevent = atomic.LoadUint32(li.preCtr)
+		previous = atomic.LoadUint32(li.preCtr)
 		current = atomic.LoadUint32(li.curCtr)
-		if prevent != current {
+		if previous != current {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
@@ -906,8 +906,8 @@ func (nat *nat) cleanIPv4TCPPortMap() {
 
 func (nat *nat) cleanIPv4UDPPortMap() {
 	var (
-		prevent uint32
-		current uint32
+		previous uint32
+		current  uint32
 	)
 	now := time.Now()
 	nat.ipv4UDPRWM.Lock()
@@ -916,9 +916,9 @@ func (nat *nat) cleanIPv4UDPPortMap() {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
-		prevent = atomic.LoadUint32(li.preCtr)
+		previous = atomic.LoadUint32(li.preCtr)
 		current = atomic.LoadUint32(li.curCtr)
-		if prevent != current {
+		if previous != current {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
@@ -928,8 +928,8 @@ func (nat *nat) cleanIPv4UDPPortMap() {
 
 func (nat *nat) cleanICMPv4IDMap() {
 	var (
-		prevent uint32
-		current uint32
+		previous uint32
+		current  uint32
 	)
 	now := time.Now()
 	nat.icmpv4RWM.Lock()
@@ -938,9 +938,9 @@ func (nat *nat) cleanICMPv4IDMap() {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
-		prevent = atomic.LoadUint32(li.preCtr)
+		previous = atomic.LoadUint32(li.preCtr)
 		current = atomic.LoadUint32(li.curCtr)
-		if prevent != current {
+		if previous != current {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
@@ -950,8 +950,8 @@ func (nat *nat) cleanICMPv4IDMap() {
 
 func (nat *nat) cleanIPv6TCPPortMap() {
 	var (
-		prevent uint32
-		current uint32
+		previous uint32
+		current  uint32
 	)
 	now := time.Now()
 	nat.ipv6TCPRWM.Lock()
@@ -960,9 +960,9 @@ func (nat *nat) cleanIPv6TCPPortMap() {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
-		prevent = atomic.LoadUint32(li.preCtr)
+		previous = atomic.LoadUint32(li.preCtr)
 		current = atomic.LoadUint32(li.curCtr)
-		if prevent != current {
+		if previous != current {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
@@ -972,8 +972,8 @@ func (nat *nat) cleanIPv6TCPPortMap() {
 
 func (nat *nat) cleanIPv6UDPPortMap() {
 	var (
-		prevent uint32
-		current uint32
+		previous uint32
+		current  uint32
 	)
 	now := time.Now()
 	nat.ipv6UDPRWM.Lock()
@@ -982,9 +982,9 @@ func (nat *nat) cleanIPv6UDPPortMap() {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
-		prevent = atomic.LoadUint32(li.preCtr)
+		previous = atomic.LoadUint32(li.preCtr)
 		current = atomic.LoadUint32(li.curCtr)
-		if prevent != current {
+		if previous != current {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
@@ -994,8 +994,8 @@ func (nat *nat) cleanIPv6UDPPortMap() {
 
 func (nat *nat) cleanICMPv6IDMap() {
 	var (
-		prevent uint32
-		current uint32
+		previous uint32
+		current  uint32
 	)
 	now := time.Now()
 	nat.icmpv6RWM.Lock()
@@ -1004,9 +1004,9 @@ func (nat *nat) cleanICMPv6IDMap() {
 		if now.Sub(li.createAt) < nat.mapTimeout {
 			continue
 		}
-		prevent = atomic.LoadUint32(li.preCtr)
+		previous = atomic.LoadUint32(li.preCtr)
 		current = atomic.LoadUint32(li.curCtr)
-		if prevent != current {
+		if previous != current {
 			atomic.StoreUint32(li.preCtr, current)
 			continue
 		}
