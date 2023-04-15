@@ -58,20 +58,17 @@ func buildAuthResponse() ([]byte, error) {
 func generateRandomData() ([]byte, error) {
 	sizeBuf := make([]byte, 2)
 	var size uint16
-	for {
+	for size < 128 {
 		_, err := rand.Read(sizeBuf)
 		if err != nil {
-			return nil, errors.WithStack(err)
+			return nil, errors.Wrap(err, "failed to generate random data size")
 		}
 		size = binary.BigEndian.Uint16(sizeBuf)
-		if size > 128 {
-			break
-		}
 	}
 	padding := make([]byte, size)
 	_, err := rand.Read(padding)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, errors.Wrap(err, "failed to generate random data")
 	}
 	return append(sizeBuf, padding...), nil
 }
@@ -81,7 +78,7 @@ func readPaddingRandomData(r io.Reader) error {
 	buf := make([]byte, 2)
 	_, err := io.ReadFull(r, buf)
 	if err != nil {
-		return errors.WithStack(err)
+		return errors.Wrap(err, "failed to read random data size")
 	}
 	size := binary.BigEndian.Uint16(buf)
 	_, err = io.CopyN(io.Discard, r, int64(size))
@@ -149,29 +146,27 @@ func readPaddingRandomData(r io.Reader) error {
 // +---------+---------------+---------+-------------+
 //
 // # options in client request
-// +---------+----------+
-// | num opt | compress |
-// +---------+----------+
-// |  uint8  |   bool   |
-// +---------+----------+
+// +---------+-----------------------+
+// | num opt | compress frame header |
+// +---------+-----------------------+
+// |  uint8  |          bool         |
+// +---------+-----------------------+
 //
 // [server response]
-// +----------+--------+-------------+
-// | response | option | random data |
-// +----------+--------+-------------+
-// |   byte   |   var  | 2+var bytes |
-// +----------+--------+-------------+
+// +----------+---------+-------------+
+// | response | options | random data |
+// +----------+---------+-------------+
+// |   byte   |   var   | 2+var bytes |
+// +----------+---------+-------------+
 //
 // # options in server response
-//
-// ## connection pool is full
-// +--------------------+
-// | max conn pool size |
-// +--------------------+
-// | uint16(big endian) |
-// +--------------------+
+// +---------+--------------------+
+// | num opt | max conn pool size |
+// +---------+--------------------+
+// |  uint8  | uint16(big endian) |
+// +---------+--------------------+
 const (
-	cmdLogin = iota
+	cmdLogin = 1 + iota
 	cmdLogoff
 	cmdTransport
 )
@@ -185,7 +180,9 @@ const (
 
 	transportOK  = 0x10
 	invalidToken = 0x11
-	fullConnPool = 0x12
+
+	enableCFH    = 0x20
+	fullConnPool = 0x80
 )
 
 type sessionToken = [tokenSize]byte
