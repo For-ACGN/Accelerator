@@ -3,6 +3,7 @@ module github.com/For-ACGN/Accelerator
 go 1.20
 
 require (
+	github.com/agiledragon/gomonkey/v2 v2.9.0
 	github.com/pelletier/go-toml/v2 v2.0.7
 	github.com/pkg/errors v0.9.1
 	github.com/quic-go/quic-go v0.33.0
