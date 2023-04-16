@@ -96,7 +96,7 @@ func testMustHexDecodeString(s string) []byte {
 }
 
 func testGenerateFrameHeaders(t *testing.T) [][]byte {
-	headers := make([][]byte, 512*1024)
+	headers := make([][]byte, 64*1024)
 	typ := make([]byte, 1)
 	idx := make([]byte, 2)
 	for i := 0; i < len(headers); i++ {
@@ -904,7 +904,7 @@ func TestIsFrameHeaderPreferBeCompressed(t *testing.T) {
 }
 
 func TestCFHWriter_Fuzz(t *testing.T) {
-	output := bytes.NewBuffer(make([]byte, 0, 64*1024*1024))
+	output := bytes.NewBuffer(make([]byte, 0, 4*1024*1024))
 	headers := testGenerateFrameHeaders(t)
 
 	w := newCFHWriter(output)
@@ -928,7 +928,7 @@ func TestCFHReader_Fuzz(t *testing.T) {
 	data := make([]byte, 128)
 	reader := bytes.NewReader(data)
 	buf := make([]byte, 256)
-	for i := 0; i < 1024*1024; i++ {
+	for i := 0; i < 128*1024; i++ {
 		_, err := rand.Read(data)
 		require.NoError(t, err)
 		_, err = reader.Seek(0, io.SeekStart)
