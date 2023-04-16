@@ -34,41 +34,41 @@ var (
 	testUDPH1 = "fb7b003500385f66"
 	testUDPH2 = "fb7b003600385f66"
 
-	testIPv4TCPFrameHeader1 = testMustDecodeHex(testEthernet1 + testIPv4H1 + testTCPH1)
-	testIPv4TCPFrameHeader2 = testMustDecodeHex(testEthernet1 + testIPv4H1 + testTCPH2)
-	testIPv4TCPFrameHeader3 = testMustDecodeHex(testEthernet1 + testIPv4H2 + testTCPH1)
-	testIPv4TCPFrameHeader4 = testMustDecodeHex(testEthernet1 + testIPv4H2 + testTCPH2)
-	testIPv4TCPFrameHeader5 = testMustDecodeHex(testEthernet2 + testIPv4H1 + testTCPH1)
-	testIPv4TCPFrameHeader6 = testMustDecodeHex(testEthernet2 + testIPv4H1 + testTCPH2)
-	testIPv4TCPFrameHeader7 = testMustDecodeHex(testEthernet2 + testIPv4H2 + testTCPH1)
-	testIPv4TCPFrameHeader8 = testMustDecodeHex(testEthernet2 + testIPv4H2 + testTCPH2)
+	testIPv4TCPFrameHeader1 = testMustHexDecodeString(testEthernet1 + testIPv4H1 + testTCPH1)
+	testIPv4TCPFrameHeader2 = testMustHexDecodeString(testEthernet1 + testIPv4H1 + testTCPH2)
+	testIPv4TCPFrameHeader3 = testMustHexDecodeString(testEthernet1 + testIPv4H2 + testTCPH1)
+	testIPv4TCPFrameHeader4 = testMustHexDecodeString(testEthernet1 + testIPv4H2 + testTCPH2)
+	testIPv4TCPFrameHeader5 = testMustHexDecodeString(testEthernet2 + testIPv4H1 + testTCPH1)
+	testIPv4TCPFrameHeader6 = testMustHexDecodeString(testEthernet2 + testIPv4H1 + testTCPH2)
+	testIPv4TCPFrameHeader7 = testMustHexDecodeString(testEthernet2 + testIPv4H2 + testTCPH1)
+	testIPv4TCPFrameHeader8 = testMustHexDecodeString(testEthernet2 + testIPv4H2 + testTCPH2)
 
-	testIPv4UDPFrameHeader1 = testMustDecodeHex(testEthernet1 + testIPv4H3 + testUDPH1)
-	testIPv4UDPFrameHeader2 = testMustDecodeHex(testEthernet1 + testIPv4H3 + testUDPH2)
-	testIPv4UDPFrameHeader3 = testMustDecodeHex(testEthernet1 + testIPv4H4 + testUDPH1)
-	testIPv4UDPFrameHeader4 = testMustDecodeHex(testEthernet1 + testIPv4H4 + testUDPH2)
-	testIPv4UDPFrameHeader5 = testMustDecodeHex(testEthernet2 + testIPv4H3 + testUDPH1)
-	testIPv4UDPFrameHeader6 = testMustDecodeHex(testEthernet2 + testIPv4H3 + testUDPH2)
-	testIPv4UDPFrameHeader7 = testMustDecodeHex(testEthernet2 + testIPv4H4 + testUDPH1)
-	testIPv4UDPFrameHeader8 = testMustDecodeHex(testEthernet2 + testIPv4H4 + testUDPH2)
+	testIPv4UDPFrameHeader1 = testMustHexDecodeString(testEthernet1 + testIPv4H3 + testUDPH1)
+	testIPv4UDPFrameHeader2 = testMustHexDecodeString(testEthernet1 + testIPv4H3 + testUDPH2)
+	testIPv4UDPFrameHeader3 = testMustHexDecodeString(testEthernet1 + testIPv4H4 + testUDPH1)
+	testIPv4UDPFrameHeader4 = testMustHexDecodeString(testEthernet1 + testIPv4H4 + testUDPH2)
+	testIPv4UDPFrameHeader5 = testMustHexDecodeString(testEthernet2 + testIPv4H3 + testUDPH1)
+	testIPv4UDPFrameHeader6 = testMustHexDecodeString(testEthernet2 + testIPv4H3 + testUDPH2)
+	testIPv4UDPFrameHeader7 = testMustHexDecodeString(testEthernet2 + testIPv4H4 + testUDPH1)
+	testIPv4UDPFrameHeader8 = testMustHexDecodeString(testEthernet2 + testIPv4H4 + testUDPH2)
 
-	testIPv6TCPFrameHeader1 = testMustDecodeHex(testEthernet3 + testIPv6H1 + testTCPH1)
-	testIPv6TCPFrameHeader2 = testMustDecodeHex(testEthernet3 + testIPv6H1 + testTCPH2)
-	testIPv6TCPFrameHeader3 = testMustDecodeHex(testEthernet3 + testIPv6H2 + testTCPH1)
-	testIPv6TCPFrameHeader4 = testMustDecodeHex(testEthernet3 + testIPv6H2 + testTCPH2)
-	testIPv6TCPFrameHeader5 = testMustDecodeHex(testEthernet4 + testIPv6H1 + testTCPH1)
-	testIPv6TCPFrameHeader6 = testMustDecodeHex(testEthernet4 + testIPv6H1 + testTCPH2)
-	testIPv6TCPFrameHeader7 = testMustDecodeHex(testEthernet4 + testIPv6H2 + testTCPH1)
-	testIPv6TCPFrameHeader8 = testMustDecodeHex(testEthernet4 + testIPv6H2 + testTCPH2)
+	testIPv6TCPFrameHeader1 = testMustHexDecodeString(testEthernet3 + testIPv6H1 + testTCPH1)
+	testIPv6TCPFrameHeader2 = testMustHexDecodeString(testEthernet3 + testIPv6H1 + testTCPH2)
+	testIPv6TCPFrameHeader3 = testMustHexDecodeString(testEthernet3 + testIPv6H2 + testTCPH1)
+	testIPv6TCPFrameHeader4 = testMustHexDecodeString(testEthernet3 + testIPv6H2 + testTCPH2)
+	testIPv6TCPFrameHeader5 = testMustHexDecodeString(testEthernet4 + testIPv6H1 + testTCPH1)
+	testIPv6TCPFrameHeader6 = testMustHexDecodeString(testEthernet4 + testIPv6H1 + testTCPH2)
+	testIPv6TCPFrameHeader7 = testMustHexDecodeString(testEthernet4 + testIPv6H2 + testTCPH1)
+	testIPv6TCPFrameHeader8 = testMustHexDecodeString(testEthernet4 + testIPv6H2 + testTCPH2)
 
-	testIPv6UDPFrameHeader1 = testMustDecodeHex(testEthernet3 + testIPv6H3 + testUDPH1)
-	testIPv6UDPFrameHeader2 = testMustDecodeHex(testEthernet3 + testIPv6H3 + testUDPH2)
-	testIPv6UDPFrameHeader3 = testMustDecodeHex(testEthernet3 + testIPv6H4 + testUDPH1)
-	testIPv6UDPFrameHeader4 = testMustDecodeHex(testEthernet3 + testIPv6H4 + testUDPH2)
-	testIPv6UDPFrameHeader5 = testMustDecodeHex(testEthernet4 + testIPv6H3 + testUDPH1)
-	testIPv6UDPFrameHeader6 = testMustDecodeHex(testEthernet4 + testIPv6H3 + testUDPH2)
-	testIPv6UDPFrameHeader7 = testMustDecodeHex(testEthernet4 + testIPv6H4 + testUDPH1)
-	testIPv6UDPFrameHeader8 = testMustDecodeHex(testEthernet4 + testIPv6H4 + testUDPH2)
+	testIPv6UDPFrameHeader1 = testMustHexDecodeString(testEthernet3 + testIPv6H3 + testUDPH1)
+	testIPv6UDPFrameHeader2 = testMustHexDecodeString(testEthernet3 + testIPv6H3 + testUDPH2)
+	testIPv6UDPFrameHeader3 = testMustHexDecodeString(testEthernet3 + testIPv6H4 + testUDPH1)
+	testIPv6UDPFrameHeader4 = testMustHexDecodeString(testEthernet3 + testIPv6H4 + testUDPH2)
+	testIPv6UDPFrameHeader5 = testMustHexDecodeString(testEthernet4 + testIPv6H3 + testUDPH1)
+	testIPv6UDPFrameHeader6 = testMustHexDecodeString(testEthernet4 + testIPv6H3 + testUDPH2)
+	testIPv6UDPFrameHeader7 = testMustHexDecodeString(testEthernet4 + testIPv6H4 + testUDPH1)
+	testIPv6UDPFrameHeader8 = testMustHexDecodeString(testEthernet4 + testIPv6H4 + testUDPH2)
 )
 
 var testFrameHeaders = [][]byte{
@@ -85,7 +85,7 @@ var testFrameHeaders = [][]byte{
 	testIPv6UDPFrameHeader5, testIPv6UDPFrameHeader6, testIPv6UDPFrameHeader7, testIPv6UDPFrameHeader8,
 }
 
-func testMustDecodeHex(s string) []byte {
+func testMustHexDecodeString(s string) []byte {
 	data, err := hex.DecodeString(s)
 	if err != nil {
 		panic(err)
