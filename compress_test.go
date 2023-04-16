@@ -5,10 +5,12 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"io"
 	"sync"
 	"testing"
 
+	"github.com/agiledragon/gomonkey/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -183,6 +185,13 @@ func testGenerateFrameHeaders(t *testing.T) [][]byte {
 }
 
 func TestNewCFHWriter(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		w := newCFHWriter(output)
+		require.NotNil(t, w)
+	})
+
 	t.Run("too small dictionary size", func(t *testing.T) {
 		output := bytes.NewBuffer(make([]byte, 0, 64))
 
@@ -197,6 +206,20 @@ func TestNewCFHWriter(t *testing.T) {
 		w, err := newCFHWriterWithSize(output, 4096)
 		require.EqualError(t, err, "dictionary size cannot greater than 256")
 		require.Nil(t, w)
+	})
+
+	t.Run("panic with default parameters", func(t *testing.T) {
+		outputs := []interface{}{nil, errors.New("monkey error")}
+		patch := gomonkey.ApplyFuncReturn(newCFHWriterWithSize, outputs...)
+		defer patch.Reset()
+
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+		}()
+		_ = newCFHWriter(output)
 	})
 }
 
@@ -429,6 +452,13 @@ func TestCFHWriter_searchDictionary(t *testing.T) {
 }
 
 func TestNewCFHReader(t *testing.T) {
+	t.Run("common", func(t *testing.T) {
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		r := newCFHReader(output)
+		require.NotNil(t, r)
+	})
+
 	t.Run("too small dictionary size", func(t *testing.T) {
 		output := bytes.NewBuffer(make([]byte, 0, 64))
 
@@ -443,6 +473,20 @@ func TestNewCFHReader(t *testing.T) {
 		r, err := newCFHReaderWithSize(output, 4096)
 		require.EqualError(t, err, "dictionary size cannot greater than 256")
 		require.Nil(t, r)
+	})
+
+	t.Run("panic with default parameters", func(t *testing.T) {
+		outputs := []interface{}{nil, errors.New("monkey error")}
+		patch := gomonkey.ApplyFuncReturn(newCFHReaderWithSize, outputs...)
+		defer patch.Reset()
+
+		output := bytes.NewBuffer(make([]byte, 0, 64))
+
+		defer func() {
+			r := recover()
+			require.NotNil(t, r)
+		}()
+		_ = newCFHReader(output)
 	})
 }
 
