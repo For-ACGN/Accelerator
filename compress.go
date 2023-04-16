@@ -90,7 +90,10 @@ type cfhWriter struct {
 }
 
 func newCFHWriter(w io.Writer) io.Writer {
-	w, _ = newCFHWriterWithSize(w, 256)
+	w, err := newCFHWriterWithSize(w, 256)
+	if err != nil {
+		panic(err)
+	}
 	return w
 }
 
@@ -370,7 +373,10 @@ type cfhReader struct {
 }
 
 func newCFHReader(r io.Reader) io.Reader {
-	r, _ = newCFHReaderWithSize(r, 256)
+	r, err := newCFHReaderWithSize(r, 256)
+	if err != nil {
+		panic(err)
+	}
 	return r
 }
 
