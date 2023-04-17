@@ -57,7 +57,7 @@ import (
 // +---------+------------------+
 // |  byte   |      uint8       |
 // +---------+------------------+
-const cfhMaxDataSize = 256
+const cfhMaxFrameHeaderSize = 256
 
 const (
 	cfhCMDAddDict = 1 + iota
@@ -115,7 +115,7 @@ func (w *cfhWriter) Write(b []byte) (int, error) {
 	if l < 1 {
 		return 0, nil
 	}
-	if l > cfhMaxDataSize {
+	if l > cfhMaxFrameHeaderSize {
 		return 0, errors.New("write too large data")
 	}
 	if w.err != nil {
@@ -186,19 +186,19 @@ func (w *cfhWriter) write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (w *cfhWriter) searchDictionary(data []byte) int {
-	size := len(data)
+func (w *cfhWriter) searchDictionary(header []byte) int {
+	size := len(header)
 	switch {
 	case size == cfhEthernetIPv4TCPSize:
-		return w.fastSearchDictEthernetIPv4TCP(data)
+		return w.fastSearchDictEthernetIPv4TCP(header)
 	case size == cfhEthernetIPv4UDPSize:
-		return w.fastSearchDictEthernetIPv4UDP(data)
+		return w.fastSearchDictEthernetIPv4UDP(header)
 	case size == cfhEthernetIPv6TCPSize:
-		return w.fastSearchDictEthernetIPv6TCP(data)
+		return w.fastSearchDictEthernetIPv6TCP(header)
 	case size == cfhEthernetIPv6UDPSize:
-		return w.fastSearchDictEthernetIPv6UDP(data)
+		return w.fastSearchDictEthernetIPv6UDP(header)
 	default:
-		return w.slowSearchDict(data)
+		return w.slowSearchDict(header)
 	}
 }
 
@@ -301,7 +301,7 @@ func (w *cfhWriter) slowSearchDict(data []byte) int {
 	)
 	minDiff := len(data) / cfhMinDiffDiv
 	maxDiff := len(data) / cfhMaxDiffDiv
-	curDiff := cfhMaxDataSize
+	curDiff := cfhMaxFrameHeaderSize
 	dictIdx := -1
 next:
 	for i := 0; i < len(w.dict); i++ {
@@ -400,7 +400,7 @@ func (r *cfhReader) Read(b []byte) (int, error) {
 	if l < 1 {
 		return 0, nil
 	}
-	if l > cfhMaxDataSize {
+	if l > cfhMaxFrameHeaderSize {
 		return 0, errors.New("read with too large buffer")
 	}
 	if r.err != nil {
