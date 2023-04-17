@@ -57,7 +57,10 @@ import (
 // +---------+------------------+
 // |  byte   |      uint8       |
 // +---------+------------------+
-const cfhMaxFrameHeaderSize = 256
+const (
+	cfhMaxFrameHeaderSize = 256
+	cfhMaxDictionarySize  = 256
+)
 
 const (
 	cfhCMDAddDict = 1 + iota
@@ -90,7 +93,7 @@ type cfhWriter struct {
 }
 
 func newCFHWriter(w io.Writer) io.Writer {
-	w, err := newCFHWriterWithSize(w, 256)
+	w, err := newCFHWriterWithSize(w, cfhMaxDictionarySize)
 	if err != nil {
 		panic(err)
 	}
@@ -101,7 +104,7 @@ func newCFHWriterWithSize(w io.Writer, size int) (io.Writer, error) {
 	if size < 1 {
 		return nil, errors.New("dictionary size cannot less than 1")
 	}
-	if size > 256 {
+	if size > cfhMaxDictionarySize {
 		return nil, errors.New("dictionary size cannot greater than 256")
 	}
 	return &cfhWriter{
@@ -373,7 +376,7 @@ type cfhReader struct {
 }
 
 func newCFHReader(r io.Reader) io.Reader {
-	r, err := newCFHReaderWithSize(r, 256)
+	r, err := newCFHReaderWithSize(r, cfhMaxDictionarySize)
 	if err != nil {
 		panic(err)
 	}
@@ -384,7 +387,7 @@ func newCFHReaderWithSize(r io.Reader, size int) (io.Reader, error) {
 	if size < 1 {
 		return nil, errors.New("dictionary size cannot less than 1")
 	}
-	if size > 256 {
+	if size > cfhMaxDictionarySize {
 		return nil, errors.New("dictionary size cannot greater than 256")
 	}
 	return &cfhReader{
